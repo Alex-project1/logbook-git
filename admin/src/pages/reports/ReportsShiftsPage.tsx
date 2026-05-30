@@ -1,0 +1,733 @@
+import { Link } from "react-router-dom";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { getCities } from "../../api/cities.api";
+import type { City } from "../../api/cities.api";
+import { getCrews } from "../../api/crews.api";
+import type { Crew } from "../../api/crews.api";
+import { getEmployees } from "../../api/employees.api";
+import type { Employee } from "../../api/employees.api";
+import {
+  downloadShiftsTableExcel,
+  getShiftsTableReport,
+} from "../../api/reports.api";
+import { deleteManualShift } from "../../api/manual-shifts.api";
+import type {
+  ShiftTableRow,
+  ShiftsTableFilters,
+  ShiftsTableResponse,
+} from "../../api/reports.api";
+import { getVehicles } from "../../api/vehicles.api";
+import type { Vehicle } from "../../api/vehicles.api";
+
+import { getAdminMe } from "../../api/auth.api";
+import type { AdminUser } from "../../api/auth.api";
+
+const defaultFilters: ShiftsTableFilters = {
+  page: 1,
+  pageSize: 20,
+  sortBy: "shiftDate",
+  sortDir: "desc",
+};
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString("ru-RU");
+}
+
+function formatTime(value: string | null) {
+  if (!value) return "—";
+
+  return new Date(value).toLocaleTimeString("ru-RU", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatNumber(value: number) {
+  return value.toLocaleString("ru-RU");
+}
+
+function formatKm(value: number) {
+  return `${formatNumber(value)} км`;
+}
+
+function getWeaponLabel(row: ShiftTableRow) {
+  const driver = row.driverHasWeapon ? "водитель" : "";
+  const senior = row.seniorHasWeapon ? "старший" : "";
+
+  const parts = [driver, senior].filter(Boolean);
+
+  return parts.length ? parts.join(", ") : "без оружия";
+}
+
+export function ReportsShiftsPage() {
+  const [filters, setFilters] = useState<ShiftsTableFilters>(defaultFilters);
+  const [report, setReport] = useState<ShiftsTableResponse | null>(null);
+
+  const [cities, setCities] = useState<City[]>([]);
+  const [crews, setCrews] = useState<Crew[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+
+  const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
+
+  const [loading, setLoading] = useState(true);
+  const [deletingShiftId, setDeletingShiftId] = useState<number | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<ShiftTableRow | null>(
+    null
+  );
+  const [deleteReason, setDeleteReason] = useState("");
+  const [openActionsRowId, setOpenActionsRowId] = useState<number | null>(null);
+  const [excelLoading, setExcelLoading] = useState(false);
+  const [referencesLoading, setReferencesLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [currentUser, setCurrentUser] = useState<AdminUser | null>(null);
+
+  const rows = report?.data ?? [];
+  const pagination = report?.pagination;
+  const roleCode = currentUser?.role?.code;
+  const canManageShifts = roleCode === "super_admin" || roleCode === "admin";
+
+  const activeCities = useMemo(
+    () => cities.filter((city) => city.isActive),
+    [cities]
+  );
+  useEffect(() => {
+    if (openActionsRowId === null) {
+      return;
+    }
+
+    function handleDocumentClick(event: MouseEvent) {
+      const target = event.target;
+
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      if (!target.closest(".row-action-dropdown")) {
+        setOpenActionsRowId(null);
+      }
+    }
+
+    document.addEventListener("mousedown", handleDocumentClick);
+
+    return () => {
+      document.removeEventListener("mousedown", handleDocumentClick);
+    };
+  }, [openActionsRowId]);
+  async function loadReferences() {
+    setReferencesLoading(true);
+
+    try {
+      const [citiesData, crewsData, vehiclesData, employeesData] =
+        await Promise.all([
+          getCities(false),
+          getCrews(undefined, false),
+          getVehicles(undefined, false),
+          getEmployees(undefined, false),
+        ]);
+
+      setCities(citiesData);
+      setCrews(crewsData);
+      setVehicles(vehiclesData);
+      setEmployees(employeesData);
+    } finally {
+      setReferencesLoading(false);
+    }
+  }
+
+  async function loadReport(nextFilters = filters) {
+    setLoading(true);
+    setError("");
+
+    try {
+      const data = await getShiftsTableReport(nextFilters);
+      setReport(data);
+      setExpandedRows({});
+    } catch {
+      setError("Не удалось загрузить итоги смен");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    async function loadCurrentUser() {
+      try {
+        const response = await getAdminMe();
+        setCurrentUser(response.user);
+      } catch {
+        setCurrentUser(null);
+      }
+    }
+
+    loadCurrentUser();
+    loadReferences();
+    loadReport(defaultFilters);
+  }, []);
+
+  function updateFilter<Key extends keyof ShiftsTableFilters>(
+    key: Key,
+    value: ShiftsTableFilters[Key]
+  ) {
+    setFilters((prev) => ({
+      ...prev,
+      [key]: value,
+      page: key === "page" ? (value as number) : 1,
+    }));
+  }
+
+  async function handleApply() {
+    await loadReport({
+      ...filters,
+      page: 1,
+    });
+  }
+
+  async function handleReset() {
+    setFilters(defaultFilters);
+    await loadReport(defaultFilters);
+  }
+
+  async function handlePageChange(page: number) {
+    const nextFilters: ShiftsTableFilters = {
+      ...filters,
+      page,
+    };
+
+    setFilters(nextFilters);
+    await loadReport(nextFilters);
+  }
+
+  async function handlePageSizeChange(pageSize: number) {
+    const nextFilters: ShiftsTableFilters = {
+      ...filters,
+      page: 1,
+      pageSize,
+    };
+
+    setFilters(nextFilters);
+    await loadReport(nextFilters);
+  }
+
+  async function handleSort(sortBy: NonNullable<ShiftsTableFilters["sortBy"]>) {
+    const nextSortDir: "asc" | "desc" =
+      filters.sortBy === sortBy && filters.sortDir === "desc" ? "asc" : "desc";
+
+    const nextFilters: ShiftsTableFilters = {
+      ...filters,
+      sortBy,
+      sortDir: nextSortDir,
+      page: 1,
+    };
+
+    setFilters(nextFilters);
+    await loadReport(nextFilters);
+  }
+
+  function toggleRow(rowId: number) {
+    setExpandedRows((prev) => ({
+      ...prev,
+      [rowId]: !prev[rowId],
+    }));
+  }
+  async function handleExcel() {
+    setExcelLoading(true);
+    setError("");
+
+    try {
+      await downloadShiftsTableExcel(filters);
+    } catch {
+      setError("Не удалось скачать Excel");
+    } finally {
+      setExcelLoading(false);
+    }
+  }
+
+  function openDeleteShiftModal(row: ShiftTableRow) {
+    setOpenActionsRowId(null);
+    setDeleteCandidate(row);
+    setDeleteReason("");
+    setError("");
+  }
+
+  async function handleConfirmDeleteShift() {
+    if (!deleteCandidate) {
+      return;
+    }
+
+    if (!deleteReason.trim()) {
+      setError("Укажите причину удаления смены");
+      return;
+    }
+
+    setDeletingShiftId(deleteCandidate.id);
+    setError("");
+
+    try {
+      await deleteManualShift(deleteCandidate.id, deleteReason.trim());
+      setDeleteCandidate(null);
+      setDeleteReason("");
+      await loadReport(filters);
+    } catch {
+      setError("Не удалось удалить смену");
+    } finally {
+      setDeletingShiftId(null);
+    }
+  }
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div>
+          <h1>Итоги по сменам</h1>
+          <p>Сводная таблица смен с пробегом, сработками и поездками внутри</p>
+        </div>
+      </div>
+
+      <div className="panel-card report-filters">
+        <div className="trips-filters-grid">
+          <label className="field">
+            <span>Дата от</span>
+            <input
+              type="date"
+              value={filters.dateFrom ?? ""}
+              onChange={(event) =>
+                updateFilter("dateFrom", event.target.value || undefined)
+              }
+            />
+          </label>
+
+          <label className="field">
+            <span>Дата до</span>
+            <input
+              type="date"
+              value={filters.dateTo ?? ""}
+              onChange={(event) =>
+                updateFilter("dateTo", event.target.value || undefined)
+              }
+            />
+          </label>
+
+          <label className="field">
+            <span>Город</span>
+            <select
+              value={filters.cityId ?? 0}
+              onChange={(event) =>
+                updateFilter("cityId", Number(event.target.value) || undefined)
+              }
+              disabled={referencesLoading}
+            >
+              <option value={0}>Все города</option>
+
+              {activeCities.map((city) => (
+                <option key={city.id} value={city.id}>
+                  {city.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field">
+            <span>Наряд</span>
+            <select
+              value={filters.crewId ?? 0}
+              onChange={(event) =>
+                updateFilter("crewId", Number(event.target.value) || undefined)
+              }
+            >
+              <option value={0}>Все наряды</option>
+
+              {crews.map((crew) => (
+                <option key={crew.id} value={crew.id}>
+                  {crew.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field">
+            <span>Автомобиль</span>
+            <select
+              value={filters.vehicleId ?? 0}
+              onChange={(event) =>
+                updateFilter("vehicleId", Number(event.target.value) || undefined)
+              }
+            >
+              <option value={0}>Все автомобили</option>
+
+              {vehicles.map((vehicle) => (
+                <option key={vehicle.id} value={vehicle.id}>
+                  {vehicle.title}
+                  {vehicle.licensePlate ? ` · ${vehicle.licensePlate}` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field">
+            <span>Сотрудник</span>
+            <select
+              value={filters.employeeId ?? 0}
+              onChange={(event) =>
+                updateFilter("employeeId", Number(event.target.value) || undefined)
+              }
+            >
+              <option value={0}>Все сотрудники</option>
+
+              {employees.map((employee) => (
+                <option key={employee.id} value={employee.id}>
+                  {employee.fullName}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field">
+            <span>Поиск</span>
+            <input
+              value={filters.search ?? ""}
+              onChange={(event) => updateFilter("search", event.target.value)}
+              placeholder="Город, наряд, авто, сотрудник..."
+            />
+          </label>
+        </div>
+
+        <div className="report-filter-actions">
+          <button className="primary-button" onClick={handleApply} disabled={loading}>
+            {loading ? "Загрузка..." : "Сформировать"}
+          </button>
+
+          <button className="secondary-button" onClick={handleReset}>
+            Сбросить
+          </button>
+
+          <button
+            className="secondary-button"
+            onClick={handleExcel}
+            disabled={excelLoading}
+          >
+            {excelLoading ? "Скачивание..." : "Скачать Excel"}
+          </button>
+        </div>
+      </div>
+
+      {error && <div className="form-error report-error">{error}</div>}
+
+      <div className="stats-grid report-stats-grid">
+        <div className="stat-card">
+          <span>Смен на странице</span>
+          <strong>{formatNumber(report?.summary.totalRowsOnPage ?? 0)}</strong>
+        </div>
+
+        <div className="stat-card">
+          <span>Поездок</span>
+          <strong>{formatNumber(report?.summary.totalTrips ?? 0)}</strong>
+        </div>
+
+        <div className="stat-card">
+          <span>Пробег</span>
+          <strong>{formatKm(report?.summary.totalDistanceKm ?? 0)}</strong>
+        </div>
+
+        <div className="stat-card">
+          <span>Сработок</span>
+          <strong>{formatNumber(report?.summary.totalAlarms ?? 0)}</strong>
+        </div>
+
+        <div className="stat-card">
+          <span>ОХ / Партнеры</span>
+          <strong>
+            {formatNumber(report?.summary.totalOh ?? 0)} /{" "}
+            {formatNumber(report?.summary.totalPartner ?? 0)}
+          </strong>
+        </div>
+
+        <div className="stat-card">
+          <span>Боевые / Ложные</span>
+          <strong>
+            {formatNumber(report?.summary.combatTotal ?? 0)} /{" "}
+            {formatNumber(report?.summary.falseTotal ?? 0)}
+          </strong>
+        </div>
+
+        <div className="stat-card">
+          <span>Задержано / Передано</span>
+          <strong>
+            {formatNumber(report?.summary.detained ?? 0)} /{" "}
+            {formatNumber(report?.summary.transferred ?? 0)}
+          </strong>
+        </div>
+      </div>
+
+      <div className="panel-card table-card">
+        <div className="table-header">
+          <div>
+            <h2>Смены</h2>
+            <p>
+              Всего строк: {formatNumber(pagination?.total ?? 0)} · Страница{" "}
+              {pagination?.page ?? 1} из {pagination?.totalPages ?? 1}
+            </p>
+          </div>
+
+          <div className="table-header-actions">
+            <select
+              className="compact-select"
+              value={filters.pageSize ?? 20}
+              onChange={(event) => handlePageSizeChange(Number(event.target.value))}
+            >
+              <option value={20}>20 строк</option>
+              <option value={50}>50 строк</option>
+              <option value={100}>100 строк</option>
+            </select>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="empty-state">Загрузка смен...</div>
+        ) : rows.length === 0 ? (
+          <div className="empty-state">Смены по выбранным фильтрам не найдены</div>
+        ) : (
+          <>
+            <div className="table-wrap">
+              <table className="data-table shifts-table">
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th onClick={() => handleSort("shiftDate")}>Дата</th>
+                    <th onClick={() => handleSort("submittedAt")}>Отправлено</th>
+                    <th>Город</th>
+                    <th>Наряд</th>
+                    <th>Авто</th>
+                    <th>Водитель</th>
+                    <th>Старший</th>
+                    <th>Оружие</th>
+                    <th onClick={() => handleSort("odometerStart")}>Спид. начало</th>
+                    <th onClick={() => handleSort("odometerEndCalculated")}>Спид. конец</th>
+                    <th onClick={() => handleSort("totalDistanceKm")}>Пробег</th>
+                    <th>Поездок</th>
+                    <th>Сработок</th>
+                    <th>ОХ</th>
+                    <th>Партнеры</th>
+                    <th>Боевые</th>
+                    <th>Ложные</th>
+                    <th>Доп.</th>
+                    <th>Задержано</th>
+                    <th>Передано</th>
+                    {canManageShifts && <th>Действия</th>}
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {rows.map((row) => {
+                    const expanded = expandedRows[row.id];
+
+                    return (
+                      <Fragment key={row.id}>
+                        <tr>
+                          <td>
+                            <button
+                              className="row-toggle-button"
+                              onClick={() => toggleRow(row.id)}
+                            >
+                              {expanded ? "−" : "+"}
+                            </button>
+                          </td>
+                          <td>{formatDate(row.shiftDate)}</td>
+                          <td>{formatTime(row.submittedAt)}</td>
+                          <td>{row.city.name}</td>
+                          <td>{row.crew.name}</td>
+                          <td>
+                            {row.vehicle.title}
+                            {row.vehicle.licensePlate && (
+                              <div className="muted-text">
+                                {row.vehicle.licensePlate}
+                              </div>
+                            )}
+                          </td>
+                          <td>{row.driverEmployee.fullName}</td>
+                          <td>{row.seniorEmployee.fullName}</td>
+                          <td>{getWeaponLabel(row)}</td>
+                          <td>{row.odometerStart}</td>
+                          <td>{row.odometerEndCalculated}</td>
+                          <td>{row.totalDistanceKm}</td>
+                          <td>{row.summary.totalTrips}</td>
+                          <td>{row.summary.totalAlarms}</td>
+                          <td>{row.summary.totalOh}</td>
+                          <td>{row.summary.totalPartner}</td>
+                          <td>{row.summary.combatTotal}</td>
+                          <td>{row.summary.falseTotal}</td>
+                          <td>{row.summary.additionalTotal}</td>
+                          <td>{row.summary.detained}</td>
+                          <td>{row.summary.transferred}</td>
+                          {canManageShifts && (
+                            <td className="actions-cell">
+                              <div
+                                className={`row-action-dropdown ${openActionsRowId === row.id ? "is-open" : ""
+                                  }`}
+                              >
+                                <button
+                                  type="button"
+                                  className="small-button row-action-trigger"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+
+                                    setOpenActionsRowId((currentId) =>
+                                      currentId === row.id ? null : row.id
+                                    );
+                                  }}
+                                >
+                                  Действия
+                                  <span className="row-action-trigger-icon">▾</span>
+                                </button>
+
+                                {openActionsRowId === row.id && (
+                                  <div className="row-action-menu">
+                                    <Link
+                                      className="row-action-menu-item edit"
+                                      to={`/manual-shifts/${row.id}/edit`}
+                                      onClick={() => setOpenActionsRowId(null)}
+                                    >
+                                      <span className="row-action-dot" />
+                                      Редактировать
+                                    </Link>
+
+                                    <button
+                                      type="button"
+                                      className="row-action-menu-item danger"
+                                      onClick={() => openDeleteShiftModal(row)}
+                                      disabled={deletingShiftId === row.id}
+                                    >
+                                      <span className="row-action-dot" />
+                                      {deletingShiftId === row.id ? "Удаляем..." : "Удалить"}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+
+                        {expanded && (
+                          <tr className="expanded-row">
+                            <td colSpan={canManageShifts ? 22 : 21}>
+                              <div className="expanded-content">
+                                <h3>Поездки смены</h3>
+
+                                {row.trips.length === 0 ? (
+                                  <div className="empty-state">
+                                    В смене нет поездок
+                                  </div>
+                                ) : (
+                                  <div className="shift-trip-list">
+                                    {row.trips.map((trip) => (
+                                      <div className="event-card" key={trip.id}>
+                                        <strong>
+                                          {formatTime(trip.departureTime)} ·{" "}
+                                          {trip.fromLocation} → {trip.toLocation}
+                                        </strong>
+
+                                        <div className="event-grid">
+                                          <span>Цель: {trip.goal.name}</span>
+                                          <span>Км: {trip.distanceKm}</span>
+                                          <span>Мин.: {trip.arrivalMinutes}</span>
+                                          <span>Сработка: {trip.eventSummary}</span>
+                                          <span>
+                                            Задержано: {trip.eventTotals.detained}
+                                          </span>
+                                          <span>
+                                            Передано: {trip.eventTotals.transferred}
+                                          </span>
+                                        </div>
+
+                                        {trip.note && (
+                                          <div className="muted-text">
+                                            {trip.note}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="pagination-bar">
+              <button
+                className="secondary-button"
+                disabled={(pagination?.page ?? 1) <= 1}
+                onClick={() => handlePageChange((pagination?.page ?? 1) - 1)}
+              >
+                Назад
+              </button>
+
+              <span>
+                Страница {pagination?.page ?? 1} из{" "}
+                {pagination?.totalPages ?? 1}
+              </span>
+
+              <button
+                className="secondary-button"
+                disabled={(pagination?.page ?? 1) >= (pagination?.totalPages ?? 1)}
+                onClick={() => handlePageChange((pagination?.page ?? 1) + 1)}
+              >
+                Вперед
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+      {canManageShifts && deleteCandidate && (
+        <div className="modal-backdrop" onMouseDown={() => setDeleteCandidate(null)}>
+          <div
+            className="modal-card"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <h2>Удалить смену</h2>
+
+            <p className="modal-text">
+              Смена: <strong>{deleteCandidate.crew.name}</strong> от{" "}
+              <strong>{formatDate(deleteCandidate.shiftDate)}</strong>
+            </p>
+
+            <label className="field">
+              <span>Причина удаления</span>
+              <textarea
+                value={deleteReason}
+                onChange={(event) => setDeleteReason(event.target.value)}
+                placeholder="Например: ошибка ввода, дубль смены, неверный автомобиль..."
+                rows={4}
+                autoFocus
+              />
+            </label>
+
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setDeleteCandidate(null)}
+              >
+                Отмена
+              </button>
+
+              <button
+                type="button"
+                className="primary-button danger-primary-button"
+                onClick={handleConfirmDeleteShift}
+                disabled={deletingShiftId === deleteCandidate.id}
+              >
+                {deletingShiftId === deleteCandidate.id ? "Удаляем..." : "Удалить"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

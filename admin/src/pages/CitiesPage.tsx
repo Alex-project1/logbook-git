@@ -1,0 +1,373 @@
+import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
+import {
+  createCity,
+  deleteCity,
+  getCities,
+  restoreCity,
+  updateCity,
+} from "../api/cities.api";
+import type { City } from "../api/cities.api";
+import { RowActionMenu } from "../components/RowActionMenu";
+
+type FormState = {
+  name: string;
+  isActive: boolean;
+};
+
+const initialForm: FormState = {
+  name: "",
+  isActive: true,
+};
+
+export function CitiesPage() {
+  const [cities, setCities] = useState<City[]>([]);
+  const [form, setForm] = useState<FormState>(initialForm);
+  const [editingCity, setEditingCity] = useState<City | null>(null);
+  const [showArchive, setShowArchive] = useState(false);
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  async function loadCities(archive = showArchive) {
+    setLoading(true);
+    setError("");
+
+    try {
+      const data = await getCities(archive);
+      setCities(data);
+    } catch {
+      setError("Не удалось загрузить города");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadCities();
+  }, []);
+
+  function startEdit(city: City) {
+    setEditingCity(city);
+    setForm({
+      name: city.name,
+      isActive: city.isActive,
+    });
+
+    setError("");
+    setSuccess("");
+  }
+
+  function resetForm() {
+    setEditingCity(null);
+    setForm(initialForm);
+    setError("");
+  }
+
+  async function handleArchiveFilterChange(value: string) {
+    const archive = value === "archive";
+
+    setShowArchive(archive);
+    setEditingCity(null);
+    setForm(initialForm);
+    setError("");
+    setSuccess("");
+
+    await loadCities(archive);
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!form.name.trim()) {
+      setError("Введите название города");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      if (editingCity) {
+        await updateCity(editingCity.id, {
+          name: form.name.trim(),
+          isActive: form.isActive,
+        });
+
+        setSuccess("Город обновлен");
+      } else {
+        await createCity({
+          name: form.name.trim(),
+          isActive: form.isActive,
+        });
+
+        setSuccess("Город добавлен");
+      }
+
+      resetForm();
+      await loadCities(showArchive);
+    } catch (err: any) {
+      if (err.response?.status === 409) {
+        setError("Город с таким названием уже существует");
+      } else {
+        setError("Не удалось сохранить город");
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleToggleActive(city: City) {
+    setError("");
+    setSuccess("");
+
+    try {
+      await updateCity(city.id, {
+        isActive: !city.isActive,
+      });
+
+      setSuccess(city.isActive ? "Город отключен" : "Город включен");
+      await loadCities(showArchive);
+    } catch {
+      setError("Не удалось изменить статус города");
+    }
+  }
+
+  async function handleRestore(city: City) {
+    setError("");
+    setSuccess("");
+
+    try {
+      await restoreCity(city.id);
+      setSuccess("Город восстановлен");
+      await loadCities(showArchive);
+    } catch (err: any) {
+      if (err.response?.status === 409) {
+        setError("Нельзя восстановить: активный город с таким названием уже существует");
+      } else {
+        setError("Не удалось восстановить город");
+      }
+    }
+  }
+
+  async function handleDelete(city: City) {
+    const confirmed = window.confirm(
+      `Удалить город "${city.name}"? Он будет перемещен в архив.`
+    );
+
+    if (!confirmed) return;
+
+    setError("");
+    setSuccess("");
+
+    try {
+      await deleteCity(city.id);
+      setSuccess("Город перемещен в архив");
+      await loadCities(showArchive);
+    } catch {
+      setError("Не удалось удалить город");
+    }
+  }
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div>
+          <h1>Города</h1>
+          <p>Управление городами системы</p>
+        </div>
+      </div>
+
+      <div className="content-grid">
+        {!showArchive && (
+          <form className="panel-card" onSubmit={handleSubmit}>
+            <h2>{editingCity ? "Редактировать город" : "Добавить город"}</h2>
+
+            <label className="field">
+              <span>Название города</span>
+              <input
+                value={form.name}
+                onChange={(event) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    name: event.target.value,
+                  }))
+                }
+                placeholder="Например: Харьков"
+              />
+            </label>
+
+            <label className="checkbox-field">
+              <input
+                type="checkbox"
+                checked={form.isActive}
+                onChange={(event) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    isActive: event.target.checked,
+                  }))
+                }
+              />
+              <span>Город активен</span>
+            </label>
+
+            {error && <div className="form-error">{error}</div>}
+            {success && <div className="form-success">{success}</div>}
+
+            <div className="form-actions">
+              <button className="primary-button" disabled={saving}>
+                {saving
+                  ? "Сохранение..."
+                  : editingCity
+                  ? "Сохранить"
+                  : "Добавить"}
+              </button>
+
+              {editingCity && (
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={resetForm}
+                >
+                  Отмена
+                </button>
+              )}
+            </div>
+          </form>
+        )}
+
+        {showArchive && (
+          <div className="panel-card">
+            <h2>Архив городов</h2>
+            <div className="info-box">
+              Здесь отображаются удаленные города. Их можно восстановить, если
+              нужно вернуть связанные справочники и доступы.
+            </div>
+
+            {error && <div className="form-error">{error}</div>}
+            {success && <div className="form-success">{success}</div>}
+          </div>
+        )}
+
+        <div className="panel-card table-card">
+          <div className="table-header">
+            <div>
+              <h2>{showArchive ? "Архив городов" : "Список городов"}</h2>
+              <p>Всего: {cities.length}</p>
+            </div>
+
+            <div className="table-header-actions">
+              <select
+                className="compact-select"
+                value={showArchive ? "archive" : "active"}
+                onChange={(event) => handleArchiveFilterChange(event.target.value)}
+              >
+                <option value="active">Рабочие</option>
+                <option value="archive">Архив</option>
+              </select>
+
+              <button
+                className="secondary-button"
+                onClick={() => loadCities(showArchive)}
+              >
+                Обновить
+              </button>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="empty-state">Загрузка...</div>
+          ) : cities.length === 0 ? (
+            <div className="empty-state">
+              {showArchive ? "В архиве нет городов" : "Города еще не добавлены"}
+            </div>
+          ) : (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Название</th>
+                    <th>Статус</th>
+                    <th>{showArchive ? "Удален" : "Создан"}</th>
+                    <th></th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {cities.map((city) => (
+                    <tr key={city.id}>
+                      <td>{city.id}</td>
+                      <td>
+                        <strong>{city.name}</strong>
+                      </td>
+                      <td>
+                        {showArchive ? (
+                          <span className="status-badge status-inactive">
+                            В архиве
+                          </span>
+                        ) : (
+                          <span
+                            className={
+                              city.isActive
+                                ? "status-badge status-active"
+                                : "status-badge status-inactive"
+                            }
+                          >
+                            {city.isActive ? "Активен" : "Отключен"}
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        {new Date(
+                          showArchive && city.deletedAt
+                            ? city.deletedAt
+                            : city.createdAt
+                        ).toLocaleDateString()}
+                      </td>
+                      <td className="actions-cell">
+  {showArchive ? (
+    <RowActionMenu
+      items={[
+        {
+          label: "Восстановить",
+          onClick: () => handleRestore(city),
+        },
+      ]}
+    />
+  ) : (
+    <RowActionMenu
+      items={[
+        {
+          label: "Редактировать",
+          variant: "edit",
+          onClick: () => startEdit(city),
+        },
+        {
+          label: city.isActive ? "Отключить" : "Включить",
+          onClick: () => handleToggleActive(city),
+        },
+        {
+          label: "Удалить",
+          variant: "danger",
+          onClick: () => handleDelete(city),
+        },
+      ]}
+    />
+  )}
+</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,517 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum AdminAccessLevel {
+  VIEW
+  EDIT
+  FULL
+}
+
+enum ShiftSourceType {
+  MOBILE_APP
+  ADMIN_PANEL
+}
+
+enum AppSyncStatus {
+  DRAFT
+  NOT_SENT
+  SENDING
+  SENT
+  ERROR
+}
+
+enum TripEventCategory {
+  REGULAR_ALARM
+  ADDITIONAL_ALARM
+}
+
+enum AlarmSource {
+  OH
+  PARTNER
+}
+
+model Role {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users User[]
+
+  @@map("roles")
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  roleId       Int
+  name         String
+  email        String?   @unique
+  login        String    @unique
+  passwordHash String
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  role              Role              @relation(fields: [roleId], references: [id])
+  adminCityAccesses AdminCityAccess[]
+
+  @@index([roleId])
+  @@map("users")
+}
+
+model Permission {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("permissions")
+}
+
+model City {
+  id        Int       @id @default(autoincrement())
+  name      String
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  adminAccesses    AdminCityAccess[]
+  mobileUsers      MobileUser[]
+  employees        Employee[]
+  crews            Crew[]
+  vehicles         Vehicle[]
+  streets          Street[]
+  shifts           Shift[]
+  trips            Trip[]
+  telegramChannels TelegramCityChannel[]
+
+  dutyPosts  DutyPost[] @relation("DutyPostCity")
+  postDuties PostDuty[] @relation("PostDutyCity")
+
+  @@map("cities")
+}
+
+model AdminCityAccess {
+  id             Int              @id @default(autoincrement())
+  userId         Int
+  cityId         Int
+  accessLevel    AdminAccessLevel @default(VIEW)
+  canAddShift    Boolean          @default(false)
+  canDeleteShift Boolean          @default(false)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+  city City @relation(fields: [cityId], references: [id])
+
+  @@unique([userId, cityId])
+  @@index([cityId])
+  @@map("admin_city_access")
+}
+
+model MobileUser {
+  id           Int       @id @default(autoincrement())
+  cityId       Int
+  login        String    @unique
+  passwordHash String
+  comment      String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  city   City    @relation(fields: [cityId], references: [id])
+  shifts Shift[]
+
+  @@index([cityId])
+  @@map("mobile_users")
+}
+
+model Employee {
+  id        Int       @id @default(autoincrement())
+  cityId    Int
+  fullName  String
+  position  String?
+  comment   String?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  city City @relation(fields: [cityId], references: [id])
+
+  driverShifts Shift[] @relation("DriverEmployee")
+  seniorShifts Shift[] @relation("SeniorEmployee")
+
+  postDutyMembers PostDutyMember[] @relation("EmployeePostDutyMembers")
+
+  @@index([cityId])
+  @@map("employees")
+}
+
+model Crew {
+  id        Int       @id @default(autoincrement())
+  cityId    Int
+  name      String
+  comment   String?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  city   City    @relation(fields: [cityId], references: [id])
+  shifts Shift[]
+
+  @@index([cityId])
+  @@map("crews")
+}
+
+model Vehicle {
+  id            Int       @id @default(autoincrement())
+  cityId        Int
+  title         String
+  licensePlate  String?
+  startOdometer Int?
+  comment       String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  city       City       @relation(fields: [cityId], references: [id])
+  shifts     Shift[]
+  postDuties PostDuty[] @relation("VehiclePostDuties")
+
+  @@index([cityId])
+  @@map("vehicles")
+}
+
+model Street {
+  id        Int       @id @default(autoincrement())
+  cityId    Int
+  name      String
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  city City @relation(fields: [cityId], references: [id])
+
+  @@index([cityId])
+  @@map("streets")
+}
+
+model TripGoal {
+  id         Int       @id @default(autoincrement())
+  name       String
+  systemCode String?   @unique
+  isSystem   Boolean   @default(false)
+  isActive   Boolean   @default(true)
+  sortOrder  Int       @default(0)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  trips Trip[]
+
+  @@map("trip_goals")
+}
+
+model AdditionalAlarmReason {
+  id        Int       @id @default(autoincrement())
+  name      String
+  isSystem  Boolean   @default(false)
+  isActive  Boolean   @default(true)
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  tripEvents TripEvent[]
+
+  @@map("additional_alarm_reasons")
+}
+
+model Shift {
+  id               Int             @id @default(autoincrement())
+  localShiftId     String?         @unique
+  cityId           Int
+  mobileUserId     Int?
+  createdByAdminId Int?
+  sourceType       ShiftSourceType @default(MOBILE_APP)
+
+  crewId           Int
+  vehicleId        Int
+  driverEmployeeId Int
+  driverHasWeapon  Boolean @default(false)
+  seniorEmployeeId Int
+  seniorHasWeapon  Boolean @default(false)
+
+  shiftDate             DateTime
+  odometerStart         Int
+  odometerEndCalculated Int
+  totalDistanceKm       Decimal  @db.Decimal(10, 2)
+
+  appSyncStatus AppSyncStatus @default(SENT)
+  submittedAt   DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
+  deletedBy     Int?
+  deleteReason  String?
+
+  city           City        @relation(fields: [cityId], references: [id])
+  mobileUser     MobileUser? @relation(fields: [mobileUserId], references: [id])
+  crew           Crew        @relation(fields: [crewId], references: [id])
+  vehicle        Vehicle     @relation(fields: [vehicleId], references: [id])
+  driverEmployee Employee    @relation("DriverEmployee", fields: [driverEmployeeId], references: [id])
+  seniorEmployee Employee    @relation("SeniorEmployee", fields: [seniorEmployeeId], references: [id])
+
+  trips            Trip[]
+  telegramSendLogs TelegramSendLog[]
+
+  @@index([cityId])
+  @@index([crewId])
+  @@index([vehicleId])
+  @@index([driverEmployeeId])
+  @@index([seniorEmployeeId])
+  @@index([shiftDate])
+  @@map("shifts")
+}
+
+model Trip {
+  id             Int       @id @default(autoincrement())
+  shiftId        Int
+  cityId         Int
+  fromLocation   String
+  departureTime  DateTime
+  toLocation     String
+  arrivalTime    DateTime
+  arrivalMinutes Int
+  distanceKm     Decimal   @db.Decimal(10, 2)
+  goalId         Int
+  note           String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  shift Shift    @relation(fields: [shiftId], references: [id])
+  city  City     @relation(fields: [cityId], references: [id])
+  goal  TripGoal @relation(fields: [goalId], references: [id])
+
+  events TripEvent[]
+
+  @@index([shiftId])
+  @@index([cityId])
+  @@index([goalId])
+  @@map("trips")
+}
+
+model TripEvent {
+  id            Int               @id @default(autoincrement())
+  tripId        Int
+  eventCategory TripEventCategory
+
+  alarmSource AlarmSource?
+  countTotal  Int          @default(0)
+  isCombat    Boolean?
+
+  reasonId         Int?
+  customReasonText String?
+  ohCount          Int     @default(0)
+  partnerCount     Int     @default(0)
+
+  detainedCount    Int     @default(0)
+  transferredCount Int     @default(0)
+  note             String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  trip   Trip                   @relation(fields: [tripId], references: [id])
+  reason AdditionalAlarmReason? @relation(fields: [reasonId], references: [id])
+
+  @@index([tripId])
+  @@index([reasonId])
+  @@map("trip_events")
+}
+
+model TelegramSetting {
+  id                Int      @id @default(autoincrement())
+  botTokenEncrypted String?
+  isEnabled         Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("telegram_settings")
+}
+
+model TelegramCityChannel {
+  id          Int      @id @default(autoincrement())
+  cityId      Int
+  channelId   String
+  channelName String?
+  isEnabled   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  city City @relation(fields: [cityId], references: [id])
+
+  @@index([cityId])
+  @@map("telegram_city_channels")
+}
+
+model TelegramSendLog {
+  id           Int      @id @default(autoincrement())
+  cityId       Int
+  shiftId      Int
+  channelId    String
+  status       String
+  errorMessage String?
+  sentAt       DateTime @default(now())
+
+  shift Shift @relation(fields: [shiftId], references: [id])
+
+  @@index([cityId])
+  @@index([shiftId])
+  @@map("telegram_send_logs")
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int?
+  action     String
+  entityType String
+  entityId   Int?
+  oldValue   Json?
+  newValue   Json?
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityType])
+  @@index([entityId])
+  @@map("audit_logs")
+}
+
+model SyncLog {
+  id        Int      @id @default(autoincrement())
+  source    String
+  status    String
+  message   String?
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  @@map("sync_logs")
+}
+
+model AdminActionLog {
+  id Int @id @default(autoincrement())
+
+  adminUserId Int?
+  adminLogin  String? @db.VarChar(100)
+  adminName   String? @db.VarChar(255)
+
+  action     String @db.VarChar(80)
+  entityType String @db.VarChar(80)
+  entityId   Int?
+  cityId     Int?
+
+  description String? @db.VarChar(1000)
+  metadata    Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([cityId])
+  @@map("admin_action_logs")
+}
+
+model DutyPost {
+  id Int @id @default(autoincrement())
+
+  cityId Int
+  city   City @relation("DutyPostCity", fields: [cityId], references: [id])
+
+  name      String    @db.VarChar(255)
+  comment   String?   @db.VarChar(1000)
+  isActive  Boolean   @default(true)
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  postDuties PostDuty[] @relation("DutyPostDuties")
+
+  @@unique([cityId, name])
+  @@index([cityId])
+  @@index([deletedAt])
+  @@map("duty_posts")
+}
+
+model PostDuty {
+  id Int @id @default(autoincrement())
+
+  cityId Int
+  city   City @relation("PostDutyCity", fields: [cityId], references: [id])
+
+  postId Int
+  post   DutyPost @relation("DutyPostDuties", fields: [postId], references: [id])
+
+  vehicleId Int?
+  vehicle   Vehicle? @relation("VehiclePostDuties", fields: [vehicleId], references: [id])
+
+  dutyDate      DateTime
+  durationHours Decimal  @db.Decimal(6, 2)
+
+  note      String?   @db.VarChar(1000)
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members PostDutyMember[] @relation("PostDutyMembers")
+
+  @@index([cityId])
+  @@index([postId])
+  @@index([vehicleId])
+  @@index([dutyDate])
+  @@index([deletedAt])
+  @@map("post_duties")
+}
+
+model PostDutyMember {
+  id Int @id @default(autoincrement())
+
+  postDutyId Int
+  postDuty   PostDuty @relation("PostDutyMembers", fields: [postDutyId], references: [id], onDelete: Cascade)
+
+  employeeId Int
+  employee   Employee @relation("EmployeePostDutyMembers", fields: [employeeId], references: [id])
+
+  hasWeapon Boolean @default(false)
+  isDriver  Boolean @default(false)
+
+  comment String? @db.VarChar(1000)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([postDutyId, employeeId])
+  @@index([employeeId])
+  @@map("post_duty_members")
+}
