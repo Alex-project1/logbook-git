@@ -112,9 +112,11 @@ export async function mobileBootstrap(req: Request, res: Response) {
       employees,
       vehicles,
       crews,
+      dutyPosts,
       tripGoals,
       additionalAlarmReasons,
       streets,
+      unreadNotificationsCount,
     ] = await Promise.all([
       prisma.employee.findMany({
         where: {
@@ -162,7 +164,21 @@ export async function mobileBootstrap(req: Request, res: Response) {
           name: true,
         },
       }),
-
+      prisma.dutyPost.findMany({
+        where: {
+          cityId,
+          deletedAt: null,
+          isActive: true,
+        },
+        orderBy: {
+          name: "asc",
+        },
+        select: {
+          id: true,
+          name: true,
+          comment: true,
+        },
+      }),
       prisma.tripGoal.findMany({
         where: {
           deletedAt: null,
@@ -220,6 +236,15 @@ export async function mobileBootstrap(req: Request, res: Response) {
           name: true,
         },
       }),
+      prisma.notificationRecipient.count({
+  where: {
+    mobileUserId: req.mobileUser.id,
+    readAt: null,
+    notification: {
+      deletedAt: null,
+    },
+  },
+}),
     ]);
 
     return res.json({
@@ -231,12 +256,16 @@ export async function mobileBootstrap(req: Request, res: Response) {
       employees,
       vehicles,
       crews,
+      dutyPosts,
       tripGoals,
       additionalAlarmReasons,
       streets,
       settings: {
         offlineEnabled: true,
       },
+      notifications: {
+  unreadCount: unreadNotificationsCount,
+},
     });
   } catch (error) {
     console.error("mobileBootstrap error:", error);

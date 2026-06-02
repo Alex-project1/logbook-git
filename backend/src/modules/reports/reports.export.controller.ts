@@ -5,6 +5,15 @@ import { prisma } from "../../config/prisma";
 function toNumber(value: unknown) {
   return Number(value ?? 0);
 }
+function getShiftEquivalent(shift: { shiftDurationHours?: unknown }) {
+  const durationHours = Number(shift.shiftDurationHours ?? 24);
+
+  if (!Number.isFinite(durationHours) || durationHours <= 0) {
+    return 1;
+  }
+
+  return roundNumber(durationHours / 24);
+}
 
 function parseDate(value: unknown) {
   if (!value) return undefined;
@@ -22,6 +31,25 @@ function roundNumber(value: number) {
   return Math.round(value * 100) / 100;
 }
 
+function getDutyTypeExportLabel(value: string | null | undefined) {
+  const labels: Record<string, string> = {
+    FULL_DAY: "Суточный",
+    DAY: "Дневной",
+    NIGHT: "Ночной",
+  };
+
+  return labels[value ?? ""] ?? value ?? "—";
+}
+
+function getTransportTypeExportLabel(value: string | null | undefined) {
+  const labels: Record<string, string> = {
+    AUTO: "Авто",
+    MOTO: "Мото",
+  };
+
+  return labels[value ?? ""] ?? value ?? "—";
+}
+
 async function loadShiftsForExport(params: {
   cityId?: number;
   dateFrom?: Date;
@@ -33,11 +61,11 @@ async function loadShiftsForExport(params: {
       ...(params.cityId ? { cityId: params.cityId } : {}),
       ...(params.dateFrom || params.dateTo
         ? {
-          shiftDate: {
-            ...(params.dateFrom ? { gte: params.dateFrom } : {}),
-            ...(params.dateTo ? { lte: params.dateTo } : {}),
-          },
-        }
+            shiftDate: {
+              ...(params.dateFrom ? { gte: params.dateFrom } : {}),
+              ...(params.dateTo ? { lte: params.dateTo } : {}),
+            },
+          }
         : {}),
     },
     include: {
@@ -66,6 +94,7 @@ type ShiftForExport = Awaited<ReturnType<typeof loadShiftsForExport>>[number];
 function calculateShiftSummary(shift: ShiftForExport) {
   let totalTrips = 0;
   let totalDistanceKm = toNumber(shift.totalDistanceKm);
+  const shiftEquivalent = getShiftEquivalent(shift);
 
   let regularOh = 0;
   let regularPartner = 0;
@@ -82,14 +111,18 @@ function calculateShiftSummary(shift: ShiftForExport) {
   let detained = 0;
   let transferred = 0;
 
-  const additionalByReason: Record<string, { total: number; oh: number; partner: number }> = {};
+  const additionalByReason: Record<
+    string,
+    { total: number; oh: number; partner: number }
+  > = {};
   const distanceByGoal: Record<string, number> = {};
 
   for (const trip of shift.trips) {
     totalTrips += 1;
 
     const goalName = trip.goal?.name ?? "Без цели";
-    distanceByGoal[goalName] = (distanceByGoal[goalName] ?? 0) + toNumber(trip.distanceKm);
+    distanceByGoal[goalName] =
+      (distanceByGoal[goalName] ?? 0) + toNumber(trip.distanceKm);
 
     for (const event of trip.events) {
       detained += event.detainedCount ?? 0;
@@ -117,7 +150,8 @@ function calculateShiftSummary(shift: ShiftForExport) {
         additionalOh += oh;
         additionalPartner += partner;
 
-        const reasonName = event.reason?.name ?? event.customReasonText ?? "Без причины";
+        const reasonName =
+          event.reason?.name ?? event.customReasonText ?? "Без причины";
 
         if (!additionalByReason[reasonName]) {
           additionalByReason[reasonName] = { total: 0, oh: 0, partner: 0 };
@@ -134,6 +168,7 @@ function calculateShiftSummary(shift: ShiftForExport) {
   const totalPartner = regularPartner + additionalPartner;
 
   return {
+    shiftEquivalent,
     totalTrips,
     totalDistanceKm,
 
@@ -188,8 +223,11 @@ function createEmptyTotals() {
   };
 }
 
-function addSummaryToTotals(totals: ReturnType<typeof createEmptyTotals>, summary: ReturnType<typeof calculateShiftSummary>) {
-  totals.totalShifts += 1;
+function addSummaryToTotals(
+  totals: ReturnType<typeof createEmptyTotals>,
+  summary: ReturnType<typeof calculateShiftSummary>,
+) {
+  totals.totalShifts += summary.shiftEquivalent;
   totals.totalTrips += summary.totalTrips;
   totals.totalDistanceKm += summary.totalDistanceKm;
 
@@ -219,7 +257,7 @@ function addPostDutyToEmployeeExportTotal(
     durationHours: number;
     hasWeapon: boolean;
     isDriver: boolean;
-  }
+  },
 ) {
   const shiftEquivalent = params.durationHours / 24;
 
@@ -259,7 +297,7 @@ function buildPostDutyExportText(postDutyByPost: Record<string, any>) {
   return rows
     .map(([postName, stats]) => {
       return `${postName}: ${roundNumber(stats.shiftEquivalent)} смен / ${roundNumber(
-        stats.hours
+        stats.hours,
       )} ч / ${stats.count} выходов`;
     })
     .join("; ");
@@ -298,11 +336,11 @@ export async function exportReportsExcel(req: Request, res: Response) {
         ...(cityId ? { cityId } : {}),
         ...(dateFrom || dateTo
           ? {
-            dutyDate: {
-              ...(dateFrom ? { gte: dateFrom } : {}),
-              ...(dateTo ? { lte: dateTo } : {}),
-            },
-          }
+              dutyDate: {
+                ...(dateFrom ? { gte: dateFrom } : {}),
+                ...(dateTo ? { lte: dateTo } : {}),
+              },
+            }
           : {}),
       },
       take: 10000,
@@ -379,8 +417,10 @@ export async function exportReportsExcel(req: Request, res: Response) {
       }
 
       const driverRow = employeeMap.get(driverKey);
-      driverRow.driverShifts += 1;
-      if (shift.driverHasWeapon) driverRow.weaponShifts += 1;
+      driverRow.driverShifts += summary.shiftEquivalent;
+      if (shift.driverHasWeapon) {
+        driverRow.weaponShifts += summary.shiftEquivalent;
+      }
       addSummaryToTotals(driverRow, summary);
 
       const seniorKey = `${senior.id}_${shift.city.id}`;
@@ -403,8 +443,10 @@ export async function exportReportsExcel(req: Request, res: Response) {
       }
 
       const seniorRow = employeeMap.get(seniorKey);
-      seniorRow.seniorShifts += 1;
-      if (shift.seniorHasWeapon) seniorRow.weaponShifts += 1;
+      seniorRow.seniorShifts += summary.shiftEquivalent;
+      if (shift.seniorHasWeapon) {
+        seniorRow.weaponShifts += summary.shiftEquivalent;
+      }
       addSummaryToTotals(seniorRow, summary);
 
       const crewKey = `${shift.crew.id}_${shift.city.id}`;
@@ -439,12 +481,18 @@ export async function exportReportsExcel(req: Request, res: Response) {
 
       const vehicleRow = vehicleMap.get(vehicleKey);
 
-      if (!vehicleRow.firstShiftDate || shift.shiftDate < vehicleRow.firstShiftDate) {
+      if (
+        !vehicleRow.firstShiftDate ||
+        shift.shiftDate < vehicleRow.firstShiftDate
+      ) {
         vehicleRow.firstShiftDate = shift.shiftDate;
         vehicleRow.odometerStartFirstShift = shift.odometerStart;
       }
 
-      if (!vehicleRow.lastShiftDate || shift.shiftDate > vehicleRow.lastShiftDate) {
+      if (
+        !vehicleRow.lastShiftDate ||
+        shift.shiftDate > vehicleRow.lastShiftDate
+      ) {
         vehicleRow.lastShiftDate = shift.shiftDate;
         vehicleRow.odometerEndLastShift = shift.odometerEndCalculated;
       }
@@ -491,7 +539,7 @@ export async function exportReportsExcel(req: Request, res: Response) {
     ];
 
     generalSheet.addRows([
-      { label: "Всего смен", value: totals.totalShifts },
+      { label: "Всего смен", value: roundNumber(totals.totalShifts) },
       { label: "Всего поездок", value: totals.totalTrips },
       { label: "Пробег", value: roundNumber(totals.totalDistanceKm) },
       { label: "Всего сработок", value: totals.totalAlarms },
@@ -533,7 +581,6 @@ export async function exportReportsExcel(req: Request, res: Response) {
       { header: "Часы", key: "hours", width: 12 },
       { header: "Выходов", key: "count", width: 12 },
     ];
-
 
     const employeeRows = Array.from(employeeMap.values()).map((row) => ({
       ...row,
@@ -590,8 +637,9 @@ export async function exportReportsExcel(req: Request, res: Response) {
     crewsSheet.addRows(
       Array.from(crewMap.values()).map((row) => ({
         ...row,
+        totalShifts: roundNumber(row.totalShifts),
         totalDistanceKm: roundNumber(row.totalDistanceKm),
-      }))
+      })),
     );
 
     vehiclesSheet.columns = [
@@ -616,8 +664,9 @@ export async function exportReportsExcel(req: Request, res: Response) {
     vehiclesSheet.addRows(
       Array.from(vehicleMap.values()).map((row) => ({
         ...row,
+        totalShifts: roundNumber(row.totalShifts),
         totalDistanceKm: roundNumber(row.totalDistanceKm),
-      }))
+      })),
     );
 
     [
@@ -632,7 +681,7 @@ export async function exportReportsExcel(req: Request, res: Response) {
 
     res.setHeader(
       "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
     res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
 
@@ -674,7 +723,7 @@ function parseBooleanExportQuery(value: unknown) {
 
 function buildTripExportOrderBy(
   sortBy: TripsExportSortBy,
-  sortDir: "asc" | "desc"
+  sortDir: "asc" | "desc",
 ) {
   if (sortBy === "shiftDate") {
     return {
@@ -840,85 +889,85 @@ function buildTripExportWhere(req: Request) {
       deletedAt: null,
       ...(dateFrom || dateTo
         ? {
-          shiftDate: {
-            ...(dateFrom ? { gte: dateFrom } : {}),
-            ...(dateTo ? { lte: dateTo } : {}),
-          },
-        }
+            shiftDate: {
+              ...(dateFrom ? { gte: dateFrom } : {}),
+              ...(dateTo ? { lte: dateTo } : {}),
+            },
+          }
         : {}),
       ...(crewId ? { crewId } : {}),
       ...(vehicleId ? { vehicleId } : {}),
       ...(employeeId
         ? {
-          OR: [
-            { driverEmployeeId: employeeId },
-            { seniorEmployeeId: employeeId },
-          ],
-        }
+            OR: [
+              { driverEmployeeId: employeeId },
+              { seniorEmployeeId: employeeId },
+            ],
+          }
         : {}),
     },
     ...(cityId ? { cityId } : {}),
     ...(goalId ? { goalId } : {}),
     ...(eventConditions.length
       ? {
-        events: {
-          some: {
-            AND: eventConditions,
+          events: {
+            some: {
+              AND: eventConditions,
+            },
           },
-        },
-      }
+        }
       : {}),
     ...(search
       ? {
-        OR: [
-          { fromLocation: { contains: search } },
-          { toLocation: { contains: search } },
-          { note: { contains: search } },
-          {
-            goal: {
-              name: {
-                contains: search,
-              },
-            },
-          },
-          {
-            shift: {
-              crew: {
+          OR: [
+            { fromLocation: { contains: search } },
+            { toLocation: { contains: search } },
+            { note: { contains: search } },
+            {
+              goal: {
                 name: {
                   contains: search,
                 },
               },
             },
-          },
-          {
-            shift: {
-              vehicle: {
-                title: {
-                  contains: search,
+            {
+              shift: {
+                crew: {
+                  name: {
+                    contains: search,
+                  },
                 },
               },
             },
-          },
-          {
-            shift: {
-              driverEmployee: {
-                fullName: {
-                  contains: search,
+            {
+              shift: {
+                vehicle: {
+                  title: {
+                    contains: search,
+                  },
                 },
               },
             },
-          },
-          {
-            shift: {
-              seniorEmployee: {
-                fullName: {
-                  contains: search,
+            {
+              shift: {
+                driverEmployee: {
+                  fullName: {
+                    contains: search,
+                  },
                 },
               },
             },
-          },
-        ],
-      }
+            {
+              shift: {
+                seniorEmployee: {
+                  fullName: {
+                    contains: search,
+                  },
+                },
+              },
+            },
+          ],
+        }
       : {}),
   };
 
@@ -1102,13 +1151,13 @@ export async function exportTripsTableExcel(req: Request, res: Response) {
           ? event.alarmSource === "OH"
             ? 1
             : 0
-          : event.ohCount ?? 0;
+          : (event.ohCount ?? 0);
 
         const partnerCount = isRegular
           ? event.alarmSource === "PARTNER"
             ? 1
             : 0
-          : event.partnerCount ?? 0;
+          : (event.partnerCount ?? 0);
 
         eventsSheet.addRow({
           tripId: trip.id,
@@ -1126,8 +1175,7 @@ export async function exportTripsTableExcel(req: Request, res: Response) {
           partnerCount,
           countTotal: isRegular ? 1 : ohCount + partnerCount,
           combatLabel: isRegular ? (event.isCombat ? "Боевая" : "Ложная") : "",
-          reasonName:
-            event.reason?.name ?? event.customReasonText ?? "",
+          reasonName: event.reason?.name ?? event.customReasonText ?? "",
           detained: event.detainedCount ?? 0,
           transferred: event.transferredCount ?? 0,
           note: event.note ?? "",
@@ -1147,7 +1195,7 @@ export async function exportTripsTableExcel(req: Request, res: Response) {
 
     res.setHeader(
       "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
     res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
 
@@ -1171,7 +1219,7 @@ type ShiftsExportSortBy =
 
 function buildShiftExportOrderBy(
   sortBy: ShiftsExportSortBy,
-  sortDir: "asc" | "desc"
+  sortDir: "asc" | "desc",
 ) {
   return {
     [sortBy]: sortDir,
@@ -1196,67 +1244,67 @@ function buildShiftExportWhere(req: Request) {
     ...(vehicleId ? { vehicleId } : {}),
     ...(employeeId
       ? {
-        OR: [
-          { driverEmployeeId: employeeId },
-          { seniorEmployeeId: employeeId },
-        ],
-      }
+          OR: [
+            { driverEmployeeId: employeeId },
+            { seniorEmployeeId: employeeId },
+          ],
+        }
       : {}),
     ...(dateFrom || dateTo
       ? {
-        shiftDate: {
-          ...(dateFrom ? { gte: dateFrom } : {}),
-          ...(dateTo ? { lte: dateTo } : {}),
-        },
-      }
+          shiftDate: {
+            ...(dateFrom ? { gte: dateFrom } : {}),
+            ...(dateTo ? { lte: dateTo } : {}),
+          },
+        }
       : {}),
     ...(search
       ? {
-        OR: [
-          {
-            city: {
-              name: {
-                contains: search,
+          OR: [
+            {
+              city: {
+                name: {
+                  contains: search,
+                },
               },
             },
-          },
-          {
-            crew: {
-              name: {
-                contains: search,
+            {
+              crew: {
+                name: {
+                  contains: search,
+                },
               },
             },
-          },
-          {
-            vehicle: {
-              title: {
-                contains: search,
+            {
+              vehicle: {
+                title: {
+                  contains: search,
+                },
               },
             },
-          },
-          {
-            vehicle: {
-              licensePlate: {
-                contains: search,
+            {
+              vehicle: {
+                licensePlate: {
+                  contains: search,
+                },
               },
             },
-          },
-          {
-            driverEmployee: {
-              fullName: {
-                contains: search,
+            {
+              driverEmployee: {
+                fullName: {
+                  contains: search,
+                },
               },
             },
-          },
-          {
-            seniorEmployee: {
-              fullName: {
-                contains: search,
+            {
+              seniorEmployee: {
+                fullName: {
+                  contains: search,
+                },
               },
             },
-          },
-        ],
-      }
+          ],
+        }
       : {}),
   };
 
@@ -1379,6 +1427,10 @@ export async function exportShiftsTableExcel(req: Request, res: Response) {
       { header: "Дата", key: "shiftDate", width: 14 },
       { header: "Время отправки", key: "submittedAt", width: 18 },
       { header: "Наряд", key: "crew", width: 18 },
+      { header: "Тип наряда", key: "crewDutyType", width: 16 },
+      { header: "Транспорт", key: "crewTransportType", width: 14 },
+      { header: "Часы", key: "shiftDurationHours", width: 10 },
+      { header: "Смены", key: "shiftEquivalent", width: 10 },
       { header: "Авто", key: "vehicle", width: 24 },
       { header: "Госномер", key: "licensePlate", width: 16 },
       { header: "Водитель", key: "driver", width: 28 },
@@ -1448,6 +1500,10 @@ export async function exportShiftsTableExcel(req: Request, res: Response) {
         shiftDate: shift.shiftDate,
         submittedAt: shift.submittedAt,
         crew: shift.crew.name,
+        crewDutyType: getDutyTypeExportLabel(shift.crewDutyType),
+        crewTransportType: getTransportTypeExportLabel(shift.crewTransportType),
+        shiftDurationHours: Number(shift.shiftDurationHours ?? 24),
+        shiftEquivalent: shiftSummary.shiftEquivalent,
         vehicle: shift.vehicle.title,
         licensePlate: shift.vehicle.licensePlate ?? "",
         driver: shift.driverEmployee.fullName,
@@ -1503,13 +1559,13 @@ export async function exportShiftsTableExcel(req: Request, res: Response) {
             ? event.alarmSource === "OH"
               ? 1
               : 0
-            : event.ohCount ?? 0;
+            : (event.ohCount ?? 0);
 
           const partnerCount = isRegular
             ? event.alarmSource === "PARTNER"
               ? 1
               : 0
-            : event.partnerCount ?? 0;
+            : (event.partnerCount ?? 0);
 
           eventsSheet.addRow({
             shiftId: shift.id,
@@ -1556,7 +1612,7 @@ export async function exportShiftsTableExcel(req: Request, res: Response) {
 
     res.setHeader(
       "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
     res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
 
@@ -1654,67 +1710,67 @@ function buildEmployeesExportWhere(req: Request) {
     ...(vehicleId ? { vehicleId } : {}),
     ...(employeeId
       ? {
-        OR: [
-          { driverEmployeeId: employeeId },
-          { seniorEmployeeId: employeeId },
-        ],
-      }
+          OR: [
+            { driverEmployeeId: employeeId },
+            { seniorEmployeeId: employeeId },
+          ],
+        }
       : {}),
     ...(dateFrom || dateTo
       ? {
-        shiftDate: {
-          ...(dateFrom ? { gte: dateFrom } : {}),
-          ...(dateTo ? { lte: dateTo } : {}),
-        },
-      }
+          shiftDate: {
+            ...(dateFrom ? { gte: dateFrom } : {}),
+            ...(dateTo ? { lte: dateTo } : {}),
+          },
+        }
       : {}),
     ...(search
       ? {
-        OR: [
-          {
-            driverEmployee: {
-              fullName: {
-                contains: search,
+          OR: [
+            {
+              driverEmployee: {
+                fullName: {
+                  contains: search,
+                },
               },
             },
-          },
-          {
-            seniorEmployee: {
-              fullName: {
-                contains: search,
+            {
+              seniorEmployee: {
+                fullName: {
+                  contains: search,
+                },
               },
             },
-          },
-          {
-            city: {
-              name: {
-                contains: search,
+            {
+              city: {
+                name: {
+                  contains: search,
+                },
               },
             },
-          },
-          {
-            crew: {
-              name: {
-                contains: search,
+            {
+              crew: {
+                name: {
+                  contains: search,
+                },
               },
             },
-          },
-          {
-            vehicle: {
-              title: {
-                contains: search,
+            {
+              vehicle: {
+                title: {
+                  contains: search,
+                },
               },
             },
-          },
-          {
-            vehicle: {
-              licensePlate: {
-                contains: search,
+            {
+              vehicle: {
+                licensePlate: {
+                  contains: search,
+                },
               },
             },
-          },
-        ],
-      }
+          ],
+        }
       : {}),
   };
 
@@ -1771,7 +1827,7 @@ function createEmployeeExportRow(params: {
 
 function addShiftSummaryToEmployeeExportRow(
   row: EmployeeExportRow,
-  summary: ReturnType<typeof calculateShiftSummary>
+  summary: ReturnType<typeof calculateShiftSummary>,
 ) {
   row.totalTrips += summary.totalTrips;
   row.totalDistanceKm += Number(summary.totalDistanceKm);
@@ -1791,7 +1847,7 @@ function addShiftSummaryToEmployeeExportRow(
   row.transferred += summary.transferred;
 
   for (const [reasonName, reasonStats] of Object.entries(
-    summary.additionalByReason
+    summary.additionalByReason,
   )) {
     if (!row.additionalByReason[reasonName]) {
       row.additionalByReason[reasonName] = {
@@ -1813,7 +1869,7 @@ function addPostDutyToEmployeeExportRow(
     durationHours: number;
     hasWeapon: boolean;
     isDriver: boolean;
-  }
+  },
 ) {
   const shiftEquivalent = params.durationHours / 24;
 
@@ -1844,7 +1900,7 @@ function addPostDutyToEmployeeExportRow(
 }
 
 function buildPostDutyExportSummary(
-  postDutyByPost: EmployeeExportRow["postDutyByPost"]
+  postDutyByPost: EmployeeExportRow["postDutyByPost"],
 ) {
   const rows = Object.entries(postDutyByPost);
 
@@ -1855,7 +1911,7 @@ function buildPostDutyExportSummary(
   return rows
     .map(([postName, stats]) => {
       return `${postName}: ${roundNumber(stats.shiftEquivalent)} смен / ${roundNumber(
-        stats.hours
+        stats.hours,
       )} ч / ${stats.count} выходов`;
     })
     .join("; ");
@@ -1863,7 +1919,7 @@ function buildPostDutyExportSummary(
 function sortEmployeeExportRows(
   rows: EmployeeExportRow[],
   sortBy: EmployeesExportSortBy,
-  sortDir: "asc" | "desc"
+  sortDir: "asc" | "desc",
 ) {
   return [...rows].sort((a, b) => {
     const direction = sortDir === "asc" ? 1 : -1;
@@ -1975,111 +2031,111 @@ export async function exportEmployeesTableExcel(req: Request, res: Response) {
     const postDuties = crewId
       ? []
       : await prisma.postDuty.findMany({
-        where: {
-          deletedAt: null,
+          where: {
+            deletedAt: null,
 
-          ...(cityId ? { cityId } : {}),
-          ...(vehicleId ? { vehicleId } : {}),
+            ...(cityId ? { cityId } : {}),
+            ...(vehicleId ? { vehicleId } : {}),
 
-          ...(employeeId
-            ? {
-              members: {
-                some: {
-                  employeeId,
-                },
-              },
-            }
-            : {}),
-
-          ...(dateFrom || dateTo
-            ? {
-              dutyDate: {
-                ...(dateFrom ? { gte: dateFrom } : {}),
-                ...(dateTo ? { lte: dateTo } : {}),
-              },
-            }
-            : {}),
-
-          ...(search
-            ? {
-              OR: [
-                {
-                  note: {
-                    contains: search,
-                  },
-                },
-                {
-                  city: {
-                    name: {
-                      contains: search,
-                    },
-                  },
-                },
-                {
-                  post: {
-                    name: {
-                      contains: search,
-                    },
-                  },
-                },
-                {
-                  vehicle: {
-                    title: {
-                      contains: search,
-                    },
-                  },
-                },
-                {
-                  vehicle: {
-                    licensePlate: {
-                      contains: search,
-                    },
-                  },
-                },
-                {
+            ...(employeeId
+              ? {
                   members: {
                     some: {
-                      employee: {
-                        fullName: {
+                      employeeId,
+                    },
+                  },
+                }
+              : {}),
+
+            ...(dateFrom || dateTo
+              ? {
+                  dutyDate: {
+                    ...(dateFrom ? { gte: dateFrom } : {}),
+                    ...(dateTo ? { lte: dateTo } : {}),
+                  },
+                }
+              : {}),
+
+            ...(search
+              ? {
+                  OR: [
+                    {
+                      note: {
+                        contains: search,
+                      },
+                    },
+                    {
+                      city: {
+                        name: {
                           contains: search,
                         },
                       },
                     },
+                    {
+                      post: {
+                        name: {
+                          contains: search,
+                        },
+                      },
+                    },
+                    {
+                      vehicle: {
+                        title: {
+                          contains: search,
+                        },
+                      },
+                    },
+                    {
+                      vehicle: {
+                        licensePlate: {
+                          contains: search,
+                        },
+                      },
+                    },
+                    {
+                      members: {
+                        some: {
+                          employee: {
+                            fullName: {
+                              contains: search,
+                            },
+                          },
+                        },
+                      },
+                    },
+                  ],
+                }
+              : {}),
+          },
+          take: 10000,
+          orderBy: {
+            dutyDate: "desc",
+          },
+          include: {
+            city: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            post: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            members: {
+              include: {
+                employee: {
+                  select: {
+                    id: true,
+                    fullName: true,
                   },
-                },
-              ],
-            }
-            : {}),
-        },
-        take: 10000,
-        orderBy: {
-          dutyDate: "desc",
-        },
-        include: {
-          city: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-          post: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-          members: {
-            include: {
-              employee: {
-                select: {
-                  id: true,
-                  fullName: true,
                 },
               },
             },
           },
-        },
-      });
+        });
     const employeeMap = new Map<string, EmployeeExportRow>();
 
     for (const shift of shifts) {
@@ -2098,17 +2154,17 @@ export async function exportEmployeesTableExcel(req: Request, res: Response) {
             fullName: driver.fullName,
             cityId: shift.city.id,
             cityName: shift.city.name,
-          })
+          }),
         );
       }
 
       const driverRow = employeeMap.get(driverKey)!;
 
-      driverRow.totalShifts += 1;
-      driverRow.driverShifts += 1;
+      driverRow.totalShifts += summary.shiftEquivalent;
+      driverRow.driverShifts += summary.shiftEquivalent;
 
       if (shift.driverHasWeapon) {
-        driverRow.weaponShifts += 1;
+        driverRow.weaponShifts += summary.shiftEquivalent;
       }
 
       addShiftSummaryToEmployeeExportRow(driverRow, summary);
@@ -2123,17 +2179,17 @@ export async function exportEmployeesTableExcel(req: Request, res: Response) {
             fullName: senior.fullName,
             cityId: shift.city.id,
             cityName: shift.city.name,
-          })
+          }),
         );
       }
 
       const seniorRow = employeeMap.get(seniorKey)!;
 
-      seniorRow.totalShifts += 1;
-      seniorRow.seniorShifts += 1;
+      seniorRow.totalShifts += summary.shiftEquivalent;
+      seniorRow.seniorShifts += summary.shiftEquivalent;
 
       if (shift.seniorHasWeapon) {
-        seniorRow.weaponShifts += 1;
+        seniorRow.weaponShifts += summary.shiftEquivalent;
       }
 
       addShiftSummaryToEmployeeExportRow(seniorRow, summary);
@@ -2153,7 +2209,7 @@ export async function exportEmployeesTableExcel(req: Request, res: Response) {
               fullName: employee.fullName,
               cityId: duty.city.id,
               cityName: duty.city.name,
-            })
+            }),
           );
         }
 
@@ -2176,7 +2232,7 @@ export async function exportEmployeesTableExcel(req: Request, res: Response) {
             hours: roundNumber(postStats.hours),
             count: postStats.count,
           },
-        ])
+        ]),
       );
 
       return {
@@ -2290,7 +2346,9 @@ export async function exportEmployeesTableExcel(req: Request, res: Response) {
         partner: row.additionalPartner,
       });
 
-      for (const [reasonName, stats] of Object.entries(row.additionalByReason)) {
+      for (const [reasonName, stats] of Object.entries(
+        row.additionalByReason,
+      )) {
         reasonsSheet.addRow({
           cityName: row.cityName,
           fullName: row.fullName,
@@ -2327,7 +2385,7 @@ export async function exportEmployeesTableExcel(req: Request, res: Response) {
 
     res.setHeader(
       "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
     res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
 
@@ -2410,67 +2468,67 @@ function buildCrewsExportWhere(req: Request) {
     ...(vehicleId ? { vehicleId } : {}),
     ...(employeeId
       ? {
-        OR: [
-          { driverEmployeeId: employeeId },
-          { seniorEmployeeId: employeeId },
-        ],
-      }
+          OR: [
+            { driverEmployeeId: employeeId },
+            { seniorEmployeeId: employeeId },
+          ],
+        }
       : {}),
     ...(dateFrom || dateTo
       ? {
-        shiftDate: {
-          ...(dateFrom ? { gte: dateFrom } : {}),
-          ...(dateTo ? { lte: dateTo } : {}),
-        },
-      }
+          shiftDate: {
+            ...(dateFrom ? { gte: dateFrom } : {}),
+            ...(dateTo ? { lte: dateTo } : {}),
+          },
+        }
       : {}),
     ...(search
       ? {
-        OR: [
-          {
-            city: {
-              name: {
-                contains: search,
+          OR: [
+            {
+              city: {
+                name: {
+                  contains: search,
+                },
               },
             },
-          },
-          {
-            crew: {
-              name: {
-                contains: search,
+            {
+              crew: {
+                name: {
+                  contains: search,
+                },
               },
             },
-          },
-          {
-            vehicle: {
-              title: {
-                contains: search,
+            {
+              vehicle: {
+                title: {
+                  contains: search,
+                },
               },
             },
-          },
-          {
-            vehicle: {
-              licensePlate: {
-                contains: search,
+            {
+              vehicle: {
+                licensePlate: {
+                  contains: search,
+                },
               },
             },
-          },
-          {
-            driverEmployee: {
-              fullName: {
-                contains: search,
+            {
+              driverEmployee: {
+                fullName: {
+                  contains: search,
+                },
               },
             },
-          },
-          {
-            seniorEmployee: {
-              fullName: {
-                contains: search,
+            {
+              seniorEmployee: {
+                fullName: {
+                  contains: search,
+                },
               },
             },
-          },
-        ],
-      }
+          ],
+        }
       : {}),
   };
 
@@ -2517,9 +2575,9 @@ function createCrewExportRow(params: {
 
 function addShiftSummaryToCrewExportRow(
   row: CrewExportRow,
-  summary: ReturnType<typeof calculateShiftSummary>
+  summary: ReturnType<typeof calculateShiftSummary>,
 ) {
-  row.totalShifts += 1;
+  row.totalShifts += summary.shiftEquivalent;
   row.totalTrips += summary.totalTrips;
   row.totalDistanceKm += Number(summary.totalDistanceKm);
 
@@ -2538,7 +2596,7 @@ function addShiftSummaryToCrewExportRow(
   row.transferred += summary.transferred;
 
   for (const [reasonName, reasonStats] of Object.entries(
-    summary.additionalByReason
+    summary.additionalByReason,
   )) {
     if (!row.additionalByReason[reasonName]) {
       row.additionalByReason[reasonName] = {
@@ -2562,7 +2620,7 @@ function addShiftSummaryToCrewExportRow(
 function sortCrewExportRows(
   rows: CrewExportRow[],
   sortBy: CrewsExportSortBy,
-  sortDir: "asc" | "desc"
+  sortDir: "asc" | "desc",
 ) {
   return [...rows].sort((a, b) => {
     const direction = sortDir === "asc" ? 1 : -1;
@@ -2677,7 +2735,7 @@ export async function exportCrewsTableExcel(req: Request, res: Response) {
             crewName: crew.name,
             cityId: shift.city.id,
             cityName: shift.city.name,
-          })
+          }),
         );
       }
 
@@ -2775,7 +2833,9 @@ export async function exportCrewsTableExcel(req: Request, res: Response) {
         partner: row.additionalPartner,
       });
 
-      for (const [reasonName, stats] of Object.entries(row.additionalByReason)) {
+      for (const [reasonName, stats] of Object.entries(
+        row.additionalByReason,
+      )) {
         reasonsSheet.addRow({
           cityName: row.cityName,
           crewName: row.crewName,
@@ -2802,7 +2862,7 @@ export async function exportCrewsTableExcel(req: Request, res: Response) {
 
     res.setHeader(
       "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
     res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
 
@@ -2888,67 +2948,67 @@ function buildVehiclesExportWhere(req: Request) {
     ...(vehicleId ? { vehicleId } : {}),
     ...(employeeId
       ? {
-        OR: [
-          { driverEmployeeId: employeeId },
-          { seniorEmployeeId: employeeId },
-        ],
-      }
+          OR: [
+            { driverEmployeeId: employeeId },
+            { seniorEmployeeId: employeeId },
+          ],
+        }
       : {}),
     ...(dateFrom || dateTo
       ? {
-        shiftDate: {
-          ...(dateFrom ? { gte: dateFrom } : {}),
-          ...(dateTo ? { lte: dateTo } : {}),
-        },
-      }
+          shiftDate: {
+            ...(dateFrom ? { gte: dateFrom } : {}),
+            ...(dateTo ? { lte: dateTo } : {}),
+          },
+        }
       : {}),
     ...(search
       ? {
-        OR: [
-          {
-            city: {
-              name: {
-                contains: search,
+          OR: [
+            {
+              city: {
+                name: {
+                  contains: search,
+                },
               },
             },
-          },
-          {
-            crew: {
-              name: {
-                contains: search,
+            {
+              crew: {
+                name: {
+                  contains: search,
+                },
               },
             },
-          },
-          {
-            vehicle: {
-              title: {
-                contains: search,
+            {
+              vehicle: {
+                title: {
+                  contains: search,
+                },
               },
             },
-          },
-          {
-            vehicle: {
-              licensePlate: {
-                contains: search,
+            {
+              vehicle: {
+                licensePlate: {
+                  contains: search,
+                },
               },
             },
-          },
-          {
-            driverEmployee: {
-              fullName: {
-                contains: search,
+            {
+              driverEmployee: {
+                fullName: {
+                  contains: search,
+                },
               },
             },
-          },
-          {
-            seniorEmployee: {
-              fullName: {
-                contains: search,
+            {
+              seniorEmployee: {
+                fullName: {
+                  contains: search,
+                },
               },
             },
-          },
-        ],
-      }
+          ],
+        }
       : {}),
   };
 
@@ -2959,26 +3019,26 @@ function buildVehiclesExportWhere(req: Request) {
     ...(vehicleId ? { id: vehicleId } : {}),
     ...(search
       ? {
-        OR: [
-          {
-            title: {
-              contains: search,
-            },
-          },
-          {
-            licensePlate: {
-              contains: search,
-            },
-          },
-          {
-            city: {
-              name: {
+          OR: [
+            {
+              title: {
                 contains: search,
               },
             },
-          },
-        ],
-      }
+            {
+              licensePlate: {
+                contains: search,
+              },
+            },
+            {
+              city: {
+                name: {
+                  contains: search,
+                },
+              },
+            },
+          ],
+        }
       : {}),
   };
 
@@ -3038,9 +3098,9 @@ function createVehicleExportRow(params: {
 function addShiftSummaryToVehicleExportRow(
   row: VehicleExportRow,
   shift: any,
-  summary: ReturnType<typeof calculateShiftSummary>
+  summary: ReturnType<typeof calculateShiftSummary>,
 ) {
-  row.totalShifts += 1;
+  row.totalShifts += summary.shiftEquivalent;
   row.totalTrips += summary.totalTrips;
   row.totalDistanceKm += Number(summary.totalDistanceKm);
 
@@ -3069,7 +3129,7 @@ function addShiftSummaryToVehicleExportRow(
   row.transferred += summary.transferred;
 
   for (const [reasonName, reasonStats] of Object.entries(
-    summary.additionalByReason
+    summary.additionalByReason,
   )) {
     if (!row.additionalByReason[reasonName]) {
       row.additionalByReason[reasonName] = {
@@ -3093,7 +3153,7 @@ function addShiftSummaryToVehicleExportRow(
 function sortVehicleExportRows(
   rows: VehicleExportRow[],
   sortBy: VehiclesExportSortBy,
-  sortDir: "asc" | "desc"
+  sortDir: "asc" | "desc",
 ) {
   return [...rows].sort((a, b) => {
     const direction = sortDir === "asc" ? 1 : -1;
@@ -3133,19 +3193,19 @@ export async function exportVehiclesTableExcel(req: Request, res: Response) {
 
     const vehiclesFromDirectory = shouldShowEmptyVehicles
       ? await prisma.vehicle.findMany({
-        where: vehiclesWhere,
-        orderBy: {
-          title: "asc",
-        },
-        include: {
-          city: {
-            select: {
-              id: true,
-              name: true,
+          where: vehiclesWhere,
+          orderBy: {
+            title: "asc",
+          },
+          include: {
+            city: {
+              select: {
+                id: true,
+                name: true,
+              },
             },
           },
-        },
-      })
+        })
       : [];
 
     const shifts = await prisma.shift.findMany({
@@ -3224,7 +3284,7 @@ export async function exportVehiclesTableExcel(req: Request, res: Response) {
           licensePlate: vehicle.licensePlate,
           cityId: vehicle.city.id,
           cityName: vehicle.city.name,
-        })
+        }),
       );
     }
 
@@ -3241,7 +3301,7 @@ export async function exportVehiclesTableExcel(req: Request, res: Response) {
             licensePlate: vehicle.licensePlate,
             cityId: shift.city.id,
             cityName: shift.city.name,
-          })
+          }),
         );
       }
 
@@ -3346,7 +3406,9 @@ export async function exportVehiclesTableExcel(req: Request, res: Response) {
         partner: row.additionalPartner,
       });
 
-      for (const [reasonName, stats] of Object.entries(row.additionalByReason)) {
+      for (const [reasonName, stats] of Object.entries(
+        row.additionalByReason,
+      )) {
         reasonsSheet.addRow({
           cityName: row.cityName,
           vehicleTitle: row.vehicleTitle,
@@ -3378,7 +3440,7 @@ export async function exportVehiclesTableExcel(req: Request, res: Response) {
 
     res.setHeader(
       "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
     res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
 
@@ -3469,9 +3531,9 @@ function createAlarmsExportGroupRow(params: {
 
 function addShiftSummaryToAlarmsExportTotals(
   totals: AlarmsExportTotals,
-  summary: ReturnType<typeof calculateShiftSummary>
+  summary: ReturnType<typeof calculateShiftSummary>,
 ) {
-  totals.totalShifts += 1;
+  totals.totalShifts += summary.shiftEquivalent;
   totals.totalTrips += summary.totalTrips;
   totals.totalDistanceKm += Number(summary.totalDistanceKm);
 
@@ -3497,10 +3559,10 @@ function addShiftSummaryToAlarmsExportTotals(
 
 function addAlarmsExportReasonsToMap(
   map: Map<string, AlarmsExportReasonStats>,
-  summary: ReturnType<typeof calculateShiftSummary>
+  summary: ReturnType<typeof calculateShiftSummary>,
 ) {
   for (const [reasonName, reasonStats] of Object.entries(
-    summary.additionalByReason
+    summary.additionalByReason,
   )) {
     if (!map.has(reasonName)) {
       map.set(reasonName, {
@@ -3550,74 +3612,77 @@ function buildAlarmsExportWhere(req: Request) {
     ...(vehicleId ? { vehicleId } : {}),
     ...(employeeId
       ? {
-        OR: [
-          { driverEmployeeId: employeeId },
-          { seniorEmployeeId: employeeId },
-        ],
-      }
+          OR: [
+            { driverEmployeeId: employeeId },
+            { seniorEmployeeId: employeeId },
+          ],
+        }
       : {}),
     ...(dateFrom || dateTo
       ? {
-        shiftDate: {
-          ...(dateFrom ? { gte: dateFrom } : {}),
-          ...(dateTo ? { lte: dateTo } : {}),
-        },
-      }
+          shiftDate: {
+            ...(dateFrom ? { gte: dateFrom } : {}),
+            ...(dateTo ? { lte: dateTo } : {}),
+          },
+        }
       : {}),
     ...(search
       ? {
-        OR: [
-          {
-            city: {
-              name: {
-                contains: search,
+          OR: [
+            {
+              city: {
+                name: {
+                  contains: search,
+                },
               },
             },
-          },
-          {
-            crew: {
-              name: {
-                contains: search,
+            {
+              crew: {
+                name: {
+                  contains: search,
+                },
               },
             },
-          },
-          {
-            vehicle: {
-              title: {
-                contains: search,
+            {
+              vehicle: {
+                title: {
+                  contains: search,
+                },
               },
             },
-          },
-          {
-            vehicle: {
-              licensePlate: {
-                contains: search,
+            {
+              vehicle: {
+                licensePlate: {
+                  contains: search,
+                },
               },
             },
-          },
-          {
-            driverEmployee: {
-              fullName: {
-                contains: search,
+            {
+              driverEmployee: {
+                fullName: {
+                  contains: search,
+                },
               },
             },
-          },
-          {
-            seniorEmployee: {
-              fullName: {
-                contains: search,
+            {
+              seniorEmployee: {
+                fullName: {
+                  contains: search,
+                },
               },
             },
-          },
-        ],
-      }
+          ],
+        }
       : {}),
   };
 
   return where;
 }
 
-function addAlarmsSummaryRows(sheet: ExcelJS.Worksheet, totals: AlarmsExportTotals) {
+function addAlarmsSummaryRows(
+  sheet: ExcelJS.Worksheet,
+  totals: AlarmsExportTotals,
+) {
   sheet.addRow({
     title: "Всего сработок",
     total: totals.totalAlarms,
@@ -3684,7 +3749,7 @@ function addAlarmsSummaryRows(sheet: ExcelJS.Worksheet, totals: AlarmsExportTota
 
 function addAlarmsGroupRows(
   sheet: ExcelJS.Worksheet,
-  rows: AlarmsExportGroupRow[]
+  rows: AlarmsExportGroupRow[],
 ) {
   for (const row of rows) {
     sheet.addRow({
@@ -3795,7 +3860,7 @@ export async function exportAlarmsReportExcel(req: Request, res: Response) {
           createAlarmsExportGroupRow({
             key: cityKey,
             name: shift.city.name,
-          })
+          }),
         );
       }
 
@@ -3809,7 +3874,7 @@ export async function exportAlarmsReportExcel(req: Request, res: Response) {
           createAlarmsExportGroupRow({
             key: monthKey,
             name: getAlarmsExportMonthName(shift.shiftDate),
-          })
+          }),
         );
       }
 
@@ -3824,11 +3889,11 @@ export async function exportAlarmsReportExcel(req: Request, res: Response) {
       .sort((a, b) => b.total - a.total);
 
     const byCity = Array.from(byCityMap.values()).sort(
-      (a, b) => b.totalAlarms - a.totalAlarms
+      (a, b) => b.totalAlarms - a.totalAlarms,
     );
 
     const byMonth = Array.from(byMonthMap.values()).sort((a, b) =>
-      a.key.localeCompare(b.key)
+      a.key.localeCompare(b.key),
     );
 
     const workbook = new ExcelJS.Workbook();
@@ -3916,7 +3981,7 @@ export async function exportAlarmsReportExcel(req: Request, res: Response) {
 
     res.setHeader(
       "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
     res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
 

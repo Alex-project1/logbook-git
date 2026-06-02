@@ -47,7 +47,7 @@ export function EmployeesPage() {
         Record<EmployeesSectionId, boolean>
     >({
         form: false,
-        list: false,
+        list: true,
     });
 
     const [page, setPage] = useState(1);

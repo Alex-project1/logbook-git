@@ -5,7 +5,8 @@ export type ReportFilters = {
   dateTo?: string;
   cityId?: number;
 };
-
+export type CrewDutyType = "FULL_DAY" | "DAY" | "NIGHT";
+export type CrewTransportType = "AUTO" | "MOTO";
 export type GeneralTotals = {
   totalShifts: number;
   totalTrips: number;
@@ -81,13 +82,13 @@ function buildReportParams(filters: ReportFilters) {
 }
 
 export async function getGeneralReport(
-  filters: ReportFilters
+  filters: ReportFilters,
 ): Promise<GeneralReportResponse> {
   const response = await http.get<GeneralReportResponse>(
     "/api/admin/reports/general",
     {
       params: buildReportParams(filters),
-    }
+    },
   );
 
   return response.data;
@@ -120,7 +121,12 @@ export async function downloadReportsExcel(filters: ReportFilters) {
 export type TripsTableFilters = ReportFilters & {
   page?: number;
   pageSize?: number;
-  sortBy?: "shiftDate" | "departureTime" | "arrivalTime" | "arrivalMinutes" | "distanceKm";
+  sortBy?:
+    | "shiftDate"
+    | "departureTime"
+    | "arrivalTime"
+    | "arrivalMinutes"
+    | "distanceKm";
   sortDir?: "asc" | "desc";
 
   crewId?: number;
@@ -260,8 +266,10 @@ function buildTripsTableParams(filters: TripsTableFilters) {
 
   if (filters.alarmSource) params.alarmSource = filters.alarmSource;
   if (typeof filters.isCombat === "boolean") params.isCombat = filters.isCombat;
-  if (typeof filters.hasDetained === "boolean") params.hasDetained = filters.hasDetained;
-  if (typeof filters.hasTransferred === "boolean") params.hasTransferred = filters.hasTransferred;
+  if (typeof filters.hasDetained === "boolean")
+    params.hasDetained = filters.hasDetained;
+  if (typeof filters.hasTransferred === "boolean")
+    params.hasTransferred = filters.hasTransferred;
 
   if (filters.search?.trim()) params.search = filters.search.trim();
 
@@ -277,23 +285,26 @@ function buildTripsTableParams(filters: TripsTableFilters) {
 }
 
 export async function getTripsTableReport(
-  filters: TripsTableFilters
+  filters: TripsTableFilters,
 ): Promise<TripsTableResponse> {
   const response = await http.get<TripsTableResponse>(
     "/api/admin/reports/trips-table",
     {
       params: buildTripsTableParams(filters),
-    }
+    },
   );
 
   return response.data;
 }
 
 export async function downloadTripsTableExcel(filters: TripsTableFilters) {
-  const response = await http.get("/api/admin/reports/trips-table/export/excel", {
-    params: buildTripsTableParams(filters),
-    responseType: "blob",
-  });
+  const response = await http.get(
+    "/api/admin/reports/trips-table/export/excel",
+    {
+      params: buildTripsTableParams(filters),
+      responseType: "blob",
+    },
+  );
 
   const blob = new Blob([response.data], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -318,11 +329,11 @@ export type ShiftsTableFilters = ReportFilters & {
   page?: number;
   pageSize?: number;
   sortBy?:
-  | "shiftDate"
-  | "submittedAt"
-  | "totalDistanceKm"
-  | "odometerStart"
-  | "odometerEndCalculated";
+    | "shiftDate"
+    | "submittedAt"
+    | "totalDistanceKm"
+    | "odometerStart"
+    | "odometerEndCalculated";
   sortDir?: "asc" | "desc";
 
   crewId?: number;
@@ -390,6 +401,11 @@ export type ShiftTableRow = {
   odometerEndCalculated: number;
   totalDistanceKm: number;
 
+  crewDutyType: CrewDutyType;
+  crewTransportType: CrewTransportType;
+  shiftDurationHours: number;
+  shiftEquivalent: number;
+
   summary: GeneralTotals & {
     totalTrips: number;
     regularOh: number;
@@ -409,6 +425,7 @@ export type ShiftsTableResponse = {
   };
   summary: {
     totalRowsOnPage: number;
+    totalShiftEquivalent: number;
     totalTrips: number;
     totalDistanceKm: number;
     totalAlarms: number;
@@ -450,23 +467,26 @@ function buildShiftsTableParams(filters: ShiftsTableFilters) {
 }
 
 export async function getShiftsTableReport(
-  filters: ShiftsTableFilters
+  filters: ShiftsTableFilters,
 ): Promise<ShiftsTableResponse> {
   const response = await http.get<ShiftsTableResponse>(
     "/api/admin/reports/shifts-table",
     {
       params: buildShiftsTableParams(filters),
-    }
+    },
   );
 
   return response.data;
 }
 
 export async function downloadShiftsTableExcel(filters: ShiftsTableFilters) {
-  const response = await http.get("/api/admin/reports/shifts-table/export/excel", {
-    params: buildShiftsTableParams(filters),
-    responseType: "blob",
-  });
+  const response = await http.get(
+    "/api/admin/reports/shifts-table/export/excel",
+    {
+      params: buildShiftsTableParams(filters),
+      responseType: "blob",
+    },
+  );
 
   const blob = new Blob([response.data], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -492,16 +512,16 @@ export type EmployeesTableFilters = ReportFilters & {
   page?: number;
   pageSize?: number;
   sortBy?:
-  | "fullName"
-  | "totalShifts"
-  | "driverShifts"
-  | "seniorShifts"
-  | "weaponShifts"
-  | "totalAlarms"
-  | "averageAlarmsPerShift"
-  | "totalDistanceKm"
-  | "detained"
-  | "transferred";
+    | "fullName"
+    | "totalShifts"
+    | "driverShifts"
+    | "seniorShifts"
+    | "weaponShifts"
+    | "totalAlarms"
+    | "averageAlarmsPerShift"
+    | "totalDistanceKm"
+    | "detained"
+    | "transferred";
   sortDir?: "asc" | "desc";
 
   crewId?: number;
@@ -621,27 +641,27 @@ function buildEmployeesTableParams(filters: EmployeesTableFilters) {
 }
 
 export async function getEmployeesTableReport(
-  filters: EmployeesTableFilters
+  filters: EmployeesTableFilters,
 ): Promise<EmployeesTableResponse> {
   const response = await http.get<EmployeesTableResponse>(
     "/api/admin/reports/employees-table",
     {
       params: buildEmployeesTableParams(filters),
-    }
+    },
   );
 
   return response.data;
 }
 
 export async function downloadEmployeesTableExcel(
-  filters: EmployeesTableFilters
+  filters: EmployeesTableFilters,
 ) {
   const response = await http.get(
     "/api/admin/reports/employees-table/export/excel",
     {
       params: buildEmployeesTableParams(filters),
       responseType: "blob",
-    }
+    },
   );
 
   const blob = new Blob([response.data], {
@@ -668,15 +688,15 @@ export type CrewsTableFilters = ReportFilters & {
   page?: number;
   pageSize?: number;
   sortBy?:
-  | "crewName"
-  | "totalShifts"
-  | "totalTrips"
-  | "totalAlarms"
-  | "averageAlarmsPerShift"
-  | "averageDistancePerShift"
-  | "totalDistanceKm"
-  | "detained"
-  | "transferred";
+    | "crewName"
+    | "totalShifts"
+    | "totalTrips"
+    | "totalAlarms"
+    | "averageAlarmsPerShift"
+    | "averageDistancePerShift"
+    | "totalDistanceKm"
+    | "detained"
+    | "transferred";
   sortDir?: "asc" | "desc";
 
   crewId?: number;
@@ -777,23 +797,26 @@ function buildCrewsTableParams(filters: CrewsTableFilters) {
 }
 
 export async function getCrewsTableReport(
-  filters: CrewsTableFilters
+  filters: CrewsTableFilters,
 ): Promise<CrewsTableResponse> {
   const response = await http.get<CrewsTableResponse>(
     "/api/admin/reports/crews-table",
     {
       params: buildCrewsTableParams(filters),
-    }
+    },
   );
 
   return response.data;
 }
 
 export async function downloadCrewsTableExcel(filters: CrewsTableFilters) {
-  const response = await http.get("/api/admin/reports/crews-table/export/excel", {
-    params: buildCrewsTableParams(filters),
-    responseType: "blob",
-  });
+  const response = await http.get(
+    "/api/admin/reports/crews-table/export/excel",
+    {
+      params: buildCrewsTableParams(filters),
+      responseType: "blob",
+    },
+  );
 
   const blob = new Blob([response.data], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -819,14 +842,14 @@ export type VehiclesTableFilters = ReportFilters & {
   page?: number;
   pageSize?: number;
   sortBy?:
-  | "vehicleTitle"
-  | "totalShifts"
-  | "totalTrips"
-  | "totalAlarms"
-  | "averageDistancePerShift"
-  | "totalDistanceKm"
-  | "detained"
-  | "transferred";
+    | "vehicleTitle"
+    | "totalShifts"
+    | "totalTrips"
+    | "totalAlarms"
+    | "averageDistancePerShift"
+    | "totalDistanceKm"
+    | "detained"
+    | "transferred";
   sortDir?: "asc" | "desc";
 
   crewId?: number;
@@ -931,27 +954,27 @@ function buildVehiclesTableParams(filters: VehiclesTableFilters) {
 }
 
 export async function getVehiclesTableReport(
-  filters: VehiclesTableFilters
+  filters: VehiclesTableFilters,
 ): Promise<VehiclesTableResponse> {
   const response = await http.get<VehiclesTableResponse>(
     "/api/admin/reports/vehicles-table",
     {
       params: buildVehiclesTableParams(filters),
-    }
+    },
   );
 
   return response.data;
 }
 
 export async function downloadVehiclesTableExcel(
-  filters: VehiclesTableFilters
+  filters: VehiclesTableFilters,
 ) {
   const response = await http.get(
     "/api/admin/reports/vehicles-table/export/excel",
     {
       params: buildVehiclesTableParams(filters),
       responseType: "blob",
-    }
+    },
   );
 
   const blob = new Blob([response.data], {
@@ -1050,13 +1073,13 @@ function buildAlarmsReportParams(filters: AlarmsReportFilters) {
 }
 
 export async function getAlarmsReport(
-  filters: AlarmsReportFilters
+  filters: AlarmsReportFilters,
 ): Promise<AlarmsReportResponse> {
   const response = await http.get<AlarmsReportResponse>(
     "/api/admin/reports/alarms",
     {
       params: buildAlarmsReportParams(filters),
-    }
+    },
   );
 
   return response.data;
@@ -1087,3 +1110,187 @@ export async function downloadAlarmsReportExcel(filters: AlarmsReportFilters) {
   link.remove();
   window.URL.revokeObjectURL(url);
 }
+
+export type CustomReportMetric =
+  | "totalShifts"
+  | "totalTrips"
+  | "totalDistanceKm"
+  | "totalAlarms"
+  | "falseTotal"
+  | "combatTotal"
+  | "additionalTotal"
+  | "detained";
+
+export type CustomReportGroupMode = "city" | "crew";
+
+export type CustomReportFilters = {
+  cityId?: number;
+  dateFrom?: string;
+  dateTo?: string;
+  compareDateFrom?: string;
+  compareDateTo?: string;
+  metrics?: CustomReportMetric[];
+  tripGoalIds?: number[];
+  groupMode?: CustomReportGroupMode;
+};
+
+export type CustomReportTableColumn = {
+  key: string;
+  label: string;
+};
+
+export type CustomReportTableRow = {
+  key: string;
+  label: string;
+  level: number;
+  total: number;
+  groups: Record<string, number>;
+};
+
+export type CustomReportTable = {
+  columns: CustomReportTableColumn[];
+  rows: CustomReportTableRow[];
+};
+
+export type CustomReportTotals = {
+  totalShifts: number;
+  totalTrips: number;
+  totalDistanceKm: number;
+
+  totalAlarms: number;
+  totalOh: number;
+  totalPartner: number;
+
+  falseTotal: number;
+  combatTotal: number;
+
+  additionalTotal: number;
+  additionalByReason: Record<string, number>;
+
+  detained: number;
+  transferred: number;
+};
+
+export type CustomReportGroup = {
+  id: number;
+  name: string;
+  totals: CustomReportTotals;
+};
+
+export type CustomReportResponse = {
+  filters: {
+    cityId: number | null;
+    dateFrom: string | null;
+    dateTo: string | null;
+    compareDateFrom: string | null;
+    compareDateTo: string | null;
+    metrics: CustomReportMetric[];
+    tripGoalIds: number[];
+    groupMode: CustomReportGroupMode;
+  };
+  data: {
+    main: {
+      totals: CustomReportTotals;
+      groups: CustomReportGroup[];
+      table: CustomReportTable;
+    };
+    compare: {
+      totals: CustomReportTotals;
+      groups: CustomReportGroup[];
+      table: CustomReportTable;
+    } | null;
+    charts: {
+      byGroups: {
+        name: string;
+        totalAlarms: number;
+        combatTotal: number;
+        falseTotal: number;
+        additionalTotal: number;
+        totalShifts: number;
+      }[];
+      periodComparison: {
+        metric: CustomReportMetric;
+        label: string;
+        main: number;
+        compare: number | null;
+      }[];
+      additionalReasons: {
+        reasonName: string;
+        total: number;
+      }[];
+    };
+  };
+};
+
+function buildCustomReportParams(filters: CustomReportFilters) {
+  const params: Record<string, string | number> = {};
+
+  if (filters.cityId) params.cityId = filters.cityId;
+  if (filters.groupMode) params.groupMode = filters.groupMode;
+
+  if (filters.dateFrom) {
+    params.dateFrom = `${filters.dateFrom}T00:00:00.000Z`;
+  }
+
+  if (filters.dateTo) {
+    params.dateTo = `${filters.dateTo}T23:59:59.999Z`;
+  }
+
+  if (filters.compareDateFrom) {
+    params.compareDateFrom = `${filters.compareDateFrom}T00:00:00.000Z`;
+  }
+
+  if (filters.compareDateTo) {
+    params.compareDateTo = `${filters.compareDateTo}T23:59:59.999Z`;
+  }
+
+  if (filters.metrics?.length) {
+    params.metrics = filters.metrics.join(",");
+  }
+
+  if (filters.tripGoalIds?.length) {
+    params.tripGoalIds = filters.tripGoalIds.join(",");
+  }
+
+  return params;
+}
+
+export async function getCustomReport(
+  filters: CustomReportFilters
+): Promise<CustomReportResponse> {
+  const response = await http.get<CustomReportResponse>(
+    "/api/admin/reports/custom",
+    {
+      params: buildCustomReportParams(filters),
+    }
+  );
+
+  return response.data;
+}
+
+export async function downloadCustomReportExcel(filters: CustomReportFilters) {
+  const response = await http.get("/api/admin/reports/custom/export/excel", {
+    params: buildCustomReportParams(filters),
+    responseType: "blob",
+  });
+
+  const blob = new Blob([response.data], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  const from = filters.dateFrom || "all";
+  const to = filters.dateTo || "all";
+
+  link.href = url;
+  link.download = `custom-report-${from}-${to}.xlsx`;
+
+  document.body.appendChild(link);
+  link.click();
+
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
+

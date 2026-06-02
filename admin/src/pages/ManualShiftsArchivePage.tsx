@@ -40,7 +40,30 @@ function formatDateTime(value: string | null) {
 function formatKm(value: number) {
   return `${value.toLocaleString("ru-RU")} км`;
 }
+function getDutyTypeLabel(value: string) {
+  const labels: Record<string, string> = {
+    FULL_DAY: "Суточный",
+    DAY: "Дневной",
+    NIGHT: "Ночной",
+  };
 
+  return labels[value] ?? value;
+}
+
+function getTransportTypeLabel(value: string) {
+  const labels: Record<string, string> = {
+    AUTO: "Авто",
+    MOTO: "Мото",
+  };
+
+  return labels[value] ?? value;
+}
+
+function formatShiftEquivalent(value: number) {
+  return value.toLocaleString("ru-RU", {
+    maximumFractionDigits: 2,
+  });
+}
 export function ManualShiftsArchivePage() {
   const [filters, setFilters] =
     useState<DeletedShiftArchiveFilters>(defaultFilters);
@@ -318,9 +341,13 @@ export function ManualShiftsArchivePage() {
                   <tr>
                     <th>Дата смены</th>
                     <th>Удалена</th>
-                    <th>Город</th>
-                    <th>Наряд</th>
-                    <th>Авто</th>
+                  <th>Город</th>
+<th>Наряд</th>
+<th>Тип</th>
+<th>Транспорт</th>
+<th>Часы</th>
+<th>Смены</th>
+<th>Авто</th>
                     <th>Водитель</th>
                     <th>Старший</th>
                     <th>Поездок</th>
@@ -336,10 +363,14 @@ export function ManualShiftsArchivePage() {
                     <tr key={row.id}>
                       <td>{formatDate(row.shiftDate)}</td>
                       <td>{formatDateTime(row.deletedAt)}</td>
-                      <td>{row.city.name}</td>
-                      <td>{row.crew.name}</td>
-                      <td>
-                        {row.vehicle.title}
+                  <td>{row.city.name}</td>
+<td>{row.crew.name}</td>
+<td>{getDutyTypeLabel(row.crewDutyType)}</td>
+<td>{getTransportTypeLabel(row.crewTransportType)}</td>
+<td>{Number(row.shiftDurationHours)}</td>
+<td>{formatShiftEquivalent(row.shiftEquivalent)}</td>
+<td>
+  {row.vehicle.title}
                         {row.vehicle.licensePlate && (
                           <div className="muted-text">
                             {row.vehicle.licensePlate}

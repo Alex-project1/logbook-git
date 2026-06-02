@@ -987,7 +987,7 @@ export function ManualShiftCreatePage() {
           {error && <div className="form-error">{error}</div>}
           {success && <div className="form-success">{success}</div>}
 
-          <div className="manual-submit-bar">
+          <div className="manual-submit-bar center">
             <button className="primary-button" disabled={saving}>
               {saving ? "Сохраняем..." : "Добавить смену"}
             </button>

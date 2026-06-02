@@ -56,14 +56,22 @@ export function AdminLayout() {
         label: "Смены и дежурства",
         items: [
           ...(canWrite
-            ? [{ to: "/manual-shifts/create", label: "Добавить смену" }]
+            ? [{ to: "/manual-shifts/create", label: "Добавить смену ГБР" }]
             : []),
           ...(canWrite
-            ? [{ to: "/manual-shifts/archive", label: "Архив смен" }]
+            ? [{ to: "/manual-shifts/archive", label: "Архив смен ГБР" }]
             : []),
           { to: "/post-duties", label: "Постовые дежурства" },
         ],
       },
+      {
+  id: "notifications",
+  label: "Уведомления",
+  items: [
+    { to: "/notifications/new", label: "Новое уведомление" },
+    { to: "/notifications/history", label: "История уведомлений" },
+  ],
+},
       {
         id: "directories",
         label: "Справочники",
@@ -71,9 +79,9 @@ export function AdminLayout() {
           ...(isSuperAdmin ? [{ to: "/cities", label: "Города" }] : []),
           { to: "/mobile-users", label: "Пользователи приложения" },
           { to: "/employees", label: "Сотрудники" },
-          { to: "/crews", label: "Наряды" },
+          { to: "/crews", label: "Наряды ГБР" },
+          { to: "/duty-posts", label: "Доп. посты" },
           { to: "/vehicles", label: "Автомобили" },
-          { to: "/duty-posts", label: "Посты" },
           ...(isSuperAdmin
             ? [
                 { to: "/trip-goals", label: "Цели поездок" },
@@ -90,6 +98,7 @@ export function AdminLayout() {
         label: "Отчеты",
         items: [
           { to: "/reports/general", label: "Общая статистика" },
+          { to: "/reports/custom", label: "Кастомный отчет" },
           { to: "/reports/trips", label: "Все поездки" },
           { to: "/reports/shifts", label: "Итоги по сменам" },
           { to: "/reports/employees", label: "По сотрудникам" },

@@ -10,7 +10,19 @@ import { prisma } from "../../config/prisma";
 function toNumber(value: unknown) {
   return Number(value ?? 0);
 }
+function roundNumber(value: number) {
+  return Math.round(value * 100) / 100;
+}
 
+function getShiftEquivalent(shift: { shiftDurationHours?: unknown }) {
+  const durationHours = Number(shift.shiftDurationHours ?? 24);
+
+  if (!Number.isFinite(durationHours) || durationHours <= 0) {
+    return 1;
+  }
+
+  return roundNumber(durationHours / 24);
+}
 function calculateShiftSummary(shift: any) {
   let totalTrips = 0;
 
@@ -161,6 +173,11 @@ function mapShiftForList(shift: any) {
     updatedAt: shift.updatedAt,
 
     summary: calculateShiftSummary(shift),
+
+    crewDutyType: shift.crewDutyType,
+    crewTransportType: shift.crewTransportType,
+    shiftDurationHours: Number(shift.shiftDurationHours ?? 24),
+    shiftEquivalent: getShiftEquivalent(shift),
   };
 }
 
@@ -641,7 +658,7 @@ function parseDateForCreate(value: string) {
 
 function calculateArrivalMinutesForCreate(
   departureTime: Date,
-  arrivalTime: Date
+  arrivalTime: Date,
 ) {
   const diffMs = arrivalTime.getTime() - departureTime.getTime();
   return Math.round(diffMs / 1000 / 60);
@@ -830,7 +847,8 @@ export async function createAdminShift(req: Request, res: Response) {
 
           if (!event.reasonId && !event.customReasonText) {
             return res.status(400).json({
-              message: "Additional alarm must have reasonId or customReasonText",
+              message:
+                "Additional alarm must have reasonId or customReasonText",
             });
           }
         }
@@ -841,6 +859,27 @@ export async function createAdminShift(req: Request, res: Response) {
     const odometerEndCalculated =
       data.odometerStart + Math.round(totalDistanceKm);
 
+    const selectedCrew = await prisma.crew.findFirst({
+      where: {
+        id: data.crewId,
+        cityId: data.cityId,
+        deletedAt: null,
+        isActive: true,
+      },
+      select: {
+        dutyType: true,
+        transportType: true,
+        durationHours: true,
+      },
+    });
+
+    if (!selectedCrew) {
+      return res.status(404).json({
+        message: "Наряд не найден или неактивен",
+      });
+    }
+
+    const shiftDurationHours = Number(selectedCrew.durationHours ?? 24);
     const savedShift = await prisma.$transaction(async (tx) => {
       const shift = await tx.shift.create({
         data: {
@@ -857,6 +896,10 @@ export async function createAdminShift(req: Request, res: Response) {
           seniorEmployeeId: data.seniorEmployeeId,
           seniorHasWeapon: data.seniorHasWeapon,
 
+          crewDutyType: selectedCrew.dutyType,
+          crewTransportType: selectedCrew.transportType,
+          shiftDurationHours,
+
           shiftDate,
           odometerStart: data.odometerStart,
           totalDistanceKm,
@@ -872,7 +915,7 @@ export async function createAdminShift(req: Request, res: Response) {
         const arrivalTime = parseDateForCreate(trip.arrivalTime)!;
         const arrivalMinutes = calculateArrivalMinutesForCreate(
           departureTime,
-          arrivalTime
+          arrivalTime,
         );
 
         const savedTrip = await tx.trip.create({
@@ -904,8 +947,8 @@ export async function createAdminShift(req: Request, res: Response) {
                 event.alarmSource === "OH"
                   ? AlarmSource.OH
                   : event.alarmSource === "PARTNER"
-                  ? AlarmSource.PARTNER
-                  : null,
+                    ? AlarmSource.PARTNER
+                    : null,
 
               countTotal:
                 event.eventCategory === "REGULAR_ALARM"
@@ -914,7 +957,7 @@ export async function createAdminShift(req: Request, res: Response) {
 
               isCombat:
                 event.eventCategory === "REGULAR_ALARM"
-                  ? event.isCombat ?? false
+                  ? (event.isCombat ?? false)
                   : null,
 
               reasonId: event.reasonId ?? null,
@@ -1183,7 +1226,8 @@ export async function updateAdminShift(req: Request, res: Response) {
 
           if (!event.reasonId && !event.customReasonText) {
             return res.status(400).json({
-              message: "Additional alarm must have reasonId or customReasonText",
+              message:
+                "Additional alarm must have reasonId or customReasonText",
             });
           }
         }
@@ -1236,7 +1280,7 @@ export async function updateAdminShift(req: Request, res: Response) {
 
         const arrivalMinutes = calculateArrivalMinutesForCreate(
           departureTime,
-          arrivalTime
+          arrivalTime,
         );
 
         const savedTrip = await tx.trip.create({
@@ -1268,8 +1312,8 @@ export async function updateAdminShift(req: Request, res: Response) {
                 event.alarmSource === "OH"
                   ? AlarmSource.OH
                   : event.alarmSource === "PARTNER"
-                  ? AlarmSource.PARTNER
-                  : null,
+                    ? AlarmSource.PARTNER
+                    : null,
 
               countTotal:
                 event.eventCategory === "REGULAR_ALARM"
@@ -1278,7 +1322,7 @@ export async function updateAdminShift(req: Request, res: Response) {
 
               isCombat:
                 event.eventCategory === "REGULAR_ALARM"
-                  ? event.isCombat ?? false
+                  ? (event.isCombat ?? false)
                   : null,
 
               reasonId: event.reasonId ?? null,

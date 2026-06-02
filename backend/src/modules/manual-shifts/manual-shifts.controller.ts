@@ -68,7 +68,15 @@ function parseNumberValue(value: unknown) {
 function roundNumber(value: number) {
   return Number(value.toFixed(1));
 }
+function getShiftEquivalent(shift: { shiftDurationHours?: unknown }) {
+  const durationHours = Number(shift.shiftDurationHours ?? 24);
 
+  if (!Number.isFinite(durationHours) || durationHours <= 0) {
+    return 1;
+  }
+
+  return Math.round((durationHours / 24) * 100) / 100;
+}
 function normalizeEvent(event: ManualTripEventInput) {
   const detainedCount = Math.max(Number(event.detainedCount ?? 0), 0);
   const transferredCount = Math.max(Number(event.transferredCount ?? 0), 0);
@@ -98,7 +106,9 @@ function normalizeEvent(event: ManualTripEventInput) {
   const countTotal = ohCount + partnerCount;
 
   if (countTotal <= 0) {
-    throw new Error("Для доп. сработок нужно указать количество ОХ или Партнеров");
+    throw new Error(
+      "Для доп. сработок нужно указать количество ОХ или Партнеров",
+    );
   }
 
   return {
@@ -173,8 +183,7 @@ function getAdminInfoFromRequest(req: Request) {
     {};
 
   return {
-    adminUserId:
-      Number(admin.id ?? admin.userId ?? admin.adminUserId) || null,
+    adminUserId: Number(admin.id ?? admin.userId ?? admin.adminUserId) || null,
     adminLogin: admin.login ?? null,
     adminName: admin.name ?? null,
   };
@@ -189,7 +198,7 @@ async function createAdminActionLog(
     cityId?: number | null;
     description?: string | null;
     metadata?: Record<string, unknown>;
-  }
+  },
 ) {
   try {
     const adminInfo = getAdminInfoFromRequest(req);
@@ -224,10 +233,15 @@ export async function createManualShift(req: Request, res: Response) {
     const odometerStart = parseNumberValue(req.body.odometerStart);
 
     const shiftDate = parseDateValue(req.body.shiftDate);
-    const submittedAt =
-      parseDateValue(req.body.submittedAt) ?? new Date();
+    const submittedAt = parseDateValue(req.body.submittedAt) ?? new Date();
 
-    if (!cityId || !crewId || !vehicleId || !driverEmployeeId || !seniorEmployeeId) {
+    if (
+      !cityId ||
+      !crewId ||
+      !vehicleId ||
+      !driverEmployeeId ||
+      !seniorEmployeeId
+    ) {
       return res.status(400).json({
         message: "Не заполнены основные поля смены",
       });
@@ -267,11 +281,32 @@ export async function createManualShift(req: Request, res: Response) {
     const totalDistanceKm = roundNumber(
       trips.reduce((sum: number, trip: ReturnType<typeof normalizeTrip>) => {
         return sum + trip.distanceKm;
-      }, 0)
+      }, 0),
     );
 
     const odometerEndCalculated = roundNumber(odometerStart + totalDistanceKm);
+    const crew = await prisma.crew.findFirst({
+      where: {
+        id: crewId,
+        cityId,
+        deletedAt: null,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        dutyType: true,
+        transportType: true,
+        durationHours: true,
+      },
+    });
 
+    if (!crew) {
+      return res.status(404).json({
+        message: "Наряд не найден или неактивен",
+      });
+    }
+
+    const shiftDurationHours = Number(crew.durationHours || 24);
     const shift = await prisma.shift.create({
       data: {
         cityId,
@@ -282,6 +317,10 @@ export async function createManualShift(req: Request, res: Response) {
 
         driverHasWeapon: Boolean(req.body.driverHasWeapon),
         seniorHasWeapon: Boolean(req.body.seniorHasWeapon),
+
+        crewDutyType: crew.dutyType,
+        crewTransportType: crew.transportType,
+        shiftDurationHours,
 
         shiftDate,
         submittedAt,
@@ -378,15 +417,15 @@ export async function deleteManualShift(req: Request, res: Response) {
     }
     const canDeleteShift = await canDeleteShiftInCity(req, shift.cityId);
 
-if (!canDeleteShift) {
-  return res.status(403).json({
-    message: "Недостаточно прав для удаления смены в этом городе",
-  });
-}
+    if (!canDeleteShift) {
+      return res.status(403).json({
+        message: "Недостаточно прав для удаления смены в этом городе",
+      });
+    }
     const deleteReason =
-    typeof req.body?.reason === "string" && req.body.reason.trim()
-      ? req.body.reason.trim()
-      : "Причина не указана";
+      typeof req.body?.reason === "string" && req.body.reason.trim()
+        ? req.body.reason.trim()
+        : "Причина не указана";
 
     await prisma.shift.update({
       where: {
@@ -396,17 +435,17 @@ if (!canDeleteShift) {
         deletedAt: new Date(),
       } as any,
     });
-await createAdminActionLog(req, {
-  action: "DELETE_SHIFT",
-  entityType: "SHIFT",
-  entityId: shiftId,
-  cityId: shift.cityId,
-  description: `Удалена смена #${shiftId}. Причина: ${deleteReason}`,
-  metadata: {
-    shiftId,
-    reason: deleteReason,
-  },
-});
+    await createAdminActionLog(req, {
+      action: "DELETE_SHIFT",
+      entityType: "SHIFT",
+      entityId: shiftId,
+      cityId: shift.cityId,
+      description: `Удалена смена #${shiftId}. Причина: ${deleteReason}`,
+      metadata: {
+        shiftId,
+        reason: deleteReason,
+      },
+    });
     return res.json({
       message: "Смена удалена",
     });
@@ -429,15 +468,13 @@ export async function getDeletedManualShifts(req: Request, res: Response) {
     const dateFrom = parseDateValue(req.query.dateFrom);
     const dateTo = parseDateValue(req.query.dateTo);
     const search = req.query.search ? String(req.query.search).trim() : "";
-    
+
     if (!isSuperAdmin(req) && !isAdmin(req)) {
       return res.status(403).json({
         message: "Недостаточно прав для просмотра архива смен",
       });
     }
-    
-  
-    
+
     const where: any = {
       deletedAt: {
         not: null,
@@ -583,6 +620,11 @@ export async function getDeletedManualShifts(req: Request, res: Response) {
         shiftDate: shift.shiftDate,
         submittedAt: shift.submittedAt,
         deletedAt: shift.deletedAt,
+
+        crewDutyType: shift.crewDutyType,
+        crewTransportType: shift.crewTransportType,
+        shiftDurationHours: Number(shift.shiftDurationHours ?? 24),
+        shiftEquivalent: getShiftEquivalent(shift),
 
         odometerStart: shift.odometerStart,
         odometerEndCalculated: shift.odometerEndCalculated,
@@ -742,7 +784,10 @@ export async function updateManualShift(req: Request, res: Response) {
         message: "Shift not found",
       });
     }
-    const canEditCurrentShift = await canEditCityData(req, existingShift.cityId);
+    const canEditCurrentShift = await canEditCityData(
+      req,
+      existingShift.cityId,
+    );
 
     if (!canEditCurrentShift) {
       return res.status(403).json({
@@ -759,18 +804,24 @@ export async function updateManualShift(req: Request, res: Response) {
     const shiftDate = parseDateValue(req.body.shiftDate);
     const submittedAt = parseDateValue(req.body.submittedAt) ?? new Date();
 
-    if (!cityId || !crewId || !vehicleId || !driverEmployeeId || !seniorEmployeeId) {
+    if (
+      !cityId ||
+      !crewId ||
+      !vehicleId ||
+      !driverEmployeeId ||
+      !seniorEmployeeId
+    ) {
       return res.status(400).json({
         message: "Не заполнены основные поля смены",
       });
     }
     const canEditNewShiftCity = await canEditCityData(req, cityId);
 
-if (!canEditNewShiftCity) {
-  return res.status(403).json({
-    message: "Недостаточно прав для переноса смены в этот город",
-  });
-}
+    if (!canEditNewShiftCity) {
+      return res.status(403).json({
+        message: "Недостаточно прав для переноса смены в этот город",
+      });
+    }
 
     if (driverEmployeeId === seniorEmployeeId) {
       return res.status(400).json({
@@ -801,11 +852,46 @@ if (!canEditNewShiftCity) {
     const totalDistanceKm = roundNumber(
       trips.reduce((sum: number, trip: ReturnType<typeof normalizeTrip>) => {
         return sum + trip.distanceKm;
-      }, 0)
+      }, 0),
     );
 
     const odometerEndCalculated = roundNumber(odometerStart + totalDistanceKm);
+    const selectedCrew = await prisma.crew.findFirst({
+      where: {
+        id: crewId,
+        cityId,
+        deletedAt: null,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        dutyType: true,
+        transportType: true,
+        durationHours: true,
+      },
+    });
 
+    if (!selectedCrew) {
+      return res.status(404).json({
+        message: "Наряд не найден или неактивен",
+      });
+    }
+
+    const shouldRefreshCrewSnapshot = selectedCrew.id !== existingShift.crewId;
+
+    const nextCrewDutyType = shouldRefreshCrewSnapshot
+      ? selectedCrew.dutyType
+      : (existingShift.crewDutyType ?? selectedCrew.dutyType);
+
+    const nextCrewTransportType = shouldRefreshCrewSnapshot
+      ? selectedCrew.transportType
+      : (existingShift.crewTransportType ?? selectedCrew.transportType);
+
+    const nextShiftDurationHours = shouldRefreshCrewSnapshot
+      ? Number(selectedCrew.durationHours ?? 24)
+      : Number(
+          existingShift.shiftDurationHours ?? selectedCrew.durationHours ?? 24,
+        );
     const oldTrips = await prisma.trip.findMany({
       where: {
         shiftId,
@@ -849,6 +935,10 @@ if (!canEditNewShiftCity) {
 
           driverHasWeapon: Boolean(req.body.driverHasWeapon),
           seniorHasWeapon: Boolean(req.body.seniorHasWeapon),
+
+          crewDutyType: nextCrewDutyType,
+          crewTransportType: nextCrewTransportType,
+          shiftDurationHours: nextShiftDurationHours,
 
           shiftDate,
           submittedAt,

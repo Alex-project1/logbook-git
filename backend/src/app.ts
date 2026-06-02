@@ -18,6 +18,10 @@ import adminActionLogsRoutes from "./modules/admin-action-logs/admin-action-logs
 import adminUsersRoutes from "./modules/admin-users/admin-users.routes";
 import dutyPostsRoutes from "./modules/duty-posts/duty-posts.routes";
 import postDutiesRoutes from "./modules/post-duties/post-duties.routes";
+import adminNotificationsRoutes from "./modules/notifications/notifications.routes";
+import mobileNotificationsRoutes from "./modules/notifications/notifications.mobile.routes";
+import mobilePostDutiesRoutes from "./modules/post-duties/post-duties.mobile.routes";
+import mobileHistoryRoutes from "./modules/mobile-history/mobile-history.routes";
 
 const app = express();
 
@@ -48,6 +52,9 @@ app.use("/api/admin/reports", adminReportsRoutes);
 
 app.use("/api/mobile", mobileRoutes);
 app.use("/api/mobile/shifts", mobileShiftRoutes);
+app.use("/api/mobile/post-duties", mobilePostDutiesRoutes);
+app.use("/api/mobile/history", mobileHistoryRoutes);
+app.use("/api/mobile/notifications", mobileNotificationsRoutes);
 
 app.use("/api/admin/manual-shifts", manualShiftsRoutes);
 
@@ -56,5 +63,7 @@ app.use("/api/admin/admin-users", adminUsersRoutes);
 
 app.use("/api/admin/duty-posts", dutyPostsRoutes);
 app.use("/api/admin/post-duties", postDutiesRoutes);
+
+app.use("/api/admin/notifications", adminNotificationsRoutes);
 
 export default app;

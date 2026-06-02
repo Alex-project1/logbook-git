@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "284463418525",
+    "project_id": "routmaster-4302b",
+    "storage_bucket": "routmaster-4302b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:284463418525:android:6a61cbde4299a4163ed874",
+        "android_client_info": {
+          "package_name": "com.oh.routemaster"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA_mq0TX7LcIY03IHVZtfbkkw8jAmj1DkE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

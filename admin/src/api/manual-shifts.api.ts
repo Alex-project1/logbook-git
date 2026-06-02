@@ -1,4 +1,5 @@
 import { http } from "./http";
+import type { CrewDutyType, CrewTransportType } from "./crews.api";
 
 export type ManualTripEventInput = {
   eventCategory: "REGULAR_ALARM" | "ADDITIONAL_ALARM";
@@ -51,7 +52,7 @@ export type CreateManualShiftInput = {
 export async function createManualShift(data: CreateManualShiftInput) {
   const response = await http.post<{ message: string; data: unknown }>(
     "/api/admin/manual-shifts",
-    data
+    data,
   );
 
   return response.data;
@@ -107,6 +108,11 @@ export type DeletedShiftArchiveRow = {
   submittedAt: string | null;
   deletedAt: string | null;
 
+  crewDutyType: CrewDutyType;
+  crewTransportType: CrewTransportType;
+  shiftDurationHours: number;
+  shiftEquivalent: number;
+
   odometerStart: number;
   odometerEndCalculated: number;
   totalDistanceKm: number;
@@ -145,13 +151,13 @@ function buildDeletedShiftsParams(filters: DeletedShiftArchiveFilters) {
 }
 
 export async function getDeletedManualShifts(
-  filters: DeletedShiftArchiveFilters
+  filters: DeletedShiftArchiveFilters,
 ): Promise<DeletedShiftArchiveResponse> {
   const response = await http.get<DeletedShiftArchiveResponse>(
     "/api/admin/manual-shifts/archive",
     {
       params: buildDeletedShiftsParams(filters),
-    }
+    },
   );
 
   return response.data;
@@ -226,9 +232,11 @@ export type ManualShiftDetails = {
   trips: ManualShiftDetailsTrip[];
 };
 
-export async function getManualShiftById(id: number): Promise<ManualShiftDetails> {
+export async function getManualShiftById(
+  id: number,
+): Promise<ManualShiftDetails> {
   const response = await http.get<{ data: ManualShiftDetails }>(
-    `/api/admin/manual-shifts/${id}`
+    `/api/admin/manual-shifts/${id}`,
   );
 
   return response.data.data;
@@ -236,11 +244,11 @@ export async function getManualShiftById(id: number): Promise<ManualShiftDetails
 
 export async function updateManualShift(
   id: number,
-  data: CreateManualShiftInput
+  data: CreateManualShiftInput,
 ) {
   const response = await http.put<{ message: string; data: unknown }>(
     `/api/admin/manual-shifts/${id}`,
-    data
+    data,
   );
 
   return response.data;

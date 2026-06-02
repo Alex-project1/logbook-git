@@ -1,0 +1,3027 @@
+package com.oh.routemaster.ui.screens
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import com.google.gson.Gson
+import com.oh.routemaster.data.local.ShiftDraftStore
+import com.oh.routemaster.data.local.PendingSubmissionItem
+import com.oh.routemaster.data.local.PendingSubmissionStore
+import com.oh.routemaster.data.local.PENDING_KIND_GBR_SHIFT
+import com.oh.routemaster.data.local.PENDING_KIND_POST_DUTY
+import com.oh.routemaster.data.remote.AdditionalAlarmReasonDto
+import com.oh.routemaster.data.remote.ApiClient
+import com.oh.routemaster.data.remote.CreateMobileShiftRequest
+import com.oh.routemaster.data.remote.CreateMobileShiftTripEventRequest
+import com.oh.routemaster.data.remote.CreateMobileShiftTripRequest
+import com.oh.routemaster.data.remote.CreatePostDutyMemberRequest
+import com.oh.routemaster.data.remote.CreatePostDutyRequest
+import com.oh.routemaster.data.remote.CrewDto
+import com.oh.routemaster.data.remote.DutyPostDto
+import com.oh.routemaster.data.remote.EmployeeDto
+import com.oh.routemaster.data.remote.MobileBootstrapDto
+import com.oh.routemaster.data.remote.TripGoalDto
+import com.oh.routemaster.data.remote.VehicleDto
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.oh.routemaster.services.syncPendingSubmissions
+import com.oh.routemaster.services.PendingSubmissionWorkScheduler
+import retrofit2.HttpException
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.io.IOException
+
+private enum class ShiftKind {
+    GBR,
+    POST
+}
+
+private enum class PostDutyType(
+    val label: String,
+    val defaultHours: String
+) {
+    FULL_DAY("Добовий пост", "24"),
+    DAY("Денний пост", "12"),
+    NIGHT("Нічний пост", "12")
+}
+
+
+private const val TRIP_GOAL_ALARM_OH = "alarm_oh"
+private const val TRIP_GOAL_ALARM_PARTNER = "alarm_partner"
+private const val TRIP_GOAL_ADDITIONAL_ALARM_LIST = "additional_alarm_list"
+
+private enum class RegularAlarmType(
+    val label: String,
+    val isCombat: Boolean
+) {
+    FALSE("Ложна", false),
+    COMBAT("Бойова", true)
+}
+
+private data class SelectOption(
+    val id: Int,
+    val label: String
+)
+
+private data class TripDraft(
+    val localId: Long,
+    val goalId: Int,
+    val fromLocation: String = "",
+    val toLocation: String = "",
+    val departureTime: String = "",
+    val arrivalTime: String = "",
+    val distanceKm: String = "",
+    val note: String = "",
+    val regularAlarmType: RegularAlarmType = RegularAlarmType.FALSE,
+    val additionalReasonId: Int = 0,
+    val customReasonText: String = "",
+    val ohCount: String = "",
+    val partnerCount: String = "",
+    val detainedCount: String = "",
+    val transferredCount: String = ""
+)
+
+private data class PostMemberDraft(
+    val localId: Long,
+    val employeeId: Int = 0,
+    val hasWeapon: Boolean = false,
+    val isDriver: Boolean = false,
+    val comment: String = ""
+)
+
+private data class ShiftFormDraftSnapshot(
+    val shiftKind: ShiftKind = ShiftKind.GBR,
+    val mainSectionOpen: Boolean = true,
+    val detailsSectionOpen: Boolean = false,
+    val summarySectionOpen: Boolean = false,
+
+    val selectedCrewId: Int = 0,
+    val selectedVehicleId: Int = 0,
+    val selectedDriverId: Int = 0,
+    val selectedSeniorId: Int = 0,
+    val driverHasWeapon: Boolean = false,
+    val seniorHasWeapon: Boolean = false,
+    val shiftDate: String = "",
+    val shiftTime: String = "",
+    val odometerStart: String = "",
+
+    val trips: List<TripDraft> = emptyList(),
+    val openedTripId: Long? = null,
+    val nextTripId: Long = 1L,
+
+    val selectedPostId: Int = 0,
+    val postVehicleId: Int = 0,
+    val postDutyType: PostDutyType = PostDutyType.FULL_DAY,
+    val postDate: String = "",
+    val postTime: String = "",
+    val postDurationHours: String = PostDutyType.FULL_DAY.defaultHours,
+    val postNote: String = "",
+    val postMembers: List<PostMemberDraft> = emptyList(),
+    val nextPostMemberId: Long = 2L,
+
+    val savedAt: Long = System.currentTimeMillis()
+)
+
+@Composable
+fun NewShiftScreen(
+    accessToken: String
+) {
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val draftStore = remember { ShiftDraftStore(context.applicationContext) }
+    val pendingStore = remember { PendingSubmissionStore(context.applicationContext) }
+    val gson = remember { Gson() }
+
+    var bootstrap by remember { mutableStateOf<MobileBootstrapDto?>(null) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf("") }
+
+    var shiftKind by remember { mutableStateOf(ShiftKind.GBR) }
+
+    var mainSectionOpen by remember { mutableStateOf(true) }
+    var detailsSectionOpen by remember { mutableStateOf(false) }
+    var summarySectionOpen by remember { mutableStateOf(false) }
+
+    var selectedCrewId by remember { mutableIntStateOf(0) }
+    var selectedVehicleId by remember { mutableIntStateOf(0) }
+    var selectedDriverId by remember { mutableIntStateOf(0) }
+    var selectedSeniorId by remember { mutableIntStateOf(0) }
+
+    var driverHasWeapon by remember { mutableStateOf(false) }
+    var seniorHasWeapon by remember { mutableStateOf(false) }
+
+    var shiftDate by remember { mutableStateOf(getCurrentDateInput()) }
+    var shiftTime by remember { mutableStateOf(getCurrentTimeInput()) }
+    var odometerStart by remember { mutableStateOf("") }
+
+    var trips by remember { mutableStateOf<List<TripDraft>>(emptyList()) }
+    var openedTripId by remember { mutableStateOf<Long?>(null) }
+    var nextTripId by remember { mutableStateOf(1L) }
+
+    var selectedPostId by remember { mutableIntStateOf(0) }
+    var postVehicleId by remember { mutableIntStateOf(0) }
+    var postDutyType by remember { mutableStateOf(PostDutyType.FULL_DAY) }
+    var postDate by remember { mutableStateOf(getCurrentDateInput()) }
+    var postTime by remember { mutableStateOf(getCurrentTimeInput()) }
+    var postDurationHours by remember { mutableStateOf(PostDutyType.FULL_DAY.defaultHours) }
+    var postNote by remember { mutableStateOf("") }
+
+    var postMembers by remember {
+        mutableStateOf(
+            listOf(
+                PostMemberDraft(localId = 1L)
+            )
+        )
+    }
+    var nextPostMemberId by remember { mutableStateOf(2L) }
+
+    var postSaving by remember { mutableStateOf(false) }
+    var postSaveSuccess by remember { mutableStateOf("") }
+    var postSaveError by remember { mutableStateOf("") }
+
+    var gbrSaving by remember { mutableStateOf(false) }
+    var gbrSaveSuccess by remember { mutableStateOf("") }
+    var gbrSaveError by remember { mutableStateOf("") }
+    var gbrFormErrors by remember { mutableStateOf(GbrFormErrors()) }
+
+    var successDialogOpen by remember { mutableStateOf(false) }
+    var successDialogTitle by remember { mutableStateOf("") }
+    var successDialogMessage by remember { mutableStateOf("") }
+    var lastSavedKind by remember { mutableStateOf<ShiftKind?>(null) }
+
+    var draftRestoreDecisionMade by remember { mutableStateOf(false) }
+    var draftDialogOpen by remember { mutableStateOf(false) }
+    var draftJsonToRestore by remember { mutableStateOf<String?>(null) }
+    var draftStatus by remember { mutableStateOf("") }
+    var pendingStatus by remember { mutableStateOf("") }
+
+    suspend fun loadBootstrap() {
+        loading = true
+        error = ""
+
+        try {
+            val data = withContext(Dispatchers.IO) {
+                ApiClient.api.getBootstrap(
+                    authorization = "Bearer $accessToken"
+                )
+            }
+
+            bootstrap = data
+
+            // Справочники загружены. Основные поля специально не заполняем автоматически:
+            // сотрудник должен явно выбрать наряд, авто, водителя, старшего и пост.
+        } catch (exception: Exception) {
+            error = "Не вдалося завантажити дані для зміни: ${getApiErrorMessage(exception)}"
+            exception.printStackTrace()
+        } finally {
+            loading = false
+        }
+    }
+
+    fun updateTrip(localId: Long, update: (TripDraft) -> TripDraft) {
+        trips = trips.map { trip ->
+            if (trip.localId == localId) {
+                update(trip)
+            } else {
+                trip
+            }
+        }
+
+        if (gbrFormErrors.tripErrors.containsKey(localId)) {
+            gbrFormErrors = gbrFormErrors.copy(
+                tripErrors = gbrFormErrors.tripErrors - localId
+            )
+        }
+    }
+
+    fun addTrip(data: MobileBootstrapDto) {
+        val newTrip = TripDraft(
+            localId = nextTripId,
+            goalId = 0,
+            departureTime = getCurrentTimeInput()
+        )
+
+        trips = trips + newTrip
+        openedTripId = newTrip.localId
+        detailsSectionOpen = true
+        nextTripId += 1
+    }
+
+    fun removeTrip(localId: Long) {
+        trips = trips.filterNot { it.localId == localId }
+
+        if (openedTripId == localId) {
+            openedTripId = null
+        }
+    }
+
+    fun updatePostMember(localId: Long, update: (PostMemberDraft) -> PostMemberDraft) {
+        postMembers = postMembers.map { member ->
+            if (member.localId == localId) {
+                update(member)
+            } else {
+                member
+            }
+        }
+    }
+
+    fun addPostMember() {
+        postMembers = postMembers + PostMemberDraft(localId = nextPostMemberId)
+        nextPostMemberId += 1
+    }
+
+    fun removePostMember(localId: Long) {
+        val nextMembers = postMembers.filterNot { it.localId == localId }
+
+        postMembers = if (nextMembers.isEmpty()) {
+            listOf(PostMemberDraft(localId = nextPostMemberId)).also {
+                nextPostMemberId += 1
+            }
+        } else {
+            nextMembers
+        }
+    }
+
+    fun setPostDriver(localId: Long) {
+        if (postVehicleId == 0) {
+            return
+        }
+
+        postMembers = postMembers.map { member ->
+            member.copy(isDriver = member.localId == localId)
+        }
+    }
+
+    fun handlePostVehicleChange(vehicleId: Int) {
+        postVehicleId = vehicleId
+
+        if (vehicleId == 0) {
+            postMembers = postMembers.map {
+                it.copy(isDriver = false)
+            }
+        }
+    }
+
+    fun resetFormAfterSuccessfulSave(
+        data: MobileBootstrapDto,
+        keepKind: ShiftKind
+    ) {
+        shiftKind = keepKind
+
+        selectedCrewId = 0
+        selectedVehicleId = 0
+        selectedDriverId = 0
+        selectedSeniorId = 0
+
+        driverHasWeapon = false
+        seniorHasWeapon = false
+
+        shiftDate = getCurrentDateInput()
+        shiftTime = getCurrentTimeInput()
+        odometerStart = ""
+
+        trips = emptyList()
+        openedTripId = null
+        nextTripId = 1L
+
+        selectedPostId = 0
+        postVehicleId = 0
+        postDutyType = PostDutyType.FULL_DAY
+        postDate = getCurrentDateInput()
+        postTime = getCurrentTimeInput()
+        postDurationHours = PostDutyType.FULL_DAY.defaultHours
+        postNote = ""
+
+        postMembers = listOf(PostMemberDraft(localId = 1L))
+        nextPostMemberId = 2L
+
+        postSaveSuccess = ""
+        postSaveError = ""
+        gbrSaveSuccess = ""
+        gbrSaveError = ""
+        gbrFormErrors = GbrFormErrors()
+
+        mainSectionOpen = true
+        detailsSectionOpen = false
+        summarySectionOpen = false
+    }
+
+    fun handlePostDutyTypeChange(type: PostDutyType) {
+        postDutyType = type
+
+        postDurationHours = when (type) {
+            PostDutyType.FULL_DAY -> "24"
+            PostDutyType.DAY -> if (postDurationHours == "24" || postDurationHours.isBlank()) {
+                "12"
+            } else {
+                postDurationHours
+            }
+
+            PostDutyType.NIGHT -> if (postDurationHours == "24" || postDurationHours.isBlank()) {
+                "12"
+            } else {
+                postDurationHours
+            }
+        }
+    }
+
+    fun buildDraftSnapshot(): ShiftFormDraftSnapshot {
+        return ShiftFormDraftSnapshot(
+            shiftKind = shiftKind,
+            mainSectionOpen = mainSectionOpen,
+            detailsSectionOpen = detailsSectionOpen,
+            summarySectionOpen = summarySectionOpen,
+            selectedCrewId = selectedCrewId,
+            selectedVehicleId = selectedVehicleId,
+            selectedDriverId = selectedDriverId,
+            selectedSeniorId = selectedSeniorId,
+            driverHasWeapon = driverHasWeapon,
+            seniorHasWeapon = seniorHasWeapon,
+            shiftDate = shiftDate,
+            shiftTime = shiftTime,
+            odometerStart = odometerStart,
+            trips = trips,
+            openedTripId = openedTripId,
+            nextTripId = nextTripId,
+            selectedPostId = selectedPostId,
+            postVehicleId = postVehicleId,
+            postDutyType = postDutyType,
+            postDate = postDate,
+            postTime = postTime,
+            postDurationHours = postDurationHours,
+            postNote = postNote,
+            postMembers = postMembers,
+            nextPostMemberId = nextPostMemberId
+        )
+    }
+
+    fun applyDraftSnapshot(snapshot: ShiftFormDraftSnapshot) {
+        shiftKind = snapshot.shiftKind
+        mainSectionOpen = snapshot.mainSectionOpen
+        detailsSectionOpen = snapshot.detailsSectionOpen
+        summarySectionOpen = snapshot.summarySectionOpen
+
+        selectedCrewId = snapshot.selectedCrewId
+        selectedVehicleId = snapshot.selectedVehicleId
+        selectedDriverId = snapshot.selectedDriverId
+        selectedSeniorId = snapshot.selectedSeniorId
+        driverHasWeapon = snapshot.driverHasWeapon
+        seniorHasWeapon = snapshot.seniorHasWeapon
+        shiftDate = snapshot.shiftDate.ifBlank { getCurrentDateInput() }
+        shiftTime = snapshot.shiftTime.ifBlank { getCurrentTimeInput() }
+        odometerStart = snapshot.odometerStart
+
+        trips = snapshot.trips
+        openedTripId = snapshot.openedTripId
+        nextTripId = snapshot.nextTripId.coerceAtLeast(1L)
+
+        selectedPostId = snapshot.selectedPostId
+        postVehicleId = snapshot.postVehicleId
+        postDutyType = snapshot.postDutyType
+        postDate = snapshot.postDate.ifBlank { getCurrentDateInput() }
+        postTime = snapshot.postTime.ifBlank { getCurrentTimeInput() }
+        postDurationHours = snapshot.postDurationHours.ifBlank { PostDutyType.FULL_DAY.defaultHours }
+        postNote = snapshot.postNote
+        postMembers = snapshot.postMembers.ifEmpty { listOf(PostMemberDraft(localId = 1L)) }
+        nextPostMemberId = snapshot.nextPostMemberId.coerceAtLeast(2L)
+
+        postSaveSuccess = ""
+        postSaveError = ""
+        gbrSaveSuccess = ""
+        gbrSaveError = ""
+        gbrFormErrors = GbrFormErrors()
+    }
+
+    fun hasDraftContent(): Boolean {
+        val hasGbrContent = selectedCrewId > 0 ||
+            selectedVehicleId > 0 ||
+            selectedDriverId > 0 ||
+            selectedSeniorId > 0 ||
+            driverHasWeapon ||
+            seniorHasWeapon ||
+            odometerStart.isNotBlank() ||
+            trips.isNotEmpty()
+
+        val hasPostContent = selectedPostId > 0 ||
+            postVehicleId > 0 ||
+            postNote.isNotBlank() ||
+            postMembers.any {
+                it.employeeId > 0 || it.hasWeapon || it.isDriver || it.comment.isNotBlank()
+            }
+
+        return hasGbrContent || hasPostContent
+    }
+
+    suspend fun savePostDuty() {
+        postSaveError = ""
+        postSaveSuccess = ""
+
+        val duration = postDurationHours.replace(",", ".").toDoubleOrNull()
+        val validMembers = postMembers.filter { it.employeeId > 0 }
+        val uniqueEmployeeIds = validMembers.map { it.employeeId }.toSet()
+
+        when {
+            selectedPostId == 0 -> {
+                postSaveError = "Виберіть пост"
+                summarySectionOpen = true
+                return
+            }
+
+            postDate.isBlank() -> {
+                postSaveError = "Вкажіть дату чергування"
+                summarySectionOpen = true
+                return
+            }
+
+            postTime.isBlank() -> {
+                postSaveError = "Вкажіть час початку"
+                summarySectionOpen = true
+                return
+            }
+
+            duration == null || duration <= 0.0 || duration > 24.0 -> {
+                postSaveError = "Вкажіть тривалість від 0.25 до 24 годин"
+                summarySectionOpen = true
+                return
+            }
+
+            validMembers.isEmpty() -> {
+                postSaveError = "Додайте хоча б одного співробітника"
+                detailsSectionOpen = true
+                summarySectionOpen = true
+                return
+            }
+
+            uniqueEmployeeIds.size != validMembers.size -> {
+                postSaveError = "Один співробітник не може бути доданий двічі"
+                detailsSectionOpen = true
+                summarySectionOpen = true
+                return
+            }
+
+            postVehicleId != 0 && validMembers.count { it.isDriver } != 1 -> {
+                postSaveError = "Якщо вибрано автомобіль, має бути рівно один водій"
+                detailsSectionOpen = true
+                summarySectionOpen = true
+                return
+            }
+        }
+
+        val body = CreatePostDutyRequest(
+            postId = selectedPostId,
+            vehicleId = postVehicleId.takeIf { it > 0 },
+            dutyDate = "${postDate}T${postTime}:00.000Z",
+            durationHours = duration,
+            note = postNote.trim().ifBlank { null },
+            members = validMembers.map { member ->
+                CreatePostDutyMemberRequest(
+                    employeeId = member.employeeId,
+                    hasWeapon = member.hasWeapon,
+                    isDriver = if (postVehicleId > 0) member.isDriver else false,
+                    comment = member.comment.trim().ifBlank { null }
+                )
+            }
+        )
+
+        postSaving = true
+
+        try {
+            val response = withContext(Dispatchers.IO) {
+                ApiClient.api.createPostDuty(
+                    authorization = "Bearer $accessToken",
+                    body = body
+                )
+            }
+
+            postSaveSuccess = "Постове чергування збережено"
+            lastSavedKind = ShiftKind.POST
+            successDialogTitle = "Постове чергування збережено"
+            successDialogMessage = "Запис №${response.data.id} успішно відправлено в базу."
+            successDialogOpen = true
+            summarySectionOpen = true
+        } catch (exception: IOException) {
+            val title = "$postDate · ${findDutyPostLabel(bootstrap?.dutyPosts.orEmpty(), selectedPostId).ifBlank { "Пост" }}"
+
+            withContext(Dispatchers.IO) {
+                pendingStore.addPending(
+                    PendingSubmissionItem(
+                        id = createPendingId("post"),
+                        kind = PENDING_KIND_POST_DUTY,
+                        title = title,
+                        createdAt = System.currentTimeMillis(),
+                        bodyJson = gson.toJson(body)
+                    ),
+                    gson = gson
+                )
+            }
+
+            PendingSubmissionWorkScheduler.enqueueNow(context.applicationContext)
+
+            val pendingLeft = withContext(Dispatchers.IO) {
+                pendingStore.getPending(gson).size
+            }
+
+            postSaveSuccess = "Немає зв’язку. Постове чергування збережено в чергу."
+            pendingStatus = "Очікує відправки: $pendingLeft"
+            lastSavedKind = ShiftKind.POST
+            successDialogTitle = "Збережено в чергу"
+            successDialogMessage = "Немає доступу до сервера. Постове чергування збережено на телефоні та буде відправлено пізніше."
+            successDialogOpen = true
+            summarySectionOpen = true
+            exception.printStackTrace()
+        } catch (exception: Exception) {
+            postSaveError = "Не вдалося зберегти постове чергування: ${getApiErrorMessage(exception)}"
+            summarySectionOpen = true
+            exception.printStackTrace()
+        } finally {
+            postSaving = false
+        }
+    }
+
+fun validateGbrForm(data: MobileBootstrapDto): GbrFormErrors {
+        val tripErrors = trips.mapNotNull { trip ->
+            val errors = getTripValidationErrors(
+                trip = trip,
+                tripGoals = data.tripGoals
+            )
+
+            if (errors.isEmpty()) {
+                null
+            } else {
+                trip.localId to errors
+            }
+        }.toMap()
+
+        return GbrFormErrors(
+            crew = if (selectedCrewId == 0) "Виберіть наряд" else null,
+            vehicle = if (selectedVehicleId == 0) "Виберіть автомобіль" else null,
+            driver = when {
+                selectedDriverId == 0 -> "Виберіть водія"
+                selectedDriverId == selectedSeniorId && selectedSeniorId > 0 -> "Водій і старший не можуть бути одним співробітником"
+                else -> null
+            },
+            senior = when {
+                selectedSeniorId == 0 -> "Виберіть старшого наряду"
+                selectedDriverId == selectedSeniorId && selectedDriverId > 0 -> "Водій і старший не можуть бути одним співробітником"
+                else -> null
+            },
+            shiftDate = if (shiftDate.isBlank()) "Вкажіть дату зміни" else null,
+            shiftTime = if (shiftTime.isBlank()) "Вкажіть час початку" else null,
+            odometerStart = when {
+                odometerStart.isBlank() -> "Вкажіть початковий пробіг"
+                odometerStart.toIntOrNull() == null -> "Пробіг має бути числом"
+                odometerStart.toIntOrNull() != null && odometerStart.toInt() < 0 -> "Пробіг не може бути менше 0"
+                else -> null
+            },
+            trips = if (trips.isEmpty()) "Додайте хоча б одну поїздку" else null,
+            tripErrors = tripErrors
+        )
+    }
+
+    fun buildGbrErrorMessage(errors: GbrFormErrors): String {
+        val messages = mutableListOf<String>()
+
+        errors.crew?.let { messages.add("Основні дані: $it") }
+        errors.vehicle?.let { messages.add("Основні дані: $it") }
+        errors.driver?.let { messages.add("Основні дані: $it") }
+        errors.senior?.let { messages.add("Основні дані: $it") }
+        errors.shiftDate?.let { messages.add("Основні дані: $it") }
+        errors.shiftTime?.let { messages.add("Основні дані: $it") }
+        errors.odometerStart?.let { messages.add("Основні дані: $it") }
+        errors.trips?.let { messages.add("Маршрути / Поїздки: $it") }
+
+        errors.tripErrors.forEach { (localId, tripMessages) ->
+            val tripIndex = trips.indexOfFirst { it.localId == localId }
+                .takeIf { it >= 0 }
+                ?.plus(1)
+                ?: 1
+
+            tripMessages.forEach { message ->
+                messages.add("Поїздка $tripIndex: $message")
+            }
+        }
+
+        return messages.joinToString(separator = "\n")
+    }
+
+    suspend fun saveGbrShift() {
+        val data = bootstrap ?: return
+
+        gbrSaveError = ""
+        gbrSaveSuccess = ""
+
+        val formErrors = validateGbrForm(data)
+        gbrFormErrors = formErrors
+
+        if (formErrors.hasErrors) {
+            gbrSaveError = buildGbrErrorMessage(formErrors)
+
+            if (formErrors.hasMainErrors) {
+                mainSectionOpen = true
+            }
+
+            if (formErrors.trips != null || formErrors.tripErrors.isNotEmpty()) {
+                detailsSectionOpen = true
+            }
+
+            val firstTripError = formErrors.tripErrors.entries.firstOrNull()
+            if (firstTripError != null) {
+                openedTripId = firstTripError.key
+            }
+
+            summarySectionOpen = true
+            return
+        }
+
+        val odometer = odometerStart.toInt()
+
+        val body = CreateMobileShiftRequest(
+            localShiftId = createLocalShiftId(),
+            crewId = selectedCrewId,
+            vehicleId = selectedVehicleId,
+            driverEmployeeId = selectedDriverId,
+            driverHasWeapon = driverHasWeapon,
+            seniorEmployeeId = selectedSeniorId,
+            seniorHasWeapon = seniorHasWeapon,
+            shiftDate = "${shiftDate}T${shiftTime}:00.000Z",
+            odometerStart = odometer,
+            trips = trips.map { trip ->
+                CreateMobileShiftTripRequest(
+                    fromLocation = trip.fromLocation.trim(),
+                    departureTime = "${shiftDate}T${trip.departureTime}:00.000Z",
+                    toLocation = trip.toLocation.trim(),
+                    arrivalTime = "${shiftDate}T${trip.arrivalTime}:00.000Z",
+                    distanceKm = trip.distanceKm.replace(",", ".").toDouble(),
+                    goalId = trip.goalId,
+                    note = trip.note.trim().ifBlank { null },
+                    events = buildTripEvents(
+                        trip = trip,
+                        tripGoals = data.tripGoals
+                    )
+                )
+            }
+        )
+
+        gbrSaving = true
+
+        try {
+            val response = withContext(Dispatchers.IO) {
+                ApiClient.api.createMobileShift(
+                    authorization = "Bearer $accessToken",
+                    body = body
+                )
+            }
+
+            gbrSaveSuccess = if (response.duplicated) {
+                "Наряд вже був збережений раніше"
+            } else {
+                "Наряд ГБР збережено. Пробіг по поїздках: ${response.data.totalDistanceKm} км"
+            }
+
+            lastSavedKind = ShiftKind.GBR
+            successDialogTitle = if (response.duplicated) {
+                "Наряд вже збережений"
+            } else {
+                "Наряд ГБР збережено"
+            }
+            successDialogMessage = if (response.duplicated) {
+                "Цей наряд вже був збережений раніше."
+            } else {
+                "Запис №${response.data.id} успішно відправлено в базу. Пробіг по поїздках: ${response.data.totalDistanceKm} км."
+            }
+            successDialogOpen = true
+            summarySectionOpen = true
+        } catch (exception: IOException) {
+            val title = "$shiftDate · ${findCrewLabel(data.crews, selectedCrewId).ifBlank { "Наряд ГБР" }}"
+
+            withContext(Dispatchers.IO) {
+                pendingStore.addPending(
+                    PendingSubmissionItem(
+                        id = createPendingId("gbr"),
+                        kind = PENDING_KIND_GBR_SHIFT,
+                        title = title,
+                        createdAt = System.currentTimeMillis(),
+                        bodyJson = gson.toJson(body)
+                    ),
+                    gson = gson
+                )
+            }
+
+            PendingSubmissionWorkScheduler.enqueueNow(context.applicationContext)
+
+            val pendingLeft = withContext(Dispatchers.IO) {
+                pendingStore.getPending(gson).size
+            }
+
+            gbrSaveSuccess = "Немає зв’язку. Наряд ГБР збережено в чергу."
+            pendingStatus = "Очікує відправки: $pendingLeft"
+            lastSavedKind = ShiftKind.GBR
+            successDialogTitle = "Збережено в чергу"
+            successDialogMessage = "Немає доступу до сервера. Наряд ГБР збережено на телефоні та буде відправлено пізніше."
+            successDialogOpen = true
+            summarySectionOpen = true
+            exception.printStackTrace()
+        } catch (exception: Exception) {
+            gbrSaveError = "Не вдалося зберегти наряд ГБР: ${getApiErrorMessage(exception)}"
+            summarySectionOpen = true
+            exception.printStackTrace()
+        } finally {
+            gbrSaving = false
+        }
+    }
+
+
+    LaunchedEffect(Unit) {
+        loadBootstrap()
+    }
+
+    LaunchedEffect(accessToken) {
+        val result = withContext(Dispatchers.IO) {
+            syncPendingSubmissions(
+                accessToken = accessToken,
+                store = pendingStore,
+                gson = gson
+            )
+        }
+
+        val remaining = withContext(Dispatchers.IO) {
+            pendingStore.getPending(gson).size
+        }
+
+        pendingStatus = when {
+            result.sent > 0 && remaining == 0 -> "Чергу відправлено: ${result.sent}"
+            result.sent > 0 -> "Відправлено з черги: ${result.sent}. Очікує: $remaining"
+            remaining > 0 -> "Очікує відправки: $remaining"
+            else -> ""
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val existingDraft = draftStore.draftFlow.firstOrNull()
+
+        if (existingDraft.isNullOrBlank()) {
+            draftRestoreDecisionMade = true
+        } else {
+            draftJsonToRestore = existingDraft
+            draftDialogOpen = true
+        }
+    }
+
+    LaunchedEffect(
+        draftRestoreDecisionMade,
+        shiftKind,
+        selectedCrewId,
+        selectedVehicleId,
+        selectedDriverId,
+        selectedSeniorId,
+        driverHasWeapon,
+        seniorHasWeapon,
+        shiftDate,
+        shiftTime,
+        odometerStart,
+        trips,
+        openedTripId,
+        nextTripId,
+        selectedPostId,
+        postVehicleId,
+        postDutyType,
+        postDate,
+        postTime,
+        postDurationHours,
+        postNote,
+        postMembers,
+        nextPostMemberId
+    ) {
+        if (!draftRestoreDecisionMade) {
+            return@LaunchedEffect
+        }
+
+        delay(700)
+
+        if (hasDraftContent()) {
+            draftStore.saveDraft(gson.toJson(buildDraftSnapshot()))
+            draftStatus = "Чернетку збережено"
+        } else {
+            draftStore.clearDraft()
+            draftStatus = ""
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = "Нова зміна",
+            style = MaterialTheme.typography.headlineSmall
+        )
+
+        if (draftStatus.isNotBlank()) {
+            Text(
+                text = draftStatus,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+
+        if (pendingStatus.isNotBlank()) {
+            Text(
+                text = pendingStatus,
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+
+        when {
+            loading -> {
+                LoadingCard()
+            }
+
+            error.isNotBlank() -> {
+                ErrorCard(
+                    message = error,
+                    onRetry = {
+                        scope.launch {
+                            loadBootstrap()
+                        }
+                    }
+                )
+            }
+
+            bootstrap == null -> {
+                ErrorCard(
+                    message = "Дані не завантажено",
+                    onRetry = {
+                        scope.launch {
+                            loadBootstrap()
+                        }
+                    }
+                )
+            }
+
+            else -> {
+                val data = bootstrap!!
+
+                AccordionSection(
+                    title = "Основні дані",
+                    subtitle = when (shiftKind) {
+                        ShiftKind.GBR -> "${data.city.name} · наряд, авто, співробітники, дата і пробіг"
+                        ShiftKind.POST -> "${data.city.name} · пост, години, авто і співробітники"
+                    },
+                    open = mainSectionOpen,
+                    onToggle = { mainSectionOpen = !mainSectionOpen }
+                ) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        ShiftKindSelector(
+                            selected = shiftKind,
+                            onSelect = { selected ->
+                                shiftKind = selected
+                                postSaveError = ""
+                                postSaveSuccess = ""
+                                gbrSaveError = ""
+                                gbrSaveSuccess = ""
+                                gbrFormErrors = GbrFormErrors()
+                            }
+                        )
+
+                        if (shiftKind == ShiftKind.GBR) {
+                            GbrMainFields(
+                                data = data,
+                                errors = gbrFormErrors,
+                                selectedCrewId = selectedCrewId,
+                                selectedVehicleId = selectedVehicleId,
+                                selectedDriverId = selectedDriverId,
+                                selectedSeniorId = selectedSeniorId,
+                                driverHasWeapon = driverHasWeapon,
+                                seniorHasWeapon = seniorHasWeapon,
+                                shiftDate = shiftDate,
+                                shiftTime = shiftTime,
+                                odometerStart = odometerStart,
+                                onCrewChange = {
+                                    selectedCrewId = it.id
+                                    gbrFormErrors = gbrFormErrors.copy(crew = null)
+                                },
+                                onVehicleChange = {
+                                    selectedVehicleId = it.id
+                                    gbrFormErrors = gbrFormErrors.copy(vehicle = null)
+                                },
+                                onDriverChange = {
+                                    selectedDriverId = it.id
+                                    gbrFormErrors = gbrFormErrors.copy(driver = null, senior = null)
+                                },
+                                onSeniorChange = {
+                                    selectedSeniorId = it.id
+                                    gbrFormErrors = gbrFormErrors.copy(driver = null, senior = null)
+                                },
+                                onDriverWeaponChange = { driverHasWeapon = it },
+                                onSeniorWeaponChange = { seniorHasWeapon = it },
+                                onShiftDateChange = {
+                                    shiftDate = it
+                                    gbrFormErrors = gbrFormErrors.copy(shiftDate = null)
+                                },
+                                onShiftTimeChange = {
+                                    shiftTime = it
+                                    gbrFormErrors = gbrFormErrors.copy(shiftTime = null)
+                                },
+                                onOdometerStartChange = { value ->
+                                    odometerStart = value.filter { it.isDigit() }
+                                    gbrFormErrors = gbrFormErrors.copy(odometerStart = null)
+                                }
+                            )
+                        } else {
+                            PostMainFields(
+                                data = data,
+                                selectedPostId = selectedPostId,
+                                postVehicleId = postVehicleId,
+                                postDutyType = postDutyType,
+                                postDate = postDate,
+                                postTime = postTime,
+                                postDurationHours = postDurationHours,
+                                postNote = postNote,
+                                onPostChange = { selectedPostId = it.id },
+                                onVehicleChange = { handlePostVehicleChange(it.id) },
+                                onPostDutyTypeChange = { handlePostDutyTypeChange(it) },
+                                onDateChange = { postDate = it },
+                                onTimeChange = { postTime = it },
+                                onDurationChange = { value ->
+                                    postDurationHours = value.filter { char ->
+                                        char.isDigit() || char == '.' || char == ','
+                                    }
+                                },
+                                onNoteChange = { postNote = it }
+                            )
+                        }
+                    }
+                }
+
+                AccordionSection(
+                    title = if (shiftKind == ShiftKind.GBR) {
+                        "Маршрути / Поїздки"
+                    } else {
+                        "Співробітники поста"
+                    },
+                    subtitle = if (shiftKind == ShiftKind.GBR) {
+                        if (trips.isEmpty()) {
+                            "Поїздки ще не додані"
+                        } else {
+                            "Додано поїздок: ${trips.size}"
+                        }
+                    } else {
+                        "Додано співробітників: ${postMembers.count { it.employeeId > 0 }}"
+                    },
+                    open = detailsSectionOpen,
+                    onToggle = { detailsSectionOpen = !detailsSectionOpen }
+                ) {
+                    if (shiftKind == ShiftKind.GBR) {
+                        TripsSection(
+                            trips = trips,
+                            tripErrors = gbrFormErrors.tripErrors,
+                            tripGoals = data.tripGoals,
+                            additionalAlarmReasons = data.additionalAlarmReasons,
+                            openedTripId = openedTripId,
+                            onOpenTripChange = { openedTripId = it },
+                            onAddTrip = { addTrip(data) },
+                            onUpdateTrip = ::updateTrip,
+                            onRemoveTrip = ::removeTrip
+                        )
+                    } else {
+                        PostMembersSection(
+                            members = postMembers,
+                            employees = data.employees,
+                            vehicleSelected = postVehicleId > 0,
+                            onUpdateMember = ::updatePostMember,
+                            onSetDriver = ::setPostDriver,
+                            onAddMember = ::addPostMember,
+                            onRemoveMember = ::removePostMember
+                        )
+                    }
+                }
+
+                AccordionSection(
+                    title = "Перевірка зміни",
+                    subtitle = "Перевірте заповнені дані перед відправкою",
+                    open = summarySectionOpen,
+                    onToggle = { summarySectionOpen = !summarySectionOpen }
+                ) {
+                    if (shiftKind == ShiftKind.GBR) {
+                        GbrSummaryCard(
+                            crew = findCrewLabel(data.crews, selectedCrewId),
+                            vehicle = findVehicleLabel(data.vehicles, selectedVehicleId),
+                            driver = findEmployeeLabel(data.employees, selectedDriverId),
+                            senior = findEmployeeLabel(data.employees, selectedSeniorId),
+                            shiftDate = shiftDate,
+                            shiftTime = shiftTime,
+                            odometerStart = odometerStart,
+                            driverHasWeapon = driverHasWeapon,
+                            seniorHasWeapon = seniorHasWeapon,
+                            tripsCount = trips.size,
+                            gbrSaveSuccess = gbrSaveSuccess,
+                            gbrSaveError = gbrSaveError,
+                            saving = gbrSaving,
+                            onSave = {
+                                scope.launch {
+                                    saveGbrShift()
+                                }
+                            }
+                        )
+                    } else {
+                        PostSummaryCard(
+                            post = findDutyPostLabel(data.dutyPosts, selectedPostId),
+                            vehicle = if (postVehicleId == 0) {
+                                "Без автомобіля"
+                            } else {
+                                findVehicleLabel(data.vehicles, postVehicleId)
+                            },
+                            dutyType = postDutyType.label,
+                            postDate = postDate,
+                            postTime = postTime,
+                            durationHours = postDurationHours,
+                            members = postMembers,
+                            employees = data.employees,
+                            postSaveSuccess = postSaveSuccess,
+                            postSaveError = postSaveError,
+                            saving = postSaving,
+                            onSave = {
+                                scope.launch {
+                                    savePostDuty()
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (draftDialogOpen) {
+        DraftRestoreDialog(
+            onRestore = {
+                val json = draftJsonToRestore
+
+                if (!json.isNullOrBlank()) {
+                    try {
+                        val snapshot = gson.fromJson(
+                            json,
+                            ShiftFormDraftSnapshot::class.java
+                        )
+
+                        applyDraftSnapshot(snapshot)
+                        draftStatus = "Чернетку відновлено"
+                    } catch (exception: Exception) {
+                        draftStatus = "Не вдалося відновити чернетку"
+                        exception.printStackTrace()
+                    }
+                }
+
+                draftDialogOpen = false
+                draftJsonToRestore = null
+                draftRestoreDecisionMade = true
+            },
+            onStartNew = {
+                draftDialogOpen = false
+                draftJsonToRestore = null
+                draftStatus = ""
+                draftRestoreDecisionMade = true
+
+                scope.launch {
+                    draftStore.clearDraft()
+                }
+            }
+        )
+    }
+
+    if (postSaving || gbrSaving) {
+        SavingDialog(
+            text = if (shiftKind == ShiftKind.POST) {
+                "Зберігаємо постове чергування..."
+            } else {
+                "Зберігаємо наряд ГБР..."
+            }
+        )
+    }
+
+    if (successDialogOpen) {
+        SaveResultDialog(
+            title = successDialogTitle,
+            message = successDialogMessage,
+            onOk = {
+                val data = bootstrap
+
+                successDialogOpen = false
+                draftStatus = ""
+
+                scope.launch {
+                    draftStore.clearDraft()
+                }
+
+                if (data != null) {
+                    resetFormAfterSuccessfulSave(
+                        data = data,
+                        keepKind = lastSavedKind ?: ShiftKind.GBR
+                    )
+                }
+            }
+        )
+    }
+}
+
+private data class GbrFormErrors(
+    val crew: String? = null,
+    val vehicle: String? = null,
+    val driver: String? = null,
+    val senior: String? = null,
+    val shiftDate: String? = null,
+    val shiftTime: String? = null,
+    val odometerStart: String? = null,
+    val trips: String? = null,
+    val tripErrors: Map<Long, List<String>> = emptyMap()
+) {
+    val hasErrors: Boolean
+        get() = listOf(
+            crew,
+            vehicle,
+            driver,
+            senior,
+            shiftDate,
+            shiftTime,
+            odometerStart,
+            trips
+        ).any { it != null } || tripErrors.isNotEmpty()
+
+    val hasMainErrors: Boolean
+        get() = listOf(
+            crew,
+            vehicle,
+            driver,
+            senior,
+            shiftDate,
+            shiftTime,
+            odometerStart
+        ).any { it != null }
+}
+
+
+@Composable
+private fun ShiftKindSelector(
+    selected: ShiftKind,
+    onSelect: (ShiftKind) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        if (selected == ShiftKind.GBR) {
+            Button(
+                onClick = { onSelect(ShiftKind.GBR) },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Наряд ГБР")
+            }
+        } else {
+            OutlinedButton(
+                onClick = { onSelect(ShiftKind.GBR) },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Наряд ГБР")
+            }
+        }
+
+        if (selected == ShiftKind.POST) {
+            Button(
+                onClick = { onSelect(ShiftKind.POST) },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Пост")
+            }
+        } else {
+            OutlinedButton(
+                onClick = { onSelect(ShiftKind.POST) },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Пост")
+            }
+        }
+    }
+}
+
+@Composable
+private fun GbrMainFields(
+    data: MobileBootstrapDto,
+    errors: GbrFormErrors,
+    selectedCrewId: Int,
+    selectedVehicleId: Int,
+    selectedDriverId: Int,
+    selectedSeniorId: Int,
+    driverHasWeapon: Boolean,
+    seniorHasWeapon: Boolean,
+    shiftDate: String,
+    shiftTime: String,
+    odometerStart: String,
+    onCrewChange: (SelectOption) -> Unit,
+    onVehicleChange: (SelectOption) -> Unit,
+    onDriverChange: (SelectOption) -> Unit,
+    onSeniorChange: (SelectOption) -> Unit,
+    onDriverWeaponChange: (Boolean) -> Unit,
+    onSeniorWeaponChange: (Boolean) -> Unit,
+    onShiftDateChange: (String) -> Unit,
+    onShiftTimeChange: (String) -> Unit,
+    onOdometerStartChange: (String) -> Unit
+) {
+    SelectField(
+        label = "Наряд",
+        selectedLabel = findCrewLabel(data.crews, selectedCrewId),
+        options = data.crews.map {
+            SelectOption(
+                id = it.id,
+                label = it.name
+            )
+        },
+        error = errors.crew,
+        onSelect = onCrewChange
+    )
+
+    SelectField(
+        label = "Автомобіль",
+        selectedLabel = findVehicleLabel(data.vehicles, selectedVehicleId),
+        options = data.vehicles.map {
+            SelectOption(
+                id = it.id,
+                label = "${it.title} · ${it.licensePlate.orEmpty()}"
+            )
+        },
+        error = errors.vehicle,
+        onSelect = onVehicleChange
+    )
+
+    SelectField(
+        label = "Водій",
+        selectedLabel = findEmployeeLabel(data.employees, selectedDriverId),
+        options = data.employees.map {
+            SelectOption(
+                id = it.id,
+                label = it.fullName
+            )
+        },
+        error = errors.driver,
+        onSelect = onDriverChange
+    )
+
+    WeaponSwitchRow(
+        title = "Зброя у водія",
+        checked = driverHasWeapon,
+        onCheckedChange = onDriverWeaponChange
+    )
+
+    SelectField(
+        label = "Старший наряду",
+        selectedLabel = findEmployeeLabel(data.employees, selectedSeniorId),
+        options = data.employees.map {
+            SelectOption(
+                id = it.id,
+                label = it.fullName
+            )
+        },
+        error = errors.senior,
+        onSelect = onSeniorChange
+    )
+
+    WeaponSwitchRow(
+        title = "Зброя у старшого",
+        checked = seniorHasWeapon,
+        onCheckedChange = onSeniorWeaponChange
+    )
+
+    OutlinedTextField(
+        value = shiftDate,
+        onValueChange = onShiftDateChange,
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text("Дата зміни") },
+        placeholder = { Text("2026-06-01") },
+        singleLine = true,
+        isError = errors.shiftDate != null,
+        supportingText = {
+            errors.shiftDate?.let {
+                Text(it)
+            }
+        }
+    )
+
+    OutlinedTextField(
+        value = shiftTime,
+        onValueChange = onShiftTimeChange,
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text("Час початку") },
+        placeholder = { Text("08:00") },
+        singleLine = true,
+        isError = errors.shiftTime != null,
+        supportingText = {
+            errors.shiftTime?.let {
+                Text(it)
+            }
+        }
+    )
+
+    OutlinedTextField(
+        value = odometerStart,
+        onValueChange = onOdometerStartChange,
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text("Початковий пробіг") },
+        placeholder = { Text("Наприклад: 125000") },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Number
+        ),
+        isError = errors.odometerStart != null,
+        supportingText = {
+            errors.odometerStart?.let {
+                Text(it)
+            }
+        }
+    )
+}
+
+@Composable
+private fun PostMainFields(
+    data: MobileBootstrapDto,
+    selectedPostId: Int,
+    postVehicleId: Int,
+    postDutyType: PostDutyType,
+    postDate: String,
+    postTime: String,
+    postDurationHours: String,
+    postNote: String,
+    onPostChange: (SelectOption) -> Unit,
+    onVehicleChange: (SelectOption) -> Unit,
+    onPostDutyTypeChange: (PostDutyType) -> Unit,
+    onDateChange: (String) -> Unit,
+    onTimeChange: (String) -> Unit,
+    onDurationChange: (String) -> Unit,
+    onNoteChange: (String) -> Unit
+) {
+    SelectField(
+        label = "Пост",
+        selectedLabel = findDutyPostLabel(data.dutyPosts, selectedPostId),
+        options = data.dutyPosts.map {
+            SelectOption(
+                id = it.id,
+                label = it.name
+            )
+        },
+        onSelect = onPostChange
+    )
+
+    SelectField(
+        label = "Тип поста",
+        selectedLabel = postDutyType.label,
+        options = PostDutyType.entries.mapIndexed { index, type ->
+            SelectOption(
+                id = index,
+                label = type.label
+            )
+        },
+        onSelect = { option ->
+            val selectedType = PostDutyType.entries[option.id]
+            onPostDutyTypeChange(selectedType)
+        }
+    )
+
+    OutlinedTextField(
+        value = postDate,
+        onValueChange = onDateChange,
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text("Дата чергування") },
+        placeholder = { Text("2026-06-01") },
+        singleLine = true
+    )
+
+    OutlinedTextField(
+        value = postTime,
+        onValueChange = onTimeChange,
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text("Час початку") },
+        placeholder = { Text("08:00") },
+        singleLine = true
+    )
+
+    OutlinedTextField(
+        value = postDurationHours,
+        onValueChange = onDurationChange,
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text("Тривалість, годин") },
+        placeholder = { Text("24") },
+        singleLine = true,
+        enabled = postDutyType != PostDutyType.FULL_DAY,
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Decimal
+        )
+    )
+
+    Text(
+        text = "Еквівалент зміни: ${calculateShiftEquivalentLabel(postDurationHours)}",
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+
+    SelectField(
+        label = "Автомобіль",
+        selectedLabel = if (postVehicleId == 0) {
+            "Без автомобіля"
+        } else {
+            findVehicleLabel(data.vehicles, postVehicleId)
+        },
+        options = listOf(
+            SelectOption(
+                id = 0,
+                label = "Без автомобіля"
+            )
+        ) + data.vehicles.map {
+            SelectOption(
+                id = it.id,
+                label = "${it.title} · ${it.licensePlate.orEmpty()}"
+            )
+        },
+        onSelect = onVehicleChange
+    )
+
+    OutlinedTextField(
+        value = postNote,
+        onValueChange = onNoteChange,
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text("Коментар") },
+        placeholder = { Text("Необов’язково") },
+        minLines = 2
+    )
+}
+
+@Composable
+private fun TripsSection(
+    trips: List<TripDraft>,
+    tripErrors: Map<Long, List<String>>,
+    tripGoals: List<TripGoalDto>,
+    additionalAlarmReasons: List<AdditionalAlarmReasonDto>,
+    openedTripId: Long?,
+    onOpenTripChange: (Long?) -> Unit,
+    onAddTrip: () -> Unit,
+    onUpdateTrip: (Long, (TripDraft) -> TripDraft) -> Unit,
+    onRemoveTrip: (Long) -> Unit
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        if (trips.isEmpty()) {
+            Text(
+                text = "Додайте першу поїздку. Кожна поїздка відкривається окремою карткою.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        trips.forEachIndexed { index, trip ->
+            TripAccordionCard(
+                index = index,
+                trip = trip,
+                tripGoals = tripGoals,
+                additionalAlarmReasons = additionalAlarmReasons,
+                validationErrors = tripErrors[trip.localId].orEmpty(),
+                open = openedTripId == trip.localId,
+                onToggle = {
+                    onOpenTripChange(
+                        if (openedTripId == trip.localId) null else trip.localId
+                    )
+                },
+                onChangeGoal = { option ->
+                    onUpdateTrip(trip.localId) {
+                        it.copy(goalId = option.id)
+                    }
+                },
+                onChangeFrom = { value ->
+                    onUpdateTrip(trip.localId) {
+                        it.copy(fromLocation = value)
+                    }
+                },
+                onChangeTo = { value ->
+                    onUpdateTrip(trip.localId) {
+                        it.copy(toLocation = value)
+                    }
+                },
+                onChangeDepartureTime = { value ->
+                    onUpdateTrip(trip.localId) {
+                        it.copy(departureTime = value)
+                    }
+                },
+                onChangeArrivalTime = { value ->
+                    onUpdateTrip(trip.localId) {
+                        it.copy(arrivalTime = value)
+                    }
+                },
+                onChangeDistance = { value ->
+                    onUpdateTrip(trip.localId) {
+                        it.copy(
+                            distanceKm = value.filter { char ->
+                                char.isDigit() || char == '.' || char == ','
+                            }
+                        )
+                    }
+                },
+                onChangeNote = { value ->
+                    onUpdateTrip(trip.localId) {
+                        it.copy(note = value)
+                    }
+                },
+                onChangeRegularAlarmType = { type ->
+                    onUpdateTrip(trip.localId) {
+                        it.copy(regularAlarmType = type)
+                    }
+                },
+                onChangeAdditionalReason = { option ->
+                    onUpdateTrip(trip.localId) {
+                        it.copy(additionalReasonId = option.id)
+                    }
+                },
+                onChangeCustomReason = { value ->
+                    onUpdateTrip(trip.localId) {
+                        it.copy(customReasonText = value)
+                    }
+                },
+                onChangeOhCount = { value ->
+                    onUpdateTrip(trip.localId) {
+                        it.copy(ohCount = value.filterDigitsOnly())
+                    }
+                },
+                onChangePartnerCount = { value ->
+                    onUpdateTrip(trip.localId) {
+                        it.copy(partnerCount = value.filterDigitsOnly())
+                    }
+                },
+                onChangeDetainedCount = { value ->
+                    onUpdateTrip(trip.localId) {
+                        it.copy(detainedCount = value.filterDigitsOnly())
+                    }
+                },
+                onChangeTransferredCount = { value ->
+                    onUpdateTrip(trip.localId) {
+                        it.copy(transferredCount = value.filterDigitsOnly())
+                    }
+                },
+                onDelete = {
+                    onRemoveTrip(trip.localId)
+                }
+            )
+        }
+
+        Button(
+            onClick = onAddTrip,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Додати поїздку")
+        }
+    }
+}
+
+@Composable
+private fun PostMembersSection(
+    members: List<PostMemberDraft>,
+    employees: List<EmployeeDto>,
+    vehicleSelected: Boolean,
+    onUpdateMember: (Long, (PostMemberDraft) -> PostMemberDraft) -> Unit,
+    onSetDriver: (Long) -> Unit,
+    onAddMember: () -> Unit,
+    onRemoveMember: (Long) -> Unit
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        members.forEachIndexed { index, member ->
+            PostMemberCard(
+                index = index,
+                member = member,
+                employees = employees,
+                vehicleSelected = vehicleSelected,
+                onEmployeeChange = { option ->
+                    onUpdateMember(member.localId) {
+                        it.copy(employeeId = option.id)
+                    }
+                },
+                onWeaponChange = { value ->
+                    onUpdateMember(member.localId) {
+                        it.copy(hasWeapon = value)
+                    }
+                },
+                onSetDriver = {
+                    onSetDriver(member.localId)
+                },
+                onCommentChange = { value ->
+                    onUpdateMember(member.localId) {
+                        it.copy(comment = value)
+                    }
+                },
+                onDelete = {
+                    onRemoveMember(member.localId)
+                }
+            )
+        }
+
+        Button(
+            onClick = onAddMember,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Додати співробітника")
+        }
+    }
+}
+
+@Composable
+private fun PostMemberCard(
+    index: Int,
+    member: PostMemberDraft,
+    employees: List<EmployeeDto>,
+    vehicleSelected: Boolean,
+    onEmployeeChange: (SelectOption) -> Unit,
+    onWeaponChange: (Boolean) -> Unit,
+    onSetDriver: () -> Unit,
+    onCommentChange: (String) -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "Співробітник ${index + 1}",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            SelectField(
+                label = "Співробітник",
+                selectedLabel = findEmployeeLabel(employees, member.employeeId),
+                options = employees.map {
+                    SelectOption(
+                        id = it.id,
+                        label = it.fullName
+                    )
+                },
+                onSelect = onEmployeeChange
+            )
+
+            WeaponSwitchRow(
+                title = "Зі зброєю",
+                checked = member.hasWeapon,
+                onCheckedChange = onWeaponChange
+            )
+
+            DriverSwitchRow(
+                checked = member.isDriver,
+                enabled = vehicleSelected,
+                onClick = onSetDriver
+            )
+
+            OutlinedTextField(
+                value = member.comment,
+                onValueChange = onCommentChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Коментар співробітника") },
+                placeholder = { Text("Необов’язково") },
+                singleLine = true
+            )
+
+            TextButton(
+                onClick = onDelete,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Прибрати співробітника",
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DriverSwitchRow(
+    checked: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled) { onClick() },
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text("Водій")
+
+                if (!enabled) {
+                    Text(
+                        text = "Доступно тільки якщо вибрано автомобіль",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Switch(
+                checked = checked,
+                onCheckedChange = { onClick() },
+                enabled = enabled
+            )
+        }
+    }
+}
+
+@Composable
+private fun AccordionSection(
+    title: String,
+    subtitle: String,
+    open: Boolean,
+    onToggle: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (open) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.outline
+            }
+        )
+    ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onToggle() }
+                    .padding(18.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Text(
+                    text = if (open) "▲" else "▼",
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            if (open) {
+                Column(
+                    modifier = Modifier.padding(
+                        start = 18.dp,
+                        end = 18.dp,
+                        bottom = 18.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    content()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TripAccordionCard(
+    index: Int,
+    trip: TripDraft,
+    tripGoals: List<TripGoalDto>,
+    additionalAlarmReasons: List<AdditionalAlarmReasonDto>,
+    validationErrors: List<String>,
+    open: Boolean,
+    onToggle: () -> Unit,
+    onChangeGoal: (SelectOption) -> Unit,
+    onChangeFrom: (String) -> Unit,
+    onChangeTo: (String) -> Unit,
+    onChangeDepartureTime: (String) -> Unit,
+    onChangeArrivalTime: (String) -> Unit,
+    onChangeDistance: (String) -> Unit,
+    onChangeNote: (String) -> Unit,
+    onChangeRegularAlarmType: (RegularAlarmType) -> Unit,
+    onChangeAdditionalReason: (SelectOption) -> Unit,
+    onChangeCustomReason: (String) -> Unit,
+    onChangeOhCount: (String) -> Unit,
+    onChangePartnerCount: (String) -> Unit,
+    onChangeDetainedCount: (String) -> Unit,
+    onChangeTransferredCount: (String) -> Unit,
+    onDelete: () -> Unit
+) {
+    val selectedGoal = tripGoals.firstOrNull { it.id == trip.goalId }
+    val goalTitle = selectedGoal?.name?.ifBlank { null } ?: "Поїздка ${index + 1}"
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = when {
+                validationErrors.isNotEmpty() -> MaterialTheme.colorScheme.error
+                open -> MaterialTheme.colorScheme.primary
+                else -> MaterialTheme.colorScheme.outline
+            }
+        )
+    ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onToggle() }
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = goalTitle,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    Text(
+                        text = buildTripSubtitle(trip),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Text(
+                    text = if (open) "▲" else "▼",
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            if (open) {
+                Column(
+                    modifier = Modifier.padding(
+                        start = 16.dp,
+                        end = 16.dp,
+                        bottom = 16.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (validationErrors.isNotEmpty()) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.medium,
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface
+                            ),
+                            border = BorderStroke(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                validationErrors.forEach { validationError ->
+                                    Text(
+                                        text = "⚠️ $validationError",
+                                        color = MaterialTheme.colorScheme.error,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    SelectField(
+                        label = "Ціль поїздки",
+                        selectedLabel = findTripGoalLabel(tripGoals, trip.goalId),
+                        options = tripGoals.map {
+                            SelectOption(
+                                id = it.id,
+                                label = it.name
+                            )
+                        },
+                        onSelect = onChangeGoal
+                    )
+
+                    OutlinedTextField(
+                        value = trip.fromLocation,
+                        onValueChange = onChangeFrom,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Звідки") },
+                        singleLine = true
+                    )
+
+                    OutlinedTextField(
+                        value = trip.toLocation,
+                        onValueChange = onChangeTo,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Куди") },
+                        singleLine = true
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = trip.departureTime,
+                            onValueChange = onChangeDepartureTime,
+                            modifier = Modifier.weight(1f),
+                            label = { Text("Виїзд") },
+                            placeholder = { Text("08:00") },
+                            singleLine = true
+                        )
+
+                        OutlinedTextField(
+                            value = trip.arrivalTime,
+                            onValueChange = onChangeArrivalTime,
+                            modifier = Modifier.weight(1f),
+                            label = { Text("Прибуття") },
+                            placeholder = { Text("08:30") },
+                            singleLine = true
+                        )
+                    }
+
+                    OutlinedTextField(
+                        value = trip.distanceKm,
+                        onValueChange = onChangeDistance,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Відстань, км") },
+                        placeholder = { Text("Наприклад: 12.5") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Decimal
+                        )
+                    )
+
+                    if (isRegularAlarmGoal(selectedGoal)) {
+                        RegularAlarmFields(
+                            trip = trip,
+                            alarmSourceLabel = getRegularAlarmSourceLabel(selectedGoal),
+                            onChangeRegularAlarmType = onChangeRegularAlarmType,
+                            onChangeDetainedCount = onChangeDetainedCount,
+                            onChangeTransferredCount = onChangeTransferredCount
+                        )
+                    }
+
+                    if (isAdditionalAlarmGoal(selectedGoal)) {
+                        AdditionalAlarmFields(
+                            trip = trip,
+                            reasons = additionalAlarmReasons,
+                            onChangeAdditionalReason = onChangeAdditionalReason,
+                            onChangeCustomReason = onChangeCustomReason,
+                            onChangeOhCount = onChangeOhCount,
+                            onChangePartnerCount = onChangePartnerCount,
+                            onChangeDetainedCount = onChangeDetainedCount,
+                            onChangeTransferredCount = onChangeTransferredCount
+                        )
+                    }
+
+                    OutlinedTextField(
+                        value = trip.note,
+                        onValueChange = onChangeNote,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Примітка") },
+                        minLines = 2
+                    )
+
+                    TextButton(
+                        onClick = onDelete,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Видалити поїздку",
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RegularAlarmFields(
+    trip: TripDraft,
+    alarmSourceLabel: String,
+    onChangeRegularAlarmType: (RegularAlarmType) -> Unit,
+    onChangeDetainedCount: (String) -> Unit,
+    onChangeTransferredCount: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "Сработка: $alarmSourceLabel",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            SelectField(
+                label = "Тип сработки",
+                selectedLabel = trip.regularAlarmType.label,
+                options = RegularAlarmType.entries.mapIndexed { index, type ->
+                    SelectOption(
+                        id = index,
+                        label = type.label
+                    )
+                },
+                onSelect = { option ->
+                    onChangeRegularAlarmType(RegularAlarmType.entries[option.id])
+                }
+            )
+
+            OutlinedTextField(
+                value = trip.detainedCount,
+                onValueChange = onChangeDetainedCount,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Затримано") },
+                placeholder = { Text("0") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number
+                )
+            )
+
+            OutlinedTextField(
+                value = trip.transferredCount,
+                onValueChange = onChangeTransferredCount,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Передано в поліцію") },
+                placeholder = { Text("0") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number
+                )
+            )
+        }
+    }
+}
+
+@Composable
+private fun AdditionalAlarmFields(
+    trip: TripDraft,
+    reasons: List<AdditionalAlarmReasonDto>,
+    onChangeAdditionalReason: (SelectOption) -> Unit,
+    onChangeCustomReason: (String) -> Unit,
+    onChangeOhCount: (String) -> Unit,
+    onChangePartnerCount: (String) -> Unit,
+    onChangeDetainedCount: (String) -> Unit,
+    onChangeTransferredCount: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "Список сработок",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            SelectField(
+                label = "Причина",
+                selectedLabel = findAdditionalReasonLabel(reasons, trip.additionalReasonId),
+                options = listOf(
+                    SelectOption(
+                        id = 0,
+                        label = "Своя причина"
+                    )
+                ) + reasons.map {
+                    SelectOption(
+                        id = it.id,
+                        label = it.name
+                    )
+                },
+                onSelect = onChangeAdditionalReason
+            )
+
+            if (trip.additionalReasonId == 0) {
+                OutlinedTextField(
+                    value = trip.customReasonText,
+                    onValueChange = onChangeCustomReason,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Своя причина") },
+                    singleLine = true
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedTextField(
+                    value = trip.ohCount,
+                    onValueChange = onChangeOhCount,
+                    modifier = Modifier.weight(1f),
+                    label = { Text("ОХ") },
+                    placeholder = { Text("0") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number
+                    )
+                )
+
+                OutlinedTextField(
+                    value = trip.partnerCount,
+                    onValueChange = onChangePartnerCount,
+                    modifier = Modifier.weight(1f),
+                    label = { Text("Партнери") },
+                    placeholder = { Text("0") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number
+                    )
+                )
+            }
+
+            OutlinedTextField(
+                value = trip.detainedCount,
+                onValueChange = onChangeDetainedCount,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Затримано") },
+                placeholder = { Text("0") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number
+                )
+            )
+
+            OutlinedTextField(
+                value = trip.transferredCount,
+                onValueChange = onChangeTransferredCount,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Передано в поліцію") },
+                placeholder = { Text("0") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number
+                )
+            )
+        }
+    }
+}
+
+@Composable
+private fun SelectField(
+    label: String,
+    selectedLabel: String,
+    options: List<SelectOption>,
+    error: String? = null,
+    onSelect: (SelectOption) -> Unit
+) {
+    var dialogOpen by remember { mutableStateOf(false) }
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { dialogOpen = true },
+            shape = MaterialTheme.shapes.medium,
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            ),
+            border = BorderStroke(
+                width = 1.dp,
+                color = if (error != null) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.outline
+                }
+            )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (error != null) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+
+                    Text(
+                        text = selectedLabel.ifBlank { "Не вибрано" },
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                Text(
+                    text = "⌄",
+                    color = if (error != null) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+        }
+
+        if (error != null) {
+            Text(
+                text = error,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(start = 4.dp)
+            )
+        }
+    }
+
+    if (dialogOpen) {
+        AlertDialog(
+            onDismissRequest = { dialogOpen = false },
+            title = {
+                Text(label)
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 420.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (options.isEmpty()) {
+                        Text("Немає доступних варіантів")
+                    } else {
+                        options.forEach { option ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        onSelect(option)
+                                        dialogOpen = false
+                                    },
+                                shape = MaterialTheme.shapes.medium,
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Text(
+                                    text = option.label,
+                                    modifier = Modifier.padding(14.dp),
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { dialogOpen = false }) {
+                    Text("Закрити")
+                }
+            }
+        )
+    }
+}
+
+
+@Composable
+private fun WeaponSwitchRow(
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(title)
+
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange
+            )
+        }
+    }
+}
+
+@Composable
+private fun GbrSummaryCard(
+    crew: String,
+    vehicle: String,
+    driver: String,
+    senior: String,
+    shiftDate: String,
+    shiftTime: String,
+    odometerStart: String,
+    driverHasWeapon: Boolean,
+    seniorHasWeapon: Boolean,
+    tripsCount: Int,
+    gbrSaveSuccess: String,
+    gbrSaveError: String,
+    saving: Boolean,
+    onSave: () -> Unit
+) {
+    val isValid = crew.isNotBlank() &&
+        vehicle.isNotBlank() &&
+        driver.isNotBlank() &&
+        senior.isNotBlank() &&
+        shiftDate.isNotBlank() &&
+        shiftTime.isNotBlank() &&
+        odometerStart.isNotBlank() &&
+        tripsCount > 0
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text("Тип: Наряд ГБР")
+        Text("Наряд: ${crew.ifBlank { "Не вибрано" }}")
+        Text("Авто: ${vehicle.ifBlank { "Не вибрано" }}")
+        Text("Водій: ${driver.ifBlank { "Не вибрано" }}")
+        Text("Старший: ${senior.ifBlank { "Не вибрано" }}")
+        Text("Дата і час: $shiftDate $shiftTime")
+        Text("Пробіг: ${odometerStart.ifBlank { "Не вказано" }}")
+        Text("Поїздок: $tripsCount")
+        Text("Зброя: водій ${if (driverHasWeapon) "так" else "ні"}, старший ${if (seniorHasWeapon) "так" else "ні"}")
+
+        if (gbrSaveSuccess.isNotBlank()) {
+            Text(
+                text = gbrSaveSuccess,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        if (gbrSaveError.isNotBlank()) {
+            Text(
+                text = gbrSaveError,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
+
+        Button(
+            onClick = onSave,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !saving
+        ) {
+            Text(if (saving) "Збереження..." else "Зберегти наряд ГБР")
+        }
+
+        if (!isValid) {
+            Text(
+                text = "Натисніть “Зберегти наряд ГБР” — додаток покаже всі поля, які потрібно заповнити.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun PostSummaryCard(
+    post: String,
+    vehicle: String,
+    dutyType: String,
+    postDate: String,
+    postTime: String,
+    durationHours: String,
+    members: List<PostMemberDraft>,
+    employees: List<EmployeeDto>,
+    postSaveSuccess: String,
+    postSaveError: String,
+    saving: Boolean,
+    onSave: () -> Unit
+) {
+    val validMembers = members.filter { it.employeeId > 0 }
+    val duration = durationHours.replace(",", ".").toDoubleOrNull()
+    val isValid = post.isNotBlank() &&
+        postDate.isNotBlank() &&
+        postTime.isNotBlank() &&
+        duration != null &&
+        duration > 0.0 &&
+        duration <= 24.0 &&
+        validMembers.isNotEmpty()
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text("Тип: Пост")
+        Text("Пост: ${post.ifBlank { "Не вибрано" }}")
+        Text("Тип поста: $dutyType")
+        Text("Авто: $vehicle")
+        Text("Дата і час: $postDate $postTime")
+        Text("Тривалість: ${durationHours.ifBlank { "Не вказано" }} год.")
+        Text("Еквівалент зміни: ${calculateShiftEquivalentLabel(durationHours)}")
+
+        Text("Співробітники:")
+        if (validMembers.isEmpty()) {
+            Text("— не додані")
+        } else {
+            validMembers.forEach { member ->
+                val employeeName = findEmployeeLabel(employees, member.employeeId)
+                Text(
+                    text = "• $employeeName" +
+                        if (member.hasWeapon) " · зброя" else "" +
+                        if (member.isDriver) " · водій" else ""
+                )
+            }
+        }
+
+        if (postSaveSuccess.isNotBlank()) {
+            Text(
+                text = postSaveSuccess,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        if (postSaveError.isNotBlank()) {
+            Text(
+                text = postSaveError,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
+
+        Button(
+            onClick = onSave,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = isValid && !saving
+        ) {
+            Text(if (saving) "Збереження..." else "Зберегти постове чергування")
+        }
+
+        if (!isValid) {
+            Text(
+                text = "Заповніть пост, дату, години та додайте хоча б одного співробітника.",
+                color = MaterialTheme.colorScheme.error
+            )
+        }
+    }
+}
+
+@Composable
+private fun DraftRestoreDialog(
+    onRestore: () -> Unit,
+    onStartNew: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = {
+            // Пользователь должен выбрать, что делать с найденной черновой сменой.
+        },
+        title = {
+            Text("Знайдено чернетку")
+        },
+        text = {
+            Text("У вас є незавершена зміна. Відновити заповнені дані?")
+        },
+        confirmButton = {
+            Button(onClick = onRestore) {
+                Text("Відновити")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onStartNew) {
+                Text("Почати заново")
+            }
+        }
+    )
+}
+
+@Composable
+private fun SavingDialog(
+    text: String
+) {
+    AlertDialog(
+        onDismissRequest = {
+            // Во время сохранения закрывать нельзя.
+        },
+        title = {
+            Text("Зачекайте")
+        },
+        text = {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CircularProgressIndicator()
+                Text(text)
+            }
+        },
+        confirmButton = {}
+    )
+}
+
+@Composable
+private fun SaveResultDialog(
+    title: String,
+    message: String,
+    onOk: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = {
+            // Закрываем только через OK, чтобы точно сбросить форму.
+        },
+        title = {
+            Text(title)
+        },
+        text = {
+            Text(message)
+        },
+        confirmButton = {
+            Button(onClick = onOk) {
+                Text("OK")
+            }
+        }
+    )
+}
+
+@Composable
+private fun LoadingCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large
+    ) {
+        Row(
+            modifier = Modifier.padding(18.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CircularProgressIndicator()
+            Text("Завантаження даних...")
+        }
+    }
+}
+
+@Composable
+private fun ErrorCard(
+    message: String,
+    onRetry: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = message,
+                color = MaterialTheme.colorScheme.error
+            )
+
+            Button(onClick = onRetry) {
+                Text("Спробувати ще раз")
+            }
+        }
+    }
+}
+
+private fun buildTripSubtitle(trip: TripDraft): String {
+    val from = trip.fromLocation.ifBlank { "звідки не вказано" }
+    val to = trip.toLocation.ifBlank { "куди не вказано" }
+
+    return "$from → $to"
+}
+
+
+private fun getTripValidationErrors(
+    trip: TripDraft,
+    tripGoals: List<TripGoalDto>
+): List<String> {
+    val errors = mutableListOf<String>()
+    val goal = tripGoals.firstOrNull { it.id == trip.goalId }
+
+    if (trip.goalId <= 0) {
+        errors.add("виберіть ціль поїздки")
+    }
+
+    if (trip.fromLocation.isBlank()) {
+        errors.add("вкажіть звідки")
+    }
+
+    if (trip.toLocation.isBlank()) {
+        errors.add("вкажіть куди")
+    }
+
+    if (trip.departureTime.isBlank()) {
+        errors.add("вкажіть час виїзду")
+    }
+
+    if (trip.arrivalTime.isBlank()) {
+        errors.add("вкажіть час прибуття")
+    }
+
+    if (trip.distanceKm.replace(",", ".").toDoubleOrNull() == null) {
+        errors.add("вкажіть відстань")
+    }
+
+    if (isRegularAlarmGoal(goal)) {
+        if (trip.detainedCount.isNotBlank() && trip.detainedCount.toIntOrNull() == null) {
+            errors.add("затримано має бути числом")
+        }
+
+        if (trip.transferredCount.isNotBlank() && trip.transferredCount.toIntOrNull() == null) {
+            errors.add("передано має бути числом")
+        }
+    }
+
+    if (isAdditionalAlarmGoal(goal)) {
+        val ohCount = trip.ohCount.toIntOrNull() ?: 0
+        val partnerCount = trip.partnerCount.toIntOrNull() ?: 0
+        val hasReason = trip.additionalReasonId > 0 || trip.customReasonText.isNotBlank()
+
+        if (!hasReason) {
+            errors.add("виберіть причину або введіть свою причину")
+        }
+
+        if (ohCount + partnerCount <= 0) {
+            errors.add("вкажіть кількість ОХ або партнерів")
+        }
+
+        if (trip.detainedCount.isNotBlank() && trip.detainedCount.toIntOrNull() == null) {
+            errors.add("затримано має бути числом")
+        }
+
+        if (trip.transferredCount.isNotBlank() && trip.transferredCount.toIntOrNull() == null) {
+            errors.add("передано має бути числом")
+        }
+    }
+
+    return errors
+}
+
+private fun validateTripEvents(
+    trips: List<TripDraft>,
+    tripGoals: List<TripGoalDto>
+): String {
+    trips.forEachIndexed { index, trip ->
+        val goal = tripGoals.firstOrNull { it.id == trip.goalId }
+
+        if (isAdditionalAlarmGoal(goal)) {
+            val ohCount = trip.ohCount.toIntOrNull() ?: 0
+            val partnerCount = trip.partnerCount.toIntOrNull() ?: 0
+            val hasReason = trip.additionalReasonId > 0 || trip.customReasonText.isNotBlank()
+
+            if (!hasReason) {
+                return "Поїздка ${index + 1}: виберіть причину або введіть свою причину"
+            }
+
+            if (ohCount + partnerCount <= 0) {
+                return "Поїздка ${index + 1}: вкажіть кількість ОХ або партнерів"
+            }
+        }
+    }
+
+    return ""
+}
+
+private fun buildTripEvents(
+    trip: TripDraft,
+    tripGoals: List<TripGoalDto>
+): List<CreateMobileShiftTripEventRequest> {
+    val goal = tripGoals.firstOrNull { it.id == trip.goalId }
+
+    if (isOhAlarmGoal(goal)) {
+        return listOf(
+            CreateMobileShiftTripEventRequest(
+                eventCategory = "REGULAR_ALARM",
+                alarmSource = "OH",
+                countTotal = 1,
+                isCombat = trip.regularAlarmType.isCombat,
+                reasonId = null,
+                customReasonText = null,
+                ohCount = null,
+                partnerCount = null,
+                detainedCount = trip.detainedCount.toIntOrNull() ?: 0,
+                transferredCount = trip.transferredCount.toIntOrNull() ?: 0,
+                note = null
+            )
+        )
+    }
+
+    if (isPartnerAlarmGoal(goal)) {
+        return listOf(
+            CreateMobileShiftTripEventRequest(
+                eventCategory = "REGULAR_ALARM",
+                alarmSource = "PARTNER",
+                countTotal = 1,
+                isCombat = trip.regularAlarmType.isCombat,
+                reasonId = null,
+                customReasonText = null,
+                ohCount = null,
+                partnerCount = null,
+                detainedCount = trip.detainedCount.toIntOrNull() ?: 0,
+                transferredCount = trip.transferredCount.toIntOrNull() ?: 0,
+                note = null
+            )
+        )
+    }
+
+    if (isAdditionalAlarmGoal(goal)) {
+        return listOf(
+            CreateMobileShiftTripEventRequest(
+                eventCategory = "ADDITIONAL_ALARM",
+                alarmSource = null,
+                countTotal = null,
+                isCombat = null,
+                reasonId = trip.additionalReasonId.takeIf { it > 0 },
+                customReasonText = trip.customReasonText.trim().ifBlank { null },
+                ohCount = trip.ohCount.toIntOrNull() ?: 0,
+                partnerCount = trip.partnerCount.toIntOrNull() ?: 0,
+                detainedCount = trip.detainedCount.toIntOrNull() ?: 0,
+                transferredCount = trip.transferredCount.toIntOrNull() ?: 0,
+                note = null
+            )
+        )
+    }
+
+    return emptyList()
+}
+
+
+private fun isRegularAlarmGoal(goal: TripGoalDto?): Boolean {
+    return isOhAlarmGoal(goal) || isPartnerAlarmGoal(goal)
+}
+
+private fun isOhAlarmGoal(goal: TripGoalDto?): Boolean {
+    if (goal?.systemCode == TRIP_GOAL_ALARM_OH) {
+        return true
+    }
+
+    val text = goalSearchText(goal)
+
+    return text.contains("ох") ||
+        text.contains("oh") ||
+        text.contains("охрана") ||
+        text.contains("охорона")
+}
+
+private fun isPartnerAlarmGoal(goal: TripGoalDto?): Boolean {
+    if (goal?.systemCode == TRIP_GOAL_ALARM_PARTNER) {
+        return true
+    }
+
+    val text = goalSearchText(goal)
+
+    return text.contains("партнер") ||
+        text.contains("партнеры") ||
+        text.contains("партнери") ||
+        text.contains("partner")
+}
+
+private fun isAdditionalAlarmGoal(goal: TripGoalDto?): Boolean {
+    if (goal?.systemCode == TRIP_GOAL_ADDITIONAL_ALARM_LIST) {
+        return true
+    }
+
+    val text = goalSearchText(goal)
+
+    return (text.contains("список") && text.contains("сработ")) ||
+        text.contains("додатков") ||
+        text.contains("дополн") ||
+        text.contains("additional")
+}
+
+private fun getRegularAlarmSourceLabel(goal: TripGoalDto?): String {
+    return when {
+        isOhAlarmGoal(goal) -> "ОХ"
+        isPartnerAlarmGoal(goal) -> "Партнери"
+        else -> "Сработка"
+    }
+}
+
+private fun goalSearchText(goal: TripGoalDto?): String {
+    return "${goal?.name.orEmpty()} ${goal?.systemCode.orEmpty()}".lowercase()
+}
+
+private fun calculateShiftEquivalentLabel(durationHours: String): String {
+    val duration = durationHours.replace(",", ".").toDoubleOrNull() ?: return "—"
+    val value = duration / 24.0
+
+    return String.format(Locale.getDefault(), "%.2f", value)
+}
+
+private fun findCrewLabel(items: List<CrewDto>, id: Int): String {
+    return items.firstOrNull { it.id == id }?.name.orEmpty()
+}
+
+private fun findDutyPostLabel(items: List<DutyPostDto>, id: Int): String {
+    return items.firstOrNull { it.id == id }?.name.orEmpty()
+}
+
+private fun findVehicleLabel(items: List<VehicleDto>, id: Int): String {
+    val vehicle = items.firstOrNull { it.id == id } ?: return ""
+
+    return "${vehicle.title} · ${vehicle.licensePlate.orEmpty()}"
+}
+
+private fun findEmployeeLabel(items: List<EmployeeDto>, id: Int): String {
+    return items.firstOrNull { it.id == id }?.fullName.orEmpty()
+}
+
+private fun findTripGoalLabel(items: List<TripGoalDto>, id: Int): String {
+    return items.firstOrNull { it.id == id }?.name.orEmpty()
+}
+
+private fun findAdditionalReasonLabel(items: List<AdditionalAlarmReasonDto>, id: Int): String {
+    if (id == 0) {
+        return "Своя причина"
+    }
+
+    return items.firstOrNull { it.id == id }?.name.orEmpty()
+}
+
+private fun getCurrentDateInput(): String {
+    return SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+}
+
+private fun getCurrentTimeInput(): String {
+    return SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+}
+
+private fun createLocalShiftId(): String {
+    return "android-${System.currentTimeMillis()}"
+}
+
+private fun createPendingId(prefix: String): String {
+    return "$prefix-${System.currentTimeMillis()}"
+}
+
+private fun getApiErrorMessage(exception: Exception): String {
+    if (exception is HttpException) {
+        val errorBody = exception.response()?.errorBody()?.string()
+
+        if (!errorBody.isNullOrBlank()) {
+            return errorBody
+        }
+
+        return "HTTP ${exception.code()}"
+    }
+
+    return exception.message ?: "Невідома помилка"
+}
+
+private fun String.filterDigitsOnly(): String {
+    return filter { it.isDigit() }
+}

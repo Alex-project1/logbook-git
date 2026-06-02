@@ -1,5 +1,6 @@
 import { http } from "./http";
-
+export type CrewDutyType = "FULL_DAY" | "DAY" | "NIGHT";
+export type CrewTransportType = "AUTO" | "MOTO";
 export type Crew = {
   id: number;
   cityId: number;
@@ -9,6 +10,9 @@ export type Crew = {
   deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+  dutyType: CrewDutyType;
+  transportType: CrewTransportType;
+  durationHours: number;
   city?: {
     id: number;
     name: string;
@@ -17,7 +21,7 @@ export type Crew = {
 
 export async function getCrews(
   cityId?: number,
-  archive = false
+  archive = false,
 ): Promise<Crew[]> {
   const response = await http.get<{ data: Crew[] }>("/api/admin/crews", {
     params: {
@@ -34,6 +38,9 @@ export async function createCrew(data: {
   cityId: number;
   name: string;
   isActive?: boolean;
+  dutyType?: CrewDutyType;
+  transportType?: CrewTransportType;
+  durationHours?: number;
 }): Promise<Crew> {
   const response = await http.post<{ data: Crew }>("/api/admin/crews", data);
   return response.data.data;
@@ -45,11 +52,14 @@ export async function updateCrew(
     cityId?: number;
     name?: string;
     isActive?: boolean;
-  }
+    dutyType?: CrewDutyType;
+    transportType?: CrewTransportType;
+    durationHours?: number;
+  },
 ): Promise<Crew> {
   const response = await http.put<{ data: Crew }>(
     `/api/admin/crews/${id}`,
-    data
+    data,
   );
 
   return response.data.data;
@@ -57,7 +67,7 @@ export async function updateCrew(
 
 export async function restoreCrew(id: number): Promise<Crew> {
   const response = await http.patch<{ data: Crew }>(
-    `/api/admin/crews/${id}/restore`
+    `/api/admin/crews/${id}/restore`,
   );
 
   return response.data.data;

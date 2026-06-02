@@ -27,6 +27,9 @@ import { ActionLogsPage } from "./pages/ActionLogsPage";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { DutyPostsPage } from "./pages/DutyPostsPage";
 import { PostDutiesPage } from "./pages/PostDutiesPage";
+import { ReportsCustomPage } from "./pages/reports/ReportsCustomPage";
+import { NotificationsCreatePage } from "./pages/NotificationsCreatePage";
+import { NotificationsHistoryPage } from "./pages/NotificationsHistoryPage";
 
 export default function App() {
   return (
@@ -73,6 +76,8 @@ export default function App() {
           <Route path="vehicles" element={<VehiclesPage />} />
           <Route path="duty-posts" element={<DutyPostsPage />} />
           <Route path="post-duties" element={<PostDutiesPage />} />
+          <Route path="notifications/new" element={<NotificationsCreatePage />} />
+<Route path="notifications/history" element={<NotificationsHistoryPage />} />
           <Route
             path="trip-goals"
             element={
@@ -90,6 +95,7 @@ export default function App() {
             }
           />
           <Route path="reports/general" element={<ReportsGeneralPage />} />
+          <Route path="reports/custom" element={<ReportsCustomPage />} />
           <Route path="reports/trips" element={<ReportsTripsPage />} />
           <Route path="reports/shifts" element={<ReportsShiftsPage />} />
           <Route path="reports/employees" element={<ReportsEmployeesPage />} />

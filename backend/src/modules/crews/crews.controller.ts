@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../../config/prisma";
+import { CrewDutyType, CrewTransportType } from "@prisma/client";
 import {
   buildCityAccessWhere,
   canEditCityData,
@@ -11,6 +12,9 @@ const createCrewSchema = z.object({
   cityId: z.number().int().positive(),
   name: z.string().min(1, "Crew name is required"),
   comment: z.string().optional().nullable(),
+  dutyType: z.nativeEnum(CrewDutyType).optional(),
+  transportType: z.nativeEnum(CrewTransportType).optional(),
+  durationHours: z.number().positive().max(24).optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -18,9 +22,27 @@ const updateCrewSchema = z.object({
   cityId: z.number().int().positive().optional(),
   name: z.string().min(1, "Crew name is required").optional(),
   comment: z.string().optional().nullable(),
+  dutyType: z.nativeEnum(CrewDutyType).optional(),
+  transportType: z.nativeEnum(CrewTransportType).optional(),
+  durationHours: z.number().positive().max(24).optional(),
   isActive: z.boolean().optional(),
 });
+function normalizeCrewDurationHours(
+  dutyType: CrewDutyType,
+  durationHours?: number | null,
+) {
+  if (dutyType === CrewDutyType.FULL_DAY) {
+    return 24;
+  }
 
+  const value = Number(durationHours);
+
+  if (!Number.isFinite(value) || value <= 0 || value > 24) {
+    throw new Error("Для дневного или ночного наряда укажите часы от 0 до 24");
+  }
+
+  return Number(value.toFixed(2));
+}
 export async function getCrews(req: Request, res: Response) {
   try {
     const cityId = req.query.cityId ? Number(req.query.cityId) : undefined;
@@ -29,11 +51,7 @@ export async function getCrews(req: Request, res: Response) {
 
     const allowedCityIds = await getAllowedCityIds(req);
 
-    if (
-      allowedCityIds !== null &&
-      cityId &&
-      !allowedCityIds.includes(cityId)
-    ) {
+    if (allowedCityIds !== null && cityId && !allowedCityIds.includes(cityId)) {
       return res.json({
         data: [],
       });
@@ -57,6 +75,9 @@ export async function getCrews(req: Request, res: Response) {
         deletedAt: true,
         createdAt: true,
         updatedAt: true,
+        dutyType: true,
+        transportType: true,
+        durationHours: true,
         city: {
           select: {
             id: true,
@@ -95,6 +116,9 @@ export async function getCrewById(req: Request, res: Response) {
         isActive: true,
         createdAt: true,
         updatedAt: true,
+        dutyType: true,
+        transportType: true,
+        durationHours: true,
         city: {
           select: {
             id: true,
@@ -158,12 +182,30 @@ export async function createCrew(req: Request, res: Response) {
         message: "Crew with this name already exists in this city",
       });
     }
+    const dutyType = parsed.data.dutyType ?? CrewDutyType.FULL_DAY;
+    const transportType = parsed.data.transportType ?? CrewTransportType.AUTO;
 
+    let durationHours = 24;
+
+    try {
+      durationHours = normalizeCrewDurationHours(
+        dutyType,
+        parsed.data.durationHours,
+      );
+    } catch (error) {
+      return res.status(400).json({
+        message:
+          error instanceof Error ? error.message : "Некорректная длительность",
+      });
+    }
     const crew = await prisma.crew.create({
       data: {
         cityId: parsed.data.cityId,
         name: parsed.data.name,
         comment: parsed.data.comment ?? null,
+        dutyType,
+        transportType,
+        durationHours,
         isActive: parsed.data.isActive ?? true,
       },
       select: {
@@ -174,6 +216,9 @@ export async function createCrew(req: Request, res: Response) {
         isActive: true,
         createdAt: true,
         updatedAt: true,
+        dutyType: true,
+        transportType: true,
+        durationHours: true,
       },
     });
 
@@ -259,7 +304,22 @@ export async function updateCrew(req: Request, res: Response) {
         message: "Crew with this name already exists in this city",
       });
     }
+    const nextDutyType = parsed.data.dutyType ?? crew.dutyType;
+    const nextTransportType = parsed.data.transportType ?? crew.transportType;
 
+    let nextDurationHours = 24;
+
+    try {
+      nextDurationHours = normalizeCrewDurationHours(
+        nextDutyType,
+        parsed.data.durationHours ?? Number(crew.durationHours),
+      );
+    } catch (error) {
+      return res.status(400).json({
+        message:
+          error instanceof Error ? error.message : "Некорректная длительность",
+      });
+    }
     const updatedCrew = await prisma.crew.update({
       where: {
         id: crewId,
@@ -269,6 +329,9 @@ export async function updateCrew(req: Request, res: Response) {
         name: parsed.data.name,
         comment: parsed.data.comment,
         isActive: parsed.data.isActive,
+        dutyType: nextDutyType,
+        transportType: nextTransportType,
+        durationHours: nextDurationHours,
       },
       select: {
         id: true,
@@ -278,6 +341,9 @@ export async function updateCrew(req: Request, res: Response) {
         isActive: true,
         createdAt: true,
         updatedAt: true,
+        dutyType: true,
+        transportType: true,
+        durationHours: true,
       },
     });
 
@@ -377,6 +443,9 @@ export async function restoreCrew(req: Request, res: Response) {
         deletedAt: true,
         createdAt: true,
         updatedAt: true,
+        dutyType: true,
+        transportType: true,
+        durationHours: true,
       },
     });
 

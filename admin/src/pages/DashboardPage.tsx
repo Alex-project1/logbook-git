@@ -317,7 +317,7 @@ export function DashboardPage() {
           <div className="table-header">
             <div>
               <h2>Топ сотрудников по нагрузке</h2>
-              <p>С учетом машинных смен и постовых дежурств</p>
+              <p>С учетом нарядов ГБР и постовых дежурств</p>
             </div>
           </div>
 

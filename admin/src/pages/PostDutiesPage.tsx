@@ -866,18 +866,15 @@ export function PostDutiesPage() {
         <div className="panel-card table-card">
           <AccordionSection
             title="Список дежурств"
-            subtitle={`Всего: ${(pagination?.total ?? 0).toLocaleString(
-              "ru-RU"
-            )} · Страница ${pagination?.page ?? 1} из ${pagination?.totalPages ?? 1
-              }`}
+            subtitle={` Всего: ${(pagination?.total ?? 0).toLocaleString("ru-RU")}`}
             open={openedSections.list}
             onToggle={() => toggleSection("list")}
           >
             <div className="table-header">
               <div>
-                <h2>Список дежурств</h2>
+              
                 <p>
-                  Всего: {(pagination?.total ?? 0).toLocaleString("ru-RU")} ·
+                  ·
                   Страница {pagination?.page ?? 1} из{" "}
                   {pagination?.totalPages ?? 1}
                 </p>

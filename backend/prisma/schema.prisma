@@ -35,7 +35,16 @@ enum AlarmSource {
   OH
   PARTNER
 }
+enum CrewDutyType {
+  FULL_DAY
+  DAY
+  NIGHT
+}
 
+enum CrewTransportType {
+  AUTO
+  MOTO
+}
 model Role {
   id          Int      @id @default(autoincrement())
   code        String   @unique
@@ -63,6 +72,8 @@ model User {
 
   role              Role              @relation(fields: [roleId], references: [id])
   adminCityAccesses AdminCityAccess[]
+
+  sentNotifications Notification[] @relation("NotificationSender")
 
   @@index([roleId])
   @@map("users")
@@ -100,6 +111,8 @@ model City {
   dutyPosts  DutyPost[] @relation("DutyPostCity")
   postDuties PostDuty[] @relation("PostDutyCity")
 
+  notifications Notification[]
+
   @@map("cities")
 }
 
@@ -135,6 +148,9 @@ model MobileUser {
   city   City    @relation(fields: [cityId], references: [id])
   shifts Shift[]
 
+  notificationRecipients NotificationRecipient[]
+  deviceTokens MobileDeviceToken[]
+
   @@index([cityId])
   @@map("mobile_users")
 }
@@ -162,14 +178,17 @@ model Employee {
 }
 
 model Crew {
-  id        Int       @id @default(autoincrement())
-  cityId    Int
-  name      String
-  comment   String?
-  isActive  Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  id            Int               @id @default(autoincrement())
+  cityId        Int
+  name          String
+  comment       String?
+  dutyType      CrewDutyType      @default(FULL_DAY)
+  transportType CrewTransportType @default(AUTO)
+  durationHours Decimal           @default(24) @db.Decimal(5, 2)
+  isActive      Boolean           @default(true)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  deletedAt     DateTime?
 
   city   City    @relation(fields: [cityId], references: [id])
   shifts Shift[]
@@ -258,6 +277,10 @@ model Shift {
   driverHasWeapon  Boolean @default(false)
   seniorEmployeeId Int
   seniorHasWeapon  Boolean @default(false)
+
+  crewDutyType       CrewDutyType      @default(FULL_DAY)
+crewTransportType  CrewTransportType @default(AUTO)
+shiftDurationHours Decimal           @default(24) @db.Decimal(5, 2)
 
   shiftDate             DateTime
   odometerStart         Int
@@ -514,4 +537,69 @@ model PostDutyMember {
   @@unique([postDutyId, employeeId])
   @@index([employeeId])
   @@map("post_duty_members")
+}
+
+model Notification {
+  id           Int       @id @default(autoincrement())
+  cityId       Int
+  senderUserId Int?
+  title        String    @default("Повідомлення") @db.VarChar(255)
+  message      String    @db.Text
+  pushEnabled              Boolean   @default(false)
+pushTokensCount          Int       @default(0)
+pushSuccessCount         Int       @default(0)
+pushFailureCount         Int       @default(0)
+pushRemovedInvalidTokens Int       @default(0)
+pushMessage              String?   @db.VarChar(255)
+pushProcessedAt          DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  city       City                    @relation(fields: [cityId], references: [id])
+  senderUser User?                   @relation("NotificationSender", fields: [senderUserId], references: [id])
+  recipients NotificationRecipient[]
+
+  @@index([cityId])
+  @@index([senderUserId])
+  @@map("notifications")
+}
+
+model NotificationRecipient {
+  id             Int       @id @default(autoincrement())
+  notificationId Int
+  mobileUserId   Int
+
+  sentAt      DateTime  @default(now())
+  deliveredAt DateTime?
+  readAt      DateTime?
+  repliedAt   DateTime?
+  replyText   String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  mobileUser    MobileUser   @relation(fields: [mobileUserId], references: [id])
+
+  @@unique([notificationId, mobileUserId])
+  @@index([notificationId])
+  @@index([mobileUserId])
+  @@map("notification_recipients")
+}
+
+model MobileDeviceToken {
+  id           Int      @id @default(autoincrement())
+  mobileUserId Int
+  token        String   @unique @db.VarChar(512)
+  platform     String?
+  deviceName   String?
+  lastSeenAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  mobileUser MobileUser @relation(fields: [mobileUserId], references: [id], onDelete: Cascade)
+
+  @@index([mobileUserId])
+  @@map("mobile_device_tokens")
 }

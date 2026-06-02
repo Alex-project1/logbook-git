@@ -58,7 +58,30 @@ function getWeaponLabel(row: ShiftTableRow) {
 
   return parts.length ? parts.join(", ") : "без оружия";
 }
+function getDutyTypeLabel(value: string) {
+  const labels: Record<string, string> = {
+    FULL_DAY: "Суточный",
+    DAY: "Дневной",
+    NIGHT: "Ночной",
+  };
 
+  return labels[value] ?? value;
+}
+
+function getTransportTypeLabel(value: string) {
+  const labels: Record<string, string> = {
+    AUTO: "Авто",
+    MOTO: "Мото",
+  };
+
+  return labels[value] ?? value;
+}
+
+function formatShiftEquivalent(value: number) {
+  return value.toLocaleString("ru-RU", {
+    maximumFractionDigits: 2,
+  });
+}
 export function ReportsShiftsPage() {
   const [filters, setFilters] = useState<ShiftsTableFilters>(defaultFilters);
   const [report, setReport] = useState<ShiftsTableResponse | null>(null);
@@ -73,7 +96,7 @@ export function ReportsShiftsPage() {
   const [loading, setLoading] = useState(true);
   const [deletingShiftId, setDeletingShiftId] = useState<number | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<ShiftTableRow | null>(
-    null
+    null,
   );
   const [deleteReason, setDeleteReason] = useState("");
   const [openActionsRowId, setOpenActionsRowId] = useState<number | null>(null);
@@ -89,7 +112,7 @@ export function ReportsShiftsPage() {
 
   const activeCities = useMemo(
     () => cities.filter((city) => city.isActive),
-    [cities]
+    [cities],
   );
   useEffect(() => {
     if (openActionsRowId === null) {
@@ -167,7 +190,7 @@ export function ReportsShiftsPage() {
 
   function updateFilter<Key extends keyof ShiftsTableFilters>(
     key: Key,
-    value: ShiftsTableFilters[Key]
+    value: ShiftsTableFilters[Key],
   ) {
     setFilters((prev) => ({
       ...prev,
@@ -349,7 +372,10 @@ export function ReportsShiftsPage() {
             <select
               value={filters.vehicleId ?? 0}
               onChange={(event) =>
-                updateFilter("vehicleId", Number(event.target.value) || undefined)
+                updateFilter(
+                  "vehicleId",
+                  Number(event.target.value) || undefined,
+                )
               }
             >
               <option value={0}>Все автомобили</option>
@@ -368,7 +394,10 @@ export function ReportsShiftsPage() {
             <select
               value={filters.employeeId ?? 0}
               onChange={(event) =>
-                updateFilter("employeeId", Number(event.target.value) || undefined)
+                updateFilter(
+                  "employeeId",
+                  Number(event.target.value) || undefined,
+                )
               }
             >
               <option value={0}>Все сотрудники</option>
@@ -392,7 +421,11 @@ export function ReportsShiftsPage() {
         </div>
 
         <div className="report-filter-actions">
-          <button className="primary-button" onClick={handleApply} disabled={loading}>
+          <button
+            className="primary-button"
+            onClick={handleApply}
+            disabled={loading}
+          >
             {loading ? "Загрузка..." : "Сформировать"}
           </button>
 
@@ -416,6 +449,10 @@ export function ReportsShiftsPage() {
         <div className="stat-card">
           <span>Смен на странице</span>
           <strong>{formatNumber(report?.summary.totalRowsOnPage ?? 0)}</strong>
+          <small>
+            Эквивалент:{" "}
+            {formatShiftEquivalent(report?.summary.totalShiftEquivalent ?? 0)}
+          </small>
         </div>
 
         <div className="stat-card">
@@ -472,7 +509,9 @@ export function ReportsShiftsPage() {
             <select
               className="compact-select"
               value={filters.pageSize ?? 20}
-              onChange={(event) => handlePageSizeChange(Number(event.target.value))}
+              onChange={(event) =>
+                handlePageSizeChange(Number(event.target.value))
+              }
             >
               <option value={20}>20 строк</option>
               <option value={50}>50 строк</option>
@@ -484,7 +523,9 @@ export function ReportsShiftsPage() {
         {loading ? (
           <div className="empty-state">Загрузка смен...</div>
         ) : rows.length === 0 ? (
-          <div className="empty-state">Смены по выбранным фильтрам не найдены</div>
+          <div className="empty-state">
+            Смены по выбранным фильтрам не найдены
+          </div>
         ) : (
           <>
             <div className="table-wrap">
@@ -493,16 +534,28 @@ export function ReportsShiftsPage() {
                   <tr>
                     <th></th>
                     <th onClick={() => handleSort("shiftDate")}>Дата</th>
-                    <th onClick={() => handleSort("submittedAt")}>Отправлено</th>
+                    <th onClick={() => handleSort("submittedAt")}>
+                      Отправлено
+                    </th>
                     <th>Город</th>
                     <th>Наряд</th>
+                    <th>Тип</th>
+                    <th>Транспорт</th>
+                    <th>Часы</th>
+                    <th>Смены</th>
                     <th>Авто</th>
                     <th>Водитель</th>
                     <th>Старший</th>
                     <th>Оружие</th>
-                    <th onClick={() => handleSort("odometerStart")}>Спид. начало</th>
-                    <th onClick={() => handleSort("odometerEndCalculated")}>Спид. конец</th>
-                    <th onClick={() => handleSort("totalDistanceKm")}>Пробег</th>
+                    <th onClick={() => handleSort("odometerStart")}>
+                      Спид. начало
+                    </th>
+                    <th onClick={() => handleSort("odometerEndCalculated")}>
+                      Спид. конец
+                    </th>
+                    <th onClick={() => handleSort("totalDistanceKm")}>
+                      Пробег
+                    </th>
                     <th>Поездок</th>
                     <th>Сработок</th>
                     <th>ОХ</th>
@@ -535,6 +588,12 @@ export function ReportsShiftsPage() {
                           <td>{formatTime(row.submittedAt)}</td>
                           <td>{row.city.name}</td>
                           <td>{row.crew.name}</td>
+                          <td>{getDutyTypeLabel(row.crewDutyType)}</td>
+                          <td>
+                            {getTransportTypeLabel(row.crewTransportType)}
+                          </td>
+                          <td>{Number(row.shiftDurationHours)}</td>
+                          <td>{formatShiftEquivalent(row.shiftEquivalent)}</td>
                           <td>
                             {row.vehicle.title}
                             {row.vehicle.licensePlate && (
@@ -561,8 +620,9 @@ export function ReportsShiftsPage() {
                           {canManageShifts && (
                             <td className="actions-cell">
                               <div
-                                className={`row-action-dropdown ${openActionsRowId === row.id ? "is-open" : ""
-                                  }`}
+                                className={`row-action-dropdown ${
+                                  openActionsRowId === row.id ? "is-open" : ""
+                                }`}
                               >
                                 <button
                                   type="button"
@@ -571,12 +631,14 @@ export function ReportsShiftsPage() {
                                     event.stopPropagation();
 
                                     setOpenActionsRowId((currentId) =>
-                                      currentId === row.id ? null : row.id
+                                      currentId === row.id ? null : row.id,
                                     );
                                   }}
                                 >
                                   Действия
-                                  <span className="row-action-trigger-icon">▾</span>
+                                  <span className="row-action-trigger-icon">
+                                    ▾
+                                  </span>
                                 </button>
 
                                 {openActionsRowId === row.id && (
@@ -597,7 +659,9 @@ export function ReportsShiftsPage() {
                                       disabled={deletingShiftId === row.id}
                                     >
                                       <span className="row-action-dot" />
-                                      {deletingShiftId === row.id ? "Удаляем..." : "Удалить"}
+                                      {deletingShiftId === row.id
+                                        ? "Удаляем..."
+                                        : "Удалить"}
                                     </button>
                                   </div>
                                 )}
@@ -608,7 +672,7 @@ export function ReportsShiftsPage() {
 
                         {expanded && (
                           <tr className="expanded-row">
-                            <td colSpan={canManageShifts ? 22 : 21}>
+                        <td colSpan={canManageShifts ? 26 : 25}>
                               <div className="expanded-content">
                                 <h3>Поездки смены</h3>
 
@@ -622,19 +686,26 @@ export function ReportsShiftsPage() {
                                       <div className="event-card" key={trip.id}>
                                         <strong>
                                           {formatTime(trip.departureTime)} ·{" "}
-                                          {trip.fromLocation} → {trip.toLocation}
+                                          {trip.fromLocation} →{" "}
+                                          {trip.toLocation}
                                         </strong>
 
                                         <div className="event-grid">
                                           <span>Цель: {trip.goal.name}</span>
                                           <span>Км: {trip.distanceKm}</span>
-                                          <span>Мин.: {trip.arrivalMinutes}</span>
-                                          <span>Сработка: {trip.eventSummary}</span>
                                           <span>
-                                            Задержано: {trip.eventTotals.detained}
+                                            Мин.: {trip.arrivalMinutes}
                                           </span>
                                           <span>
-                                            Передано: {trip.eventTotals.transferred}
+                                            Сработка: {trip.eventSummary}
+                                          </span>
+                                          <span>
+                                            Задержано:{" "}
+                                            {trip.eventTotals.detained}
+                                          </span>
+                                          <span>
+                                            Передано:{" "}
+                                            {trip.eventTotals.transferred}
                                           </span>
                                         </div>
 
@@ -674,7 +745,9 @@ export function ReportsShiftsPage() {
 
               <button
                 className="secondary-button"
-                disabled={(pagination?.page ?? 1) >= (pagination?.totalPages ?? 1)}
+                disabled={
+                  (pagination?.page ?? 1) >= (pagination?.totalPages ?? 1)
+                }
                 onClick={() => handlePageChange((pagination?.page ?? 1) + 1)}
               >
                 Вперед
@@ -684,7 +757,10 @@ export function ReportsShiftsPage() {
         )}
       </div>
       {canManageShifts && deleteCandidate && (
-        <div className="modal-backdrop" onMouseDown={() => setDeleteCandidate(null)}>
+        <div
+          className="modal-backdrop"
+          onMouseDown={() => setDeleteCandidate(null)}
+        >
           <div
             className="modal-card"
             onMouseDown={(event) => event.stopPropagation()}
@@ -722,7 +798,9 @@ export function ReportsShiftsPage() {
                 onClick={handleConfirmDeleteShift}
                 disabled={deletingShiftId === deleteCandidate.id}
               >
-                {deletingShiftId === deleteCandidate.id ? "Удаляем..." : "Удалить"}
+                {deletingShiftId === deleteCandidate.id
+                  ? "Удаляем..."
+                  : "Удалить"}
               </button>
             </div>
           </div>

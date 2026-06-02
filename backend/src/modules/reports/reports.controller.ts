@@ -4,7 +4,15 @@ import { prisma } from "../../config/prisma";
 function toNumber(value: unknown) {
   return Number(value ?? 0);
 }
+function getShiftEquivalent(shift: { shiftDurationHours?: unknown }) {
+  const durationHours = Number(shift.shiftDurationHours ?? 24);
 
+  if (!Number.isFinite(durationHours) || durationHours <= 0) {
+    return 1;
+  }
+
+  return roundNumber(durationHours / 24);
+}
 function parseDate(value: unknown) {
   if (!value) return undefined;
 
@@ -30,11 +38,11 @@ async function loadShiftsForReports(params: {
       ...(params.cityId ? { cityId: params.cityId } : {}),
       ...(params.dateFrom || params.dateTo
         ? {
-          shiftDate: {
-            ...(params.dateFrom ? { gte: params.dateFrom } : {}),
-            ...(params.dateTo ? { lte: params.dateTo } : {}),
-          },
-        }
+            shiftDate: {
+              ...(params.dateFrom ? { gte: params.dateFrom } : {}),
+              ...(params.dateTo ? { lte: params.dateTo } : {}),
+            },
+          }
         : {}),
     },
     include: {
@@ -100,6 +108,8 @@ async function loadShiftsForReports(params: {
 function calculateShiftSummary(shift: ShiftWithData) {
   let totalTrips = 0;
   let totalDistanceKm = toNumber(shift.totalDistanceKm);
+
+  const shiftEquivalent = getShiftEquivalent(shift);
 
   let regularOh = 0;
   let regularPartner = 0;
@@ -190,6 +200,8 @@ function calculateShiftSummary(shift: ShiftWithData) {
   const totalPartner = regularPartner + additionalPartner;
 
   return {
+    shiftEquivalent,
+
     totalTrips,
     totalDistanceKm,
 
@@ -261,9 +273,9 @@ function createEmptyTotals() {
 
 function addSummaryToTotals(
   totals: ReturnType<typeof createEmptyTotals>,
-  summary: ReturnType<typeof calculateShiftSummary>
+  summary: ReturnType<typeof calculateShiftSummary>,
 ) {
-  totals.totalShifts += 1;
+  totals.totalShifts += summary.shiftEquivalent;
   totals.totalTrips += summary.totalTrips;
   totals.totalDistanceKm += summary.totalDistanceKm;
 
@@ -287,7 +299,7 @@ function addSummaryToTotals(
   totals.transferred += summary.transferred;
 
   for (const [reasonName, reasonStats] of Object.entries(
-    summary.additionalByReason
+    summary.additionalByReason,
   )) {
     if (!totals.additionalByReason[reasonName]) {
       totals.additionalByReason[reasonName] = {
@@ -315,6 +327,7 @@ function roundNumber(value: number) {
 function finalizeTotals(totals: ReturnType<typeof createEmptyTotals>) {
   return {
     ...totals,
+    totalShifts: roundNumber(totals.totalShifts),
     totalDistanceKm: roundNumber(totals.totalDistanceKm),
     averageAlarmsPerShift:
       totals.totalShifts > 0
@@ -439,7 +452,7 @@ function createEmployeeReportRow(employee: { id: number; fullName: string }) {
 
 function addSummaryToEmployeeRow(
   row: EmployeeReportRow,
-  summary: ReturnType<typeof calculateShiftSummary>
+  summary: ReturnType<typeof calculateShiftSummary>,
 ) {
   row.totalDistanceKm += summary.totalDistanceKm;
 
@@ -463,7 +476,7 @@ function addSummaryToEmployeeRow(
   row.transferred += summary.transferred;
 
   for (const [reasonName, reasonStats] of Object.entries(
-    summary.additionalByReason
+    summary.additionalByReason,
   )) {
     if (!row.additionalByReason[reasonName]) {
       row.additionalByReason[reasonName] = {
@@ -479,13 +492,17 @@ function addSummaryToEmployeeRow(
   }
 
   for (const [goalName, distance] of Object.entries(summary.distanceByGoal)) {
-    row.distanceByGoal[goalName] = (row.distanceByGoal[goalName] ?? 0) + distance;
+    row.distanceByGoal[goalName] =
+      (row.distanceByGoal[goalName] ?? 0) + distance;
   }
 }
 
 function finalizeEmployeeRow(row: EmployeeReportRow) {
   return {
     ...row,
+    driverShifts: roundNumber(row.driverShifts),
+    seniorShifts: roundNumber(row.seniorShifts),
+    weaponShifts: roundNumber(row.weaponShifts),
     totalDistanceKm: roundNumber(row.totalDistanceKm),
     averageAlarmsPerShift:
       row.totalShifts > 0 ? roundNumber(row.totalAlarms / row.totalShifts) : 0,
@@ -517,11 +534,11 @@ export async function getEmployeesReport(req: Request, res: Response) {
       }
 
       const driverRow = employeeMap.get(driver.id)!;
-      driverRow.totalShifts += 1;
-      driverRow.driverShifts += 1;
+      driverRow.totalShifts += summary.shiftEquivalent;
+      driverRow.driverShifts += summary.shiftEquivalent;
 
       if (shift.driverHasWeapon) {
-        driverRow.weaponShifts += 1;
+        driverRow.weaponShifts += summary.shiftEquivalent;
       }
 
       addSummaryToEmployeeRow(driverRow, summary);
@@ -531,11 +548,11 @@ export async function getEmployeesReport(req: Request, res: Response) {
       }
 
       const seniorRow = employeeMap.get(senior.id)!;
-      seniorRow.totalShifts += 1;
-      seniorRow.seniorShifts += 1;
+      seniorRow.totalShifts += summary.shiftEquivalent;
+      seniorRow.seniorShifts += summary.shiftEquivalent;
 
       if (shift.seniorHasWeapon) {
-        seniorRow.weaponShifts += 1;
+        seniorRow.weaponShifts += summary.shiftEquivalent;
       }
 
       addSummaryToEmployeeRow(seniorRow, summary);
@@ -607,9 +624,9 @@ function createCrewReportRow(crew: { id: number; name: string }) {
 
 function addSummaryToCrewRow(
   row: CrewReportRow,
-  summary: ReturnType<typeof calculateShiftSummary>
+  summary: ReturnType<typeof calculateShiftSummary>,
 ) {
-  row.totalShifts += 1;
+  row.totalShifts += summary.shiftEquivalent;
   row.totalTrips += summary.totalTrips;
   row.totalDistanceKm += summary.totalDistanceKm;
 
@@ -633,7 +650,7 @@ function addSummaryToCrewRow(
   row.transferred += summary.transferred;
 
   for (const [reasonName, reasonStats] of Object.entries(
-    summary.additionalByReason
+    summary.additionalByReason,
   )) {
     if (!row.additionalByReason[reasonName]) {
       row.additionalByReason[reasonName] = {
@@ -649,13 +666,15 @@ function addSummaryToCrewRow(
   }
 
   for (const [goalName, distance] of Object.entries(summary.distanceByGoal)) {
-    row.distanceByGoal[goalName] = (row.distanceByGoal[goalName] ?? 0) + distance;
+    row.distanceByGoal[goalName] =
+      (row.distanceByGoal[goalName] ?? 0) + distance;
   }
 }
 
 function finalizeCrewRow(row: CrewReportRow) {
   return {
     ...row,
+    totalShifts: roundNumber(row.totalShifts),
     totalDistanceKm: roundNumber(row.totalDistanceKm),
     averageAlarmsPerShift:
       row.totalShifts > 0 ? roundNumber(row.totalAlarms / row.totalShifts) : 0,
@@ -771,9 +790,9 @@ function createVehicleReportRow(vehicle: {
 function addSummaryToVehicleRow(
   row: VehicleReportRow,
   shift: ShiftWithData,
-  summary: ReturnType<typeof calculateShiftSummary>
+  summary: ReturnType<typeof calculateShiftSummary>,
 ) {
-  row.totalShifts += 1;
+  row.totalShifts += summary.shiftEquivalent;
   row.totalTrips += summary.totalTrips;
   row.totalDistanceKm += summary.totalDistanceKm;
 
@@ -807,7 +826,7 @@ function addSummaryToVehicleRow(
   row.transferred += summary.transferred;
 
   for (const [reasonName, reasonStats] of Object.entries(
-    summary.additionalByReason
+    summary.additionalByReason,
   )) {
     if (!row.additionalByReason[reasonName]) {
       row.additionalByReason[reasonName] = {
@@ -823,13 +842,15 @@ function addSummaryToVehicleRow(
   }
 
   for (const [goalName, distance] of Object.entries(summary.distanceByGoal)) {
-    row.distanceByGoal[goalName] = (row.distanceByGoal[goalName] ?? 0) + distance;
+    row.distanceByGoal[goalName] =
+      (row.distanceByGoal[goalName] ?? 0) + distance;
   }
 }
 
 function finalizeVehicleRow(row: VehicleReportRow) {
   return {
     ...row,
+    totalShifts: roundNumber(row.totalShifts),
     totalDistanceKm: roundNumber(row.totalDistanceKm),
     averageDistancePerShift:
       row.totalShifts > 0
@@ -978,7 +999,8 @@ function buildTripEventSummary(events: any[]) {
         return `${source}, ${combatText}`;
       }
 
-      const reason = event.reason?.name ?? event.customReasonText ?? "Без причины";
+      const reason =
+        event.reason?.name ?? event.customReasonText ?? "Без причины";
       const oh = event.ohCount ?? 0;
       const partner = event.partnerCount ?? 0;
 
@@ -1091,108 +1113,108 @@ export async function getTripsTableReport(req: Request, res: Response) {
         deletedAt: null,
         ...(dateFrom || dateTo
           ? {
-            shiftDate: {
-              ...(dateFrom ? { gte: dateFrom } : {}),
-              ...(dateTo ? { lte: dateTo } : {}),
-            },
-          }
+              shiftDate: {
+                ...(dateFrom ? { gte: dateFrom } : {}),
+                ...(dateTo ? { lte: dateTo } : {}),
+              },
+            }
           : {}),
         ...(crewId ? { crewId } : {}),
         ...(vehicleId ? { vehicleId } : {}),
         ...(employeeId
           ? {
-            OR: [
-              { driverEmployeeId: employeeId },
-              { seniorEmployeeId: employeeId },
-            ],
-          }
+              OR: [
+                { driverEmployeeId: employeeId },
+                { seniorEmployeeId: employeeId },
+              ],
+            }
           : {}),
       },
       ...(cityId ? { cityId } : {}),
       ...(goalId ? { goalId } : {}),
       ...(alarmSource || typeof isCombat === "boolean"
         ? {
-          events: {
-            some: {
-              ...(alarmSource ? { alarmSource } : {}),
-              ...(typeof isCombat === "boolean" ? { isCombat } : {}),
+            events: {
+              some: {
+                ...(alarmSource ? { alarmSource } : {}),
+                ...(typeof isCombat === "boolean" ? { isCombat } : {}),
+              },
             },
-          },
-        }
+          }
         : {}),
       ...(hasDetained
         ? {
-          events: {
-            some: {
-              detainedCount: {
-                gt: 0,
-              },
-            },
-          },
-        }
-        : {}),
-      ...(hasTransferred
-        ? {
-          events: {
-            some: {
-              transferredCount: {
-                gt: 0,
-              },
-            },
-          },
-        }
-        : {}),
-      ...(search
-        ? {
-          OR: [
-            { fromLocation: { contains: search } },
-            { toLocation: { contains: search } },
-            { note: { contains: search } },
-            {
-              goal: {
-                name: {
-                  contains: search,
+            events: {
+              some: {
+                detainedCount: {
+                  gt: 0,
                 },
               },
             },
-            {
-              shift: {
-                crew: {
+          }
+        : {}),
+      ...(hasTransferred
+        ? {
+            events: {
+              some: {
+                transferredCount: {
+                  gt: 0,
+                },
+              },
+            },
+          }
+        : {}),
+      ...(search
+        ? {
+            OR: [
+              { fromLocation: { contains: search } },
+              { toLocation: { contains: search } },
+              { note: { contains: search } },
+              {
+                goal: {
                   name: {
                     contains: search,
                   },
                 },
               },
-            },
-            {
-              shift: {
-                vehicle: {
-                  title: {
-                    contains: search,
+              {
+                shift: {
+                  crew: {
+                    name: {
+                      contains: search,
+                    },
                   },
                 },
               },
-            },
-            {
-              shift: {
-                driverEmployee: {
-                  fullName: {
-                    contains: search,
+              {
+                shift: {
+                  vehicle: {
+                    title: {
+                      contains: search,
+                    },
                   },
                 },
               },
-            },
-            {
-              shift: {
-                seniorEmployee: {
-                  fullName: {
-                    contains: search,
+              {
+                shift: {
+                  driverEmployee: {
+                    fullName: {
+                      contains: search,
+                    },
                   },
                 },
               },
-            },
-          ],
-        }
+              {
+                shift: {
+                  seniorEmployee: {
+                    fullName: {
+                      contains: search,
+                    },
+                  },
+                },
+              },
+            ],
+          }
         : {}),
     };
 
@@ -1330,7 +1352,7 @@ export async function getTripsTableReport(req: Request, res: Response) {
         additionalPartner: 0,
         detained: 0,
         transferred: 0,
-      }
+      },
     );
 
     return res.json({
@@ -1419,67 +1441,67 @@ export async function getShiftsTableReport(req: Request, res: Response) {
       ...(vehicleId ? { vehicleId } : {}),
       ...(employeeId
         ? {
-          OR: [
-            { driverEmployeeId: employeeId },
-            { seniorEmployeeId: employeeId },
-          ],
-        }
+            OR: [
+              { driverEmployeeId: employeeId },
+              { seniorEmployeeId: employeeId },
+            ],
+          }
         : {}),
       ...(dateFrom || dateTo
         ? {
-          shiftDate: {
-            ...(dateFrom ? { gte: dateFrom } : {}),
-            ...(dateTo ? { lte: dateTo } : {}),
-          },
-        }
+            shiftDate: {
+              ...(dateFrom ? { gte: dateFrom } : {}),
+              ...(dateTo ? { lte: dateTo } : {}),
+            },
+          }
         : {}),
       ...(search
         ? {
-          OR: [
-            {
-              city: {
-                name: {
-                  contains: search,
+            OR: [
+              {
+                city: {
+                  name: {
+                    contains: search,
+                  },
                 },
               },
-            },
-            {
-              crew: {
-                name: {
-                  contains: search,
+              {
+                crew: {
+                  name: {
+                    contains: search,
+                  },
                 },
               },
-            },
-            {
-              vehicle: {
-                title: {
-                  contains: search,
+              {
+                vehicle: {
+                  title: {
+                    contains: search,
+                  },
                 },
               },
-            },
-            {
-              vehicle: {
-                licensePlate: {
-                  contains: search,
+              {
+                vehicle: {
+                  licensePlate: {
+                    contains: search,
+                  },
                 },
               },
-            },
-            {
-              driverEmployee: {
-                fullName: {
-                  contains: search,
+              {
+                driverEmployee: {
+                  fullName: {
+                    contains: search,
+                  },
                 },
               },
-            },
-            {
-              seniorEmployee: {
-                fullName: {
-                  contains: search,
+              {
+                seniorEmployee: {
+                  fullName: {
+                    contains: search,
+                  },
                 },
               },
-            },
-          ],
-        }
+            ],
+          }
         : {}),
     };
 
@@ -1578,6 +1600,11 @@ export async function getShiftsTableReport(req: Request, res: Response) {
         odometerEndCalculated: shift.odometerEndCalculated,
         totalDistanceKm: toNumber(shift.totalDistanceKm),
 
+        crewDutyType: shift.crewDutyType,
+        crewTransportType: shift.crewTransportType,
+        shiftDurationHours: Number(shift.shiftDurationHours ?? 24),
+        shiftEquivalent: summary.shiftEquivalent,
+
         summary,
 
         trips: shift.trips.map((trip) => ({
@@ -1600,6 +1627,7 @@ export async function getShiftsTableReport(req: Request, res: Response) {
     const summary = rows.reduce(
       (acc, row) => {
         acc.totalRowsOnPage += 1;
+        acc.totalShiftEquivalent += row.shiftEquivalent;
         acc.totalTrips += row.summary.totalTrips;
         acc.totalDistanceKm += row.summary.totalDistanceKm;
         acc.totalAlarms += row.summary.totalAlarms;
@@ -1615,6 +1643,7 @@ export async function getShiftsTableReport(req: Request, res: Response) {
       },
       {
         totalRowsOnPage: 0,
+        totalShiftEquivalent: 0,
         totalTrips: 0,
         totalDistanceKm: 0,
         totalAlarms: 0,
@@ -1625,7 +1654,7 @@ export async function getShiftsTableReport(req: Request, res: Response) {
         additionalTotal: 0,
         detained: 0,
         transferred: 0,
-      }
+      },
     );
 
     return res.json({
@@ -1677,7 +1706,6 @@ type EmployeeTableReportRow = {
   fullName: string;
   cityId: number;
   cityName: string;
-
 
   totalShifts: number;
   driverShifts: number;
@@ -1773,7 +1801,7 @@ function createEmployeeTableReportRow(params: {
 
 function addShiftSummaryToEmployeeTableRow(
   row: EmployeeTableReportRow,
-  summary: ReturnType<typeof calculateShiftSummary>
+  summary: ReturnType<typeof calculateShiftSummary>,
 ) {
   row.totalTrips += summary.totalTrips;
   row.totalDistanceKm += summary.totalDistanceKm;
@@ -1793,7 +1821,7 @@ function addShiftSummaryToEmployeeTableRow(
   row.transferred += summary.transferred;
 
   for (const [reasonName, reasonStats] of Object.entries(
-    summary.additionalByReason
+    summary.additionalByReason,
   )) {
     if (!row.additionalByReason[reasonName]) {
       row.additionalByReason[reasonName] = {
@@ -1815,7 +1843,7 @@ function addPostDutyToEmployeeTableRow(
     durationHours: number;
     hasWeapon: boolean;
     isDriver: boolean;
-  }
+  },
 ) {
   const shiftEquivalent = params.durationHours / 24;
 
@@ -1847,7 +1875,7 @@ function addPostDutyToEmployeeTableRow(
 function sortEmployeeTableReportRows(
   rows: EmployeeTableReportRow[],
   sortBy: EmployeesTableSortBy,
-  sortDir: "asc" | "desc"
+  sortDir: "asc" | "desc",
 ) {
   return [...rows].sort((a, b) => {
     const direction = sortDir === "asc" ? 1 : -1;
@@ -1903,67 +1931,67 @@ export async function getEmployeesTableReport(req: Request, res: Response) {
       ...(vehicleId ? { vehicleId } : {}),
       ...(employeeId
         ? {
-          OR: [
-            { driverEmployeeId: employeeId },
-            { seniorEmployeeId: employeeId },
-          ],
-        }
+            OR: [
+              { driverEmployeeId: employeeId },
+              { seniorEmployeeId: employeeId },
+            ],
+          }
         : {}),
       ...(dateFrom || dateTo
         ? {
-          shiftDate: {
-            ...(dateFrom ? { gte: dateFrom } : {}),
-            ...(dateTo ? { lte: dateTo } : {}),
-          },
-        }
+            shiftDate: {
+              ...(dateFrom ? { gte: dateFrom } : {}),
+              ...(dateTo ? { lte: dateTo } : {}),
+            },
+          }
         : {}),
       ...(search
         ? {
-          OR: [
-            {
-              driverEmployee: {
-                fullName: {
-                  contains: search,
+            OR: [
+              {
+                driverEmployee: {
+                  fullName: {
+                    contains: search,
+                  },
                 },
               },
-            },
-            {
-              seniorEmployee: {
-                fullName: {
-                  contains: search,
+              {
+                seniorEmployee: {
+                  fullName: {
+                    contains: search,
+                  },
                 },
               },
-            },
-            {
-              city: {
-                name: {
-                  contains: search,
+              {
+                city: {
+                  name: {
+                    contains: search,
+                  },
                 },
               },
-            },
-            {
-              crew: {
-                name: {
-                  contains: search,
+              {
+                crew: {
+                  name: {
+                    contains: search,
+                  },
                 },
               },
-            },
-            {
-              vehicle: {
-                title: {
-                  contains: search,
+              {
+                vehicle: {
+                  title: {
+                    contains: search,
+                  },
                 },
               },
-            },
-            {
-              vehicle: {
-                licensePlate: {
-                  contains: search,
+              {
+                vehicle: {
+                  licensePlate: {
+                    contains: search,
+                  },
                 },
               },
-            },
-          ],
-        }
+            ],
+          }
         : {}),
     };
 
@@ -2041,78 +2069,78 @@ export async function getEmployeesTableReport(req: Request, res: Response) {
 
         ...(crewId
           ? {
-            id: -1,
-          }
+              id: -1,
+            }
           : {}),
 
         ...(employeeId
           ? {
-            members: {
-              some: {
-                employeeId,
+              members: {
+                some: {
+                  employeeId,
+                },
               },
-            },
-          }
+            }
           : {}),
 
         ...(dateFrom || dateTo
           ? {
-            dutyDate: {
-              ...(dateFrom ? { gte: dateFrom } : {}),
-              ...(dateTo ? { lte: dateTo } : {}),
-            },
-          }
+              dutyDate: {
+                ...(dateFrom ? { gte: dateFrom } : {}),
+                ...(dateTo ? { lte: dateTo } : {}),
+              },
+            }
           : {}),
 
         ...(search
           ? {
-            OR: [
-              {
-                note: {
-                  contains: search,
-                },
-              },
-              {
-                city: {
-                  name: {
+              OR: [
+                {
+                  note: {
                     contains: search,
                   },
                 },
-              },
-              {
-                post: {
-                  name: {
-                    contains: search,
+                {
+                  city: {
+                    name: {
+                      contains: search,
+                    },
                   },
                 },
-              },
-              {
-                vehicle: {
-                  title: {
-                    contains: search,
+                {
+                  post: {
+                    name: {
+                      contains: search,
+                    },
                   },
                 },
-              },
-              {
-                vehicle: {
-                  licensePlate: {
-                    contains: search,
+                {
+                  vehicle: {
+                    title: {
+                      contains: search,
+                    },
                   },
                 },
-              },
-              {
-                members: {
-                  some: {
-                    employee: {
-                      fullName: {
-                        contains: search,
+                {
+                  vehicle: {
+                    licensePlate: {
+                      contains: search,
+                    },
+                  },
+                },
+                {
+                  members: {
+                    some: {
+                      employee: {
+                        fullName: {
+                          contains: search,
+                        },
                       },
                     },
                   },
                 },
-              },
-            ],
-          }
+              ],
+            }
           : {}),
       },
       take: 10000,
@@ -2162,17 +2190,17 @@ export async function getEmployeesTableReport(req: Request, res: Response) {
             fullName: driver.fullName,
             cityId: shift.city.id,
             cityName: shift.city.name,
-          })
+          }),
         );
       }
 
       const driverRow = employeeMap.get(driverKey)!;
 
-      driverRow.totalShifts += 1;
-      driverRow.driverShifts += 1;
+      driverRow.totalShifts += summary.shiftEquivalent;
+      driverRow.driverShifts += summary.shiftEquivalent;
 
       if (shift.driverHasWeapon) {
-        driverRow.weaponShifts += 1;
+        driverRow.weaponShifts += summary.shiftEquivalent;
       }
 
       addShiftSummaryToEmployeeTableRow(driverRow, summary);
@@ -2187,17 +2215,17 @@ export async function getEmployeesTableReport(req: Request, res: Response) {
             fullName: senior.fullName,
             cityId: shift.city.id,
             cityName: shift.city.name,
-          })
+          }),
         );
       }
 
       const seniorRow = employeeMap.get(seniorKey)!;
 
-      seniorRow.totalShifts += 1;
-      seniorRow.seniorShifts += 1;
+      seniorRow.totalShifts += summary.shiftEquivalent;
+      seniorRow.seniorShifts += summary.shiftEquivalent;
 
       if (shift.seniorHasWeapon) {
-        seniorRow.weaponShifts += 1;
+        seniorRow.weaponShifts += summary.shiftEquivalent;
       }
 
       addShiftSummaryToEmployeeTableRow(seniorRow, summary);
@@ -2217,7 +2245,7 @@ export async function getEmployeesTableReport(req: Request, res: Response) {
               fullName: employee.fullName,
               cityId: duty.city.id,
               cityName: duty.city.name,
-            })
+            }),
           );
         }
 
@@ -2240,9 +2268,9 @@ export async function getEmployeesTableReport(req: Request, res: Response) {
             hours: roundNumber(postStats.hours),
             count: postStats.count,
           },
-        ])
+        ]),
       );
-    
+
       return {
         ...row,
         totalShifts: roundNumber(row.totalShifts),
@@ -2264,12 +2292,16 @@ export async function getEmployeesTableReport(req: Request, res: Response) {
       ? rows.filter((row) => row.employeeId === employeeId)
       : rows;
 
-    const sortedRows = sortEmployeeTableReportRows(filteredRows, sortBy, sortDir);
+    const sortedRows = sortEmployeeTableReportRows(
+      filteredRows,
+      sortBy,
+      sortDir,
+    );
 
     const total = sortedRows.length;
     const paginatedRows = sortedRows.slice(
       (page - 1) * pageSize,
-      page * pageSize
+      page * pageSize,
     );
 
     const summary = filteredRows.reduce(
@@ -2312,7 +2344,7 @@ export async function getEmployeesTableReport(req: Request, res: Response) {
         detained: 0,
         transferred: 0,
         totalDistanceKm: 0,
-      }
+      },
     );
 
     return res.json({
@@ -2355,7 +2387,6 @@ export async function getEmployeesTableReport(req: Request, res: Response) {
     });
   }
 }
-
 
 type CrewsTableSortBy =
   | "crewName"
@@ -2447,9 +2478,9 @@ function createCrewTableReportRow(params: {
 
 function addShiftSummaryToCrewTableRow(
   row: CrewTableReportRow,
-  summary: ReturnType<typeof calculateShiftSummary>
+  summary: ReturnType<typeof calculateShiftSummary>,
 ) {
-  row.totalShifts += 1;
+  row.totalShifts += summary.shiftEquivalent;
   row.totalTrips += summary.totalTrips;
   row.totalDistanceKm += summary.totalDistanceKm;
 
@@ -2468,7 +2499,7 @@ function addShiftSummaryToCrewTableRow(
   row.transferred += summary.transferred;
 
   for (const [reasonName, reasonStats] of Object.entries(
-    summary.additionalByReason
+    summary.additionalByReason,
   )) {
     if (!row.additionalByReason[reasonName]) {
       row.additionalByReason[reasonName] = {
@@ -2492,7 +2523,7 @@ function addShiftSummaryToCrewTableRow(
 function sortCrewTableReportRows(
   rows: CrewTableReportRow[],
   sortBy: CrewsTableSortBy,
-  sortDir: "asc" | "desc"
+  sortDir: "asc" | "desc",
 ) {
   return [...rows].sort((a, b) => {
     const direction = sortDir === "asc" ? 1 : -1;
@@ -2547,67 +2578,67 @@ export async function getCrewsTableReport(req: Request, res: Response) {
       ...(vehicleId ? { vehicleId } : {}),
       ...(employeeId
         ? {
-          OR: [
-            { driverEmployeeId: employeeId },
-            { seniorEmployeeId: employeeId },
-          ],
-        }
+            OR: [
+              { driverEmployeeId: employeeId },
+              { seniorEmployeeId: employeeId },
+            ],
+          }
         : {}),
       ...(dateFrom || dateTo
         ? {
-          shiftDate: {
-            ...(dateFrom ? { gte: dateFrom } : {}),
-            ...(dateTo ? { lte: dateTo } : {}),
-          },
-        }
+            shiftDate: {
+              ...(dateFrom ? { gte: dateFrom } : {}),
+              ...(dateTo ? { lte: dateTo } : {}),
+            },
+          }
         : {}),
       ...(search
         ? {
-          OR: [
-            {
-              city: {
-                name: {
-                  contains: search,
+            OR: [
+              {
+                city: {
+                  name: {
+                    contains: search,
+                  },
                 },
               },
-            },
-            {
-              crew: {
-                name: {
-                  contains: search,
+              {
+                crew: {
+                  name: {
+                    contains: search,
+                  },
                 },
               },
-            },
-            {
-              vehicle: {
-                title: {
-                  contains: search,
+              {
+                vehicle: {
+                  title: {
+                    contains: search,
+                  },
                 },
               },
-            },
-            {
-              vehicle: {
-                licensePlate: {
-                  contains: search,
+              {
+                vehicle: {
+                  licensePlate: {
+                    contains: search,
+                  },
                 },
               },
-            },
-            {
-              driverEmployee: {
-                fullName: {
-                  contains: search,
+              {
+                driverEmployee: {
+                  fullName: {
+                    contains: search,
+                  },
                 },
               },
-            },
-            {
-              seniorEmployee: {
-                fullName: {
-                  contains: search,
+              {
+                seniorEmployee: {
+                  fullName: {
+                    contains: search,
+                  },
                 },
               },
-            },
-          ],
-        }
+            ],
+          }
         : {}),
     };
 
@@ -2692,7 +2723,7 @@ export async function getCrewsTableReport(req: Request, res: Response) {
             crewName: crew.name,
             cityId: shift.city.id,
             cityName: shift.city.name,
-          })
+          }),
         );
       }
 
@@ -2718,7 +2749,7 @@ export async function getCrewsTableReport(req: Request, res: Response) {
     const total = sortedRows.length;
     const paginatedRows = sortedRows.slice(
       (page - 1) * pageSize,
-      page * pageSize
+      page * pageSize,
     );
 
     const summary = rows.reduce(
@@ -2751,7 +2782,7 @@ export async function getCrewsTableReport(req: Request, res: Response) {
         detained: 0,
         transferred: 0,
         totalDistanceKm: 0,
-      }
+      },
     );
 
     return res.json({
@@ -2888,9 +2919,9 @@ function createVehicleTableReportRow(params: {
 function addShiftSummaryToVehicleTableRow(
   row: VehicleTableReportRow,
   shift: any,
-  summary: ReturnType<typeof calculateShiftSummary>
+  summary: ReturnType<typeof calculateShiftSummary>,
 ) {
-  row.totalShifts += 1;
+  row.totalShifts += summary.shiftEquivalent;
   row.totalTrips += summary.totalTrips;
   row.totalDistanceKm += summary.totalDistanceKm;
 
@@ -2919,7 +2950,7 @@ function addShiftSummaryToVehicleTableRow(
   row.transferred += summary.transferred;
 
   for (const [reasonName, reasonStats] of Object.entries(
-    summary.additionalByReason
+    summary.additionalByReason,
   )) {
     if (!row.additionalByReason[reasonName]) {
       row.additionalByReason[reasonName] = {
@@ -2943,7 +2974,7 @@ function addShiftSummaryToVehicleTableRow(
 function sortVehicleTableReportRows(
   rows: VehicleTableReportRow[],
   sortBy: VehiclesTableSortBy,
-  sortDir: "asc" | "desc"
+  sortDir: "asc" | "desc",
 ) {
   return [...rows].sort((a, b) => {
     const direction = sortDir === "asc" ? 1 : -1;
@@ -2997,67 +3028,67 @@ export async function getVehiclesTableReport(req: Request, res: Response) {
       ...(vehicleId ? { vehicleId } : {}),
       ...(employeeId
         ? {
-          OR: [
-            { driverEmployeeId: employeeId },
-            { seniorEmployeeId: employeeId },
-          ],
-        }
+            OR: [
+              { driverEmployeeId: employeeId },
+              { seniorEmployeeId: employeeId },
+            ],
+          }
         : {}),
       ...(dateFrom || dateTo
         ? {
-          shiftDate: {
-            ...(dateFrom ? { gte: dateFrom } : {}),
-            ...(dateTo ? { lte: dateTo } : {}),
-          },
-        }
+            shiftDate: {
+              ...(dateFrom ? { gte: dateFrom } : {}),
+              ...(dateTo ? { lte: dateTo } : {}),
+            },
+          }
         : {}),
       ...(search
         ? {
-          OR: [
-            {
-              city: {
-                name: {
-                  contains: search,
+            OR: [
+              {
+                city: {
+                  name: {
+                    contains: search,
+                  },
                 },
               },
-            },
-            {
-              crew: {
-                name: {
-                  contains: search,
+              {
+                crew: {
+                  name: {
+                    contains: search,
+                  },
                 },
               },
-            },
-            {
-              vehicle: {
-                title: {
-                  contains: search,
+              {
+                vehicle: {
+                  title: {
+                    contains: search,
+                  },
                 },
               },
-            },
-            {
-              vehicle: {
-                licensePlate: {
-                  contains: search,
+              {
+                vehicle: {
+                  licensePlate: {
+                    contains: search,
+                  },
                 },
               },
-            },
-            {
-              driverEmployee: {
-                fullName: {
-                  contains: search,
+              {
+                driverEmployee: {
+                  fullName: {
+                    contains: search,
+                  },
                 },
               },
-            },
-            {
-              seniorEmployee: {
-                fullName: {
-                  contains: search,
+              {
+                seniorEmployee: {
+                  fullName: {
+                    contains: search,
+                  },
                 },
               },
-            },
-          ],
-        }
+            ],
+          }
         : {}),
     };
     const shouldShowEmptyVehicles = !crewId && !employeeId;
@@ -3069,44 +3100,44 @@ export async function getVehiclesTableReport(req: Request, res: Response) {
       ...(vehicleId ? { id: vehicleId } : {}),
       ...(search
         ? {
-          OR: [
-            {
-              title: {
-                contains: search,
-              },
-            },
-            {
-              licensePlate: {
-                contains: search,
-              },
-            },
-            {
-              city: {
-                name: {
+            OR: [
+              {
+                title: {
                   contains: search,
                 },
               },
-            },
-          ],
-        }
+              {
+                licensePlate: {
+                  contains: search,
+                },
+              },
+              {
+                city: {
+                  name: {
+                    contains: search,
+                  },
+                },
+              },
+            ],
+          }
         : {}),
     };
 
     const vehiclesFromDirectory = shouldShowEmptyVehicles
       ? await prisma.vehicle.findMany({
-        where: vehiclesWhere,
-        orderBy: {
-          title: "asc",
-        },
-        include: {
-          city: {
-            select: {
-              id: true,
-              name: true,
+          where: vehiclesWhere,
+          orderBy: {
+            title: "asc",
+          },
+          include: {
+            city: {
+              select: {
+                id: true,
+                name: true,
+              },
             },
           },
-        },
-      })
+        })
       : [];
     const shifts = await prisma.shift.findMany({
       where,
@@ -3186,7 +3217,7 @@ export async function getVehiclesTableReport(req: Request, res: Response) {
           licensePlate: vehicle.licensePlate,
           cityId: vehicle.city.id,
           cityName: vehicle.city.name,
-        })
+        }),
       );
     }
     for (const shift of shifts) {
@@ -3204,7 +3235,7 @@ export async function getVehiclesTableReport(req: Request, res: Response) {
             licensePlate: vehicle.licensePlate,
             cityId: shift.city.id,
             cityName: shift.city.name,
-          })
+          }),
         );
       }
 
@@ -3226,7 +3257,7 @@ export async function getVehiclesTableReport(req: Request, res: Response) {
     const total = sortedRows.length;
     const paginatedRows = sortedRows.slice(
       (page - 1) * pageSize,
-      page * pageSize
+      page * pageSize,
     );
 
     const summary = rows.reduce(
@@ -3259,7 +3290,7 @@ export async function getVehiclesTableReport(req: Request, res: Response) {
         detained: 0,
         transferred: 0,
         totalDistanceKm: 0,
-      }
+      },
     );
 
     return res.json({
@@ -3373,9 +3404,9 @@ function createAlarmReportGroupRow(params: {
 
 function addShiftSummaryToAlarmTotals(
   totals: AlarmReportTotals,
-  summary: ReturnType<typeof calculateShiftSummary>
+  summary: ReturnType<typeof calculateShiftSummary>,
 ) {
-  totals.totalShifts += 1;
+  totals.totalShifts += summary.shiftEquivalent;
   totals.totalTrips += summary.totalTrips;
   totals.totalDistanceKm += summary.totalDistanceKm;
 
@@ -3401,10 +3432,10 @@ function addShiftSummaryToAlarmTotals(
 
 function addAdditionalReasonsToMap(
   map: Map<string, AlarmReasonStats>,
-  summary: ReturnType<typeof calculateShiftSummary>
+  summary: ReturnType<typeof calculateShiftSummary>,
 ) {
   for (const [reasonName, reasonStats] of Object.entries(
-    summary.additionalByReason
+    summary.additionalByReason,
   )) {
     if (!map.has(reasonName)) {
       map.set(reasonName, {
@@ -3455,67 +3486,67 @@ export async function getAlarmsReport(req: Request, res: Response) {
       ...(vehicleId ? { vehicleId } : {}),
       ...(employeeId
         ? {
-          OR: [
-            { driverEmployeeId: employeeId },
-            { seniorEmployeeId: employeeId },
-          ],
-        }
+            OR: [
+              { driverEmployeeId: employeeId },
+              { seniorEmployeeId: employeeId },
+            ],
+          }
         : {}),
       ...(dateFrom || dateTo
         ? {
-          shiftDate: {
-            ...(dateFrom ? { gte: dateFrom } : {}),
-            ...(dateTo ? { lte: dateTo } : {}),
-          },
-        }
+            shiftDate: {
+              ...(dateFrom ? { gte: dateFrom } : {}),
+              ...(dateTo ? { lte: dateTo } : {}),
+            },
+          }
         : {}),
       ...(search
         ? {
-          OR: [
-            {
-              city: {
-                name: {
-                  contains: search,
+            OR: [
+              {
+                city: {
+                  name: {
+                    contains: search,
+                  },
                 },
               },
-            },
-            {
-              crew: {
-                name: {
-                  contains: search,
+              {
+                crew: {
+                  name: {
+                    contains: search,
+                  },
                 },
               },
-            },
-            {
-              vehicle: {
-                title: {
-                  contains: search,
+              {
+                vehicle: {
+                  title: {
+                    contains: search,
+                  },
                 },
               },
-            },
-            {
-              vehicle: {
-                licensePlate: {
-                  contains: search,
+              {
+                vehicle: {
+                  licensePlate: {
+                    contains: search,
+                  },
                 },
               },
-            },
-            {
-              driverEmployee: {
-                fullName: {
-                  contains: search,
+              {
+                driverEmployee: {
+                  fullName: {
+                    contains: search,
+                  },
                 },
               },
-            },
-            {
-              seniorEmployee: {
-                fullName: {
-                  contains: search,
+              {
+                seniorEmployee: {
+                  fullName: {
+                    contains: search,
+                  },
                 },
               },
-            },
-          ],
-        }
+            ],
+          }
         : {}),
     };
 
@@ -3604,7 +3635,7 @@ export async function getAlarmsReport(req: Request, res: Response) {
           createAlarmReportGroupRow({
             key: cityKey,
             name: shift.city.name,
-          })
+          }),
         );
       }
 
@@ -3618,7 +3649,7 @@ export async function getAlarmsReport(req: Request, res: Response) {
           createAlarmReportGroupRow({
             key: monthKey,
             name: getMonthName(shift.shiftDate),
-          })
+          }),
         );
       }
 
@@ -3633,11 +3664,11 @@ export async function getAlarmsReport(req: Request, res: Response) {
       .sort((a, b) => b.total - a.total);
 
     const byCity = Array.from(byCityMap.values()).sort(
-      (a, b) => b.totalAlarms - a.totalAlarms
+      (a, b) => b.totalAlarms - a.totalAlarms,
     );
 
     const byMonth = Array.from(byMonthMap.values()).sort((a, b) =>
-      a.key.localeCompare(b.key)
+      a.key.localeCompare(b.key),
     );
 
     return res.json({

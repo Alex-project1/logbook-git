@@ -9,6 +9,7 @@ import {
 } from "../api/cities.api";
 import type { City } from "../api/cities.api";
 import { RowActionMenu } from "../components/RowActionMenu";
+import { AccordionSection } from "../components/AccordionSection";
 
 type FormState = {
   name: string;
@@ -31,7 +32,20 @@ export function CitiesPage() {
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  type SectionId = "form" | "list";
 
+  const [openedSections, setOpenedSections] = useState<
+    Record<SectionId, boolean>
+  >({
+    form: false,
+    list: true,
+  });
+  function toggleSection(section: SectionId) {
+    setOpenedSections((prev) => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
+  }
   async function loadCities(archive = showArchive) {
     setLoading(true);
     setError("");
@@ -147,7 +161,9 @@ export function CitiesPage() {
       await loadCities(showArchive);
     } catch (err: any) {
       if (err.response?.status === 409) {
-        setError("Нельзя восстановить: активный город с таким названием уже существует");
+        setError(
+          "Нельзя восстановить: активный город с таким названием уже существует",
+        );
       } else {
         setError("Не удалось восстановить город");
       }
@@ -156,7 +172,7 @@ export function CitiesPage() {
 
   async function handleDelete(city: City) {
     const confirmed = window.confirm(
-      `Удалить город "${city.name}"? Он будет перемещен в архив.`
+      `Удалить город "${city.name}"? Он будет перемещен в архив.`,
     );
 
     if (!confirmed) return;
@@ -184,60 +200,65 @@ export function CitiesPage() {
 
       <div className="content-grid">
         {!showArchive && (
-          <form className="panel-card" onSubmit={handleSubmit}>
-            <h2>{editingCity ? "Редактировать город" : "Добавить город"}</h2>
+          <AccordionSection
+            title={editingCity ? "Редактировать город" : "Добавить город"}
+            subtitle="Создание и редактирование городов"
+            open={openedSections.form}
+            onToggle={() => toggleSection("form")}
+          >
+            <form onSubmit={handleSubmit}>
+              <label className="field">
+                <span>Название города</span>
+                <input
+                  value={form.name}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      name: event.target.value,
+                    }))
+                  }
+                  placeholder="Например: Харьков"
+                />
+              </label>
 
-            <label className="field">
-              <span>Название города</span>
-              <input
-                value={form.name}
-                onChange={(event) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    name: event.target.value,
-                  }))
-                }
-                placeholder="Например: Харьков"
-              />
-            </label>
+              <label className="checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={form.isActive}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      isActive: event.target.checked,
+                    }))
+                  }
+                />
+                <span>Город активен</span>
+              </label>
 
-            <label className="checkbox-field">
-              <input
-                type="checkbox"
-                checked={form.isActive}
-                onChange={(event) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    isActive: event.target.checked,
-                  }))
-                }
-              />
-              <span>Город активен</span>
-            </label>
+              {error && <div className="form-error">{error}</div>}
+              {success && <div className="form-success">{success}</div>}
 
-            {error && <div className="form-error">{error}</div>}
-            {success && <div className="form-success">{success}</div>}
-
-            <div className="form-actions">
-              <button className="primary-button" disabled={saving}>
-                {saving
-                  ? "Сохранение..."
-                  : editingCity
-                  ? "Сохранить"
-                  : "Добавить"}
-              </button>
-
-              {editingCity && (
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={resetForm}
-                >
-                  Отмена
+              <div className="form-actions">
+                <button className="primary-button" disabled={saving}>
+                  {saving
+                    ? "Сохранение..."
+                    : editingCity
+                      ? "Сохранить"
+                      : "Добавить"}
                 </button>
-              )}
-            </div>
-          </form>
+
+                {editingCity && (
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={resetForm}
+                  >
+                    Отмена
+                  </button>
+                )}
+              </div>
+            </form>
+          </AccordionSection>
         )}
 
         {showArchive && (
@@ -253,120 +274,133 @@ export function CitiesPage() {
           </div>
         )}
 
-        <div className="panel-card table-card">
-          <div className="table-header">
-            <div>
-              <h2>{showArchive ? "Архив городов" : "Список городов"}</h2>
-              <p>Всего: {cities.length}</p>
+        <AccordionSection
+          title={showArchive ? "Архив городов" : "Список городов"}
+          subtitle={`Всего: ${cities.length}`}
+          open={openedSections.list}
+          onToggle={() => toggleSection("list")}
+        >
+          <div className="table-card">
+            <div className="table-header">
+              <div>
+                <h2>{showArchive ? "Архив городов" : "Список городов"}</h2>
+                <p>Всего: {cities.length}</p>
+              </div>
+
+              <div className="table-header-actions">
+                <select
+                  className="compact-select"
+                  value={showArchive ? "archive" : "active"}
+                  onChange={(event) =>
+                    handleArchiveFilterChange(event.target.value)
+                  }
+                >
+                  <option value="active">Рабочие</option>
+                  <option value="archive">Архив</option>
+                </select>
+
+                <button
+                  className="secondary-button"
+                  onClick={() => loadCities(showArchive)}
+                >
+                  Обновить
+                </button>
+              </div>
             </div>
 
-            <div className="table-header-actions">
-              <select
-                className="compact-select"
-                value={showArchive ? "archive" : "active"}
-                onChange={(event) => handleArchiveFilterChange(event.target.value)}
-              >
-                <option value="active">Рабочие</option>
-                <option value="archive">Архив</option>
-              </select>
-
-              <button
-                className="secondary-button"
-                onClick={() => loadCities(showArchive)}
-              >
-                Обновить
-              </button>
-            </div>
-          </div>
-
-          {loading ? (
-            <div className="empty-state">Загрузка...</div>
-          ) : cities.length === 0 ? (
-            <div className="empty-state">
-              {showArchive ? "В архиве нет городов" : "Города еще не добавлены"}
-            </div>
-          ) : (
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Название</th>
-                    <th>Статус</th>
-                    <th>{showArchive ? "Удален" : "Создан"}</th>
-                    <th></th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {cities.map((city) => (
-                    <tr key={city.id}>
-                      <td>{city.id}</td>
-                      <td>
-                        <strong>{city.name}</strong>
-                      </td>
-                      <td>
-                        {showArchive ? (
-                          <span className="status-badge status-inactive">
-                            В архиве
-                          </span>
-                        ) : (
-                          <span
-                            className={
-                              city.isActive
-                                ? "status-badge status-active"
-                                : "status-badge status-inactive"
-                            }
-                          >
-                            {city.isActive ? "Активен" : "Отключен"}
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        {new Date(
-                          showArchive && city.deletedAt
-                            ? city.deletedAt
-                            : city.createdAt
-                        ).toLocaleDateString()}
-                      </td>
-                      <td className="actions-cell">
-  {showArchive ? (
-    <RowActionMenu
-      items={[
-        {
-          label: "Восстановить",
-          onClick: () => handleRestore(city),
-        },
-      ]}
-    />
-  ) : (
-    <RowActionMenu
-      items={[
-        {
-          label: "Редактировать",
-          variant: "edit",
-          onClick: () => startEdit(city),
-        },
-        {
-          label: city.isActive ? "Отключить" : "Включить",
-          onClick: () => handleToggleActive(city),
-        },
-        {
-          label: "Удалить",
-          variant: "danger",
-          onClick: () => handleDelete(city),
-        },
-      ]}
-    />
-  )}
-</td>
+            {loading ? (
+              <div className="empty-state">Загрузка...</div>
+            ) : cities.length === 0 ? (
+              <div className="empty-state">
+                {showArchive
+                  ? "В архиве нет городов"
+                  : "Города еще не добавлены"}
+              </div>
+            ) : (
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Название</th>
+                      <th>Статус</th>
+                      <th>{showArchive ? "Удален" : "Создан"}</th>
+                      <th></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                  </thead>
+
+                  <tbody>
+                    {cities.map((city) => (
+                      <tr key={city.id}>
+                        <td>{city.id}</td>
+                        <td>
+                          <strong>{city.name}</strong>
+                        </td>
+                        <td>
+                          {showArchive ? (
+                            <span className="status-badge status-inactive">
+                              В архиве
+                            </span>
+                          ) : (
+                            <span
+                              className={
+                                city.isActive
+                                  ? "status-badge status-active"
+                                  : "status-badge status-inactive"
+                              }
+                            >
+                              {city.isActive ? "Активен" : "Отключен"}
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {new Date(
+                            showArchive && city.deletedAt
+                              ? city.deletedAt
+                              : city.createdAt,
+                          ).toLocaleDateString()}
+                        </td>
+                        <td className="actions-cell">
+                          {showArchive ? (
+                            <RowActionMenu
+                              items={[
+                                {
+                                  label: "Восстановить",
+                                  onClick: () => handleRestore(city),
+                                },
+                              ]}
+                            />
+                          ) : (
+                            <RowActionMenu
+                              items={[
+                                {
+                                  label: "Редактировать",
+                                  variant: "edit",
+                                  onClick: () => startEdit(city),
+                                },
+                                {
+                                  label: city.isActive
+                                    ? "Отключить"
+                                    : "Включить",
+                                  onClick: () => handleToggleActive(city),
+                                },
+                                {
+                                  label: "Удалить",
+                                  variant: "danger",
+                                  onClick: () => handleDelete(city),
+                                },
+                              ]}
+                            />
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </AccordionSection>
       </div>
     </div>
   );
