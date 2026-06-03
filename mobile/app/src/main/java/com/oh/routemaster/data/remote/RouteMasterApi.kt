@@ -87,7 +87,8 @@ suspend fun createMobileShift(
         @Query("south") south: Double,
         @Query("west") west: Double,
         @Query("north") north: Double,
-        @Query("east") east: Double
+        @Query("east") east: Double,
+        @Query("gbr") gbr: String? = null
     ): MobileObjectClustersResponse
 
     @GET("api/mobile/objects/search")

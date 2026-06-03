@@ -1,8 +1,12 @@
 package com.oh.routemaster.ui.screens
 
 import android.annotation.SuppressLint
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.content.Intent
+import android.location.Location
+import android.location.LocationManager
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -23,6 +27,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -33,23 +39,29 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
 import com.google.gson.Gson
 import com.oh.routemaster.data.remote.ApiClient
 import com.oh.routemaster.data.remote.MobileMapCenterDto
 import com.oh.routemaster.data.remote.MobileObjectDto
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -64,10 +76,13 @@ fun ObjectsScreen(
 ) {
     val scope = rememberCoroutineScope()
     val gson = remember { Gson() }
+    val context = LocalContext.current
 
     var center by remember { mutableStateOf(MobileMapCenterDto(lat = 48.4647, lng = 35.0462)) }
     var cityTitle by remember { mutableStateOf("") }
     var totalObjects by remember { mutableStateOf(0) }
+    var gbrCallsigns by remember { mutableStateOf<List<String>>(emptyList()) }
+    var selectedGbr by remember { mutableStateOf<String?>(null) }
 
     var loading by remember { mutableStateOf(true) }
     var searching by remember { mutableStateOf(false) }
@@ -76,6 +91,52 @@ fun ObjectsScreen(
     var query by remember { mutableStateOf("") }
 
     var webView by remember { mutableStateOf<WebView?>(null) }
+
+    fun focusUserLocationOnMap() {
+        val location = getBestLastKnownLocation(context)
+
+        if (location == null) {
+            error = "Не вдалося визначити місцезнаходження. Увімкніть GPS і відкрийте карти/геолокацію на телефоні."
+            return
+        }
+
+        status = "Ваше місцезнаходження знайдено"
+        val js = "if (window.routeMasterShowMyLocation) { window.routeMasterShowMyLocation(${location.latitude}, ${location.longitude}); }"
+        val currentWebView = webView
+
+        if (currentWebView == null) {
+            error = "Мапа ще завантажується. Спробуйте натиснути “Знайти мене” ще раз."
+        } else {
+            currentWebView.evaluateJavascript(js, null)
+        }
+    }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted =
+            permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+
+        if (granted) {
+            focusUserLocationOnMap()
+        } else {
+            error = "Дозвольте доступ до геолокації, щоб знайти вас на мапі"
+        }
+    }
+
+    fun requestFindMe() {
+        if (hasLocationPermission(context)) {
+            focusUserLocationOnMap()
+        } else {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
 
     suspend fun loadOverview() {
         loading = true
@@ -92,6 +153,10 @@ fun ObjectsScreen(
             center = response.center
             cityTitle = response.city.name
             totalObjects = response.total
+            gbrCallsigns = response.gbrCallsigns
+            if (selectedGbr != null && selectedGbr !in response.gbrCallsigns) {
+                selectedGbr = null
+            }
             status = "Об’єктів у місті: ${response.total}"
         } catch (exception: Exception) {
             error = "Не вдалося завантажити об’єкти: ${exception.message ?: "невідома помилка"}"
@@ -149,6 +214,13 @@ fun ObjectsScreen(
 
     LaunchedEffect(Unit) {
         loadOverview()
+    }
+
+    LaunchedEffect(selectedGbr) {
+        webView?.evaluateJavascript(
+            "if (window.routeMasterForceReloadClusters) window.routeMasterForceReloadClusters();",
+            null
+        )
     }
 
     Column(
@@ -209,6 +281,13 @@ fun ObjectsScreen(
                         Text(if (searching) "Пошук..." else "Знайти")
                     }
 
+                    Button(
+                        onClick = { requestFindMe() },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Знайти мене")
+                    }
+
                     TextButton(
                         onClick = {
                             scope.launch {
@@ -222,6 +301,43 @@ fun ObjectsScreen(
                         enabled = !loading
                     ) {
                         Text("Оновити")
+                    }
+                }
+
+                if (gbrCallsigns.isNotEmpty()) {
+                    Text(
+                        text = "Фільтр за позивним",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (selectedGbr == null) {
+                            Button(onClick = { selectedGbr = null }) {
+                                Text("Усі")
+                            }
+                        } else {
+                            TextButton(onClick = { selectedGbr = null }) {
+                                Text("Усі")
+                            }
+                        }
+
+                        gbrCallsigns.forEach { callsign ->
+                            if (selectedGbr == callsign) {
+                                Button(onClick = { selectedGbr = callsign }) {
+                                    Text(callsign)
+                                }
+                            } else {
+                                TextButton(onClick = { selectedGbr = callsign }) {
+                                    Text(callsign)
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -270,6 +386,7 @@ fun ObjectsScreen(
                     ObjectsMapWebView(
                         accessToken = accessToken,
                         totalObjects = totalObjects,
+                        selectedGbr = selectedGbr,
                         center = center,
                         scope = scope,
                         onWebViewReady = { webView = it },
@@ -287,6 +404,7 @@ fun ObjectsScreen(
 private fun ObjectsMapWebView(
     accessToken: String,
     totalObjects: Int,
+    selectedGbr: String?,
     center: MobileMapCenterDto,
     scope: CoroutineScope,
     onWebViewReady: (WebView) -> Unit,
@@ -294,11 +412,13 @@ private fun ObjectsMapWebView(
     onError: (String) -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val selectedGbrState = rememberUpdatedState(selectedGbr)
     var webViewRef: WebView? = null
     val bridge = remember(accessToken) {
         ObjectsMapBridge(
             context = context.applicationContext,
             accessToken = accessToken,
+            getSelectedGbr = { selectedGbrState.value },
             scope = scope,
             getWebView = { webViewRef },
             onStatus = onStatus,
@@ -332,7 +452,7 @@ private fun ObjectsMapWebView(
                         val url = request?.url ?: return false
 
                         if (url.scheme == "routemaster") {
-                            handleRouteMasterUrl(context, url)
+                            handleRouteMasterUrl(context, url, accessToken, scope, onError)
                             return true
                         }
 
@@ -408,6 +528,7 @@ private fun ObjectsMapWebView(
 private class ObjectsMapBridge(
     private val context: Context,
     private val accessToken: String,
+    private val getSelectedGbr: () -> String?,
     private val scope: CoroutineScope,
     private val getWebView: () -> WebView?,
     private val onStatus: (String) -> Unit,
@@ -440,12 +561,14 @@ private class ObjectsMapBridge(
                         south = south,
                         west = west,
                         north = north,
-                        east = east
+                        east = east,
+                        gbr = getSelectedGbr()
                     )
                 }
 
                 val json = gson.toJson(response.data)
-                val status = "На мапі: ${response.visible} / ${response.total}. Точок: ${response.data.size}"
+                val filterLabel = getSelectedGbr()?.let { " · $it" } ?: ""
+                val status = "На мапі$filterLabel: ${response.visible} / ${response.total}. Точок: ${response.data.size}"
 
                 mainHandler.post {
                     onStatus(status)
@@ -454,6 +577,8 @@ private class ObjectsMapBridge(
                         null
                     )
                 }
+            } catch (exception: CancellationException) {
+                // Це нормальна ситуація: користувач рухає мапу, старий запит кластерів скасовується.
             } catch (exception: Exception) {
                 exception.printStackTrace()
                 mainHandler.post {
@@ -468,7 +593,13 @@ private class ObjectsMapBridge(
     }
 }
 
-private fun handleRouteMasterUrl(context: Context, uri: Uri) {
+private fun handleRouteMasterUrl(
+    context: Context,
+    uri: Uri,
+    accessToken: String,
+    scope: CoroutineScope,
+    onError: (String) -> Unit
+) {
     when (uri.host) {
         "route" -> {
             val lat = uri.getQueryParameter("lat")
@@ -483,10 +614,43 @@ private fun handleRouteMasterUrl(context: Context, uri: Uri) {
         }
 
         "card" -> {
-            val url = uri.getQueryParameter("url").orEmpty()
+            val directUrl = uri.getQueryParameter("url").orEmpty()
+            val accountNumber = uri.getQueryParameter("account").orEmpty()
 
-            if (url.startsWith("http://") || url.startsWith("https://")) {
-                openExternalUrl(context, url)
+            if (directUrl.startsWith("http://") || directUrl.startsWith("https://")) {
+                openExternalUrl(context, directUrl)
+                return
+            }
+
+            if (accountNumber.isBlank()) {
+                onError("Картка для цього об’єкта відсутня")
+                return
+            }
+
+            scope.launch {
+                try {
+                    val response = withContext(Dispatchers.IO) {
+                        ApiClient.api.searchMobileObject(
+                            authorization = "Bearer $accessToken",
+                            accountNumber = accountNumber
+                        )
+                    }
+
+                    val cardUrl = response.data
+                        .firstOrNull { it.cardUrl?.startsWith("http") == true }
+                        ?.cardUrl
+
+                    if (cardUrl.isNullOrBlank()) {
+                        onError("Картка для об’єкта $accountNumber відсутня")
+                    } else {
+                        openExternalUrl(context, cardUrl)
+                    }
+                } catch (exception: CancellationException) {
+                    // Ignore.
+                } catch (exception: Exception) {
+                    exception.printStackTrace()
+                    onError("Не вдалося відкрити картку: ${exception.message ?: "невідома помилка"}")
+                }
             }
         }
     }
@@ -501,6 +665,46 @@ private fun openExternalUrl(context: Context, url: String) {
     } catch (exception: Exception) {
         exception.printStackTrace()
     }
+}
+
+
+private fun hasLocationPermission(context: Context): Boolean {
+    return ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.ACCESS_FINE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED ||
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+}
+
+@SuppressLint("MissingPermission")
+private fun getBestLastKnownLocation(context: Context): Location? {
+    if (!hasLocationPermission(context)) {
+        return null
+    }
+
+    val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+        ?: return null
+
+    val providers = listOf(
+        LocationManager.GPS_PROVIDER,
+        LocationManager.NETWORK_PROVIDER,
+        LocationManager.PASSIVE_PROVIDER
+    )
+
+    return providers
+        .mapNotNull { provider ->
+            runCatching {
+                if (locationManager.isProviderEnabled(provider)) {
+                    locationManager.getLastKnownLocation(provider)
+                } else {
+                    null
+                }
+            }.getOrNull()
+        }
+        .maxByOrNull { it.time }
 }
 
 private fun buildObjectsMapHtml(
@@ -613,6 +817,63 @@ private fun buildObjectsMapHtml(
             font-weight: 800;
             box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
         }
+
+        .object-icon {
+            width: 22px;
+            height: 22px;
+            border-radius: 999px;
+            background: #fbbf24;
+            border: 3px solid #ffffff;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+        }
+
+        .object-icon.search {
+            background: #22c55e;
+        }
+
+        .object-icon.me {
+            position: relative;
+            background: #3b82f6;
+            width: 24px;
+            height: 24px;
+            border: 4px solid #ffffff;
+            box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.28), 0 8px 20px rgba(0, 0, 0, 0.45);
+        }
+
+        .object-icon.me::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 42px;
+            height: 42px;
+            transform: translate(-50%, -50%);
+            border-radius: 999px;
+            border: 2px solid rgba(96, 165, 250, 0.75);
+            box-sizing: border-box;
+        }
+
+        .popup-actions span.disabled {
+            display: inline-block;
+            border-radius: 8px;
+            padding: 8px 10px;
+            color: #9ca3af;
+            font-weight: 700;
+            background: #1f2937;
+        }
+
+        .group-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 260px;
+            overflow-y: auto;
+        }
+
+        .group-item {
+            border-top: 1px solid rgba(255, 255, 255, 0.12);
+            padding-top: 8px;
+        }
     </style>
 </head>
 <body>
@@ -647,6 +908,7 @@ private fun buildObjectsMapHtml(
             var totalObjects = $totalObjects;
             var markerLayer = L.layerGroup();
             var searchMarker = null;
+            var myLocationMarker = null;
             var lastRequestKey = '';
 
             log('overview total=' + totalObjects);
@@ -678,11 +940,13 @@ private fun buildObjectsMapHtml(
             }
 
             function buildPopup(object) {
-                var account = escapeHtml(object.accountNumber || 'Без номера');
+                var accountRaw = object.accountNumber || '';
+                var account = escapeHtml(accountRaw || 'Без номера');
                 var title = escapeHtml(object.title || 'Об’єкт');
                 var client = escapeHtml(object.clientName || '');
                 var address = escapeHtml(object.address || 'Адреса не вказана');
                 var cardUrl = object.cardUrl || '';
+                var hasAccount = String(accountRaw).length > 0;
                 var hasCard = String(cardUrl).indexOf('http://') === 0 || String(cardUrl).indexOf('https://') === 0;
 
                 var html = '';
@@ -694,10 +958,21 @@ private fun buildObjectsMapHtml(
                 }
 
                 html += '<div class="popup-text">Адреса: ' + address + '</div>';
+
+                if (object.gbr) {
+                    html += '<div class="popup-text">Позивний: ' + escapeHtml(object.gbr) + '</div>';
+                }
+
+                if (object.gbrReserve) {
+                    html += '<div class="popup-text">Резерв: ' + escapeHtml(object.gbrReserve) + '</div>';
+                }
+
                 html += '<div class="popup-actions">';
 
-                if (hasCard) {
-                    html += '<a href="routemaster://card?url=' + encodeUrl(cardUrl) + '">Картка</a>';
+                if (hasCard || hasAccount) {
+                    html += '<a href="routemaster://card?account=' + encodeUrl(accountRaw) + '&url=' + encodeUrl(cardUrl) + '">Картка</a>';
+                } else {
+                    html += '<span class="disabled">Картка відсутня</span>';
                 }
 
                 html += '<a class="secondary" href="routemaster://route?lat=' + object.lat + '&lng=' + object.lng + '">Маршрут</a>';
@@ -705,6 +980,45 @@ private fun buildObjectsMapHtml(
                 html += '</div>';
 
                 return html;
+            }
+
+            function buildGroupPopup(item) {
+                var html = '';
+                html += '<div>';
+                html += '<div class="popup-title">Об’єкти за цією адресою: ' + item.count + '</div>';
+                html += '<div class="group-list">';
+
+                var list = Array.isArray(item.objects) ? item.objects : [];
+
+                for (var i = 0; i < list.length; i++) {
+                    html += '<div class="group-item">';
+                    html += buildPopup(list[i]);
+                    html += '</div>';
+                }
+
+                html += '</div>';
+                html += '</div>';
+                return html;
+            }
+
+            function createObjectIcon(kind) {
+                var className = 'object-icon';
+
+                if (kind === 'search') {
+                    className += ' search';
+                }
+
+                if (kind === 'me') {
+                    className += ' me';
+                }
+
+                return L.divIcon({
+                    html: '<div class="' + className + '"></div>',
+                    className: '',
+                    iconSize: [28, 28],
+                    iconAnchor: [14, 14],
+                    popupAnchor: [0, -12]
+                });
             }
 
             function createClusterIcon(count) {
@@ -725,14 +1039,34 @@ private fun buildObjectsMapHtml(
 
                     marker.on('click', function() {
                         var nextZoom = Math.min(map.getZoom() + 2, 18);
-                        map.setView([item.lat, item.lng], nextZoom);
+
+                        if (nextZoom === map.getZoom()) {
+                            marker.bindPopup('Наблизьте мапу або скористайтесь пошуком об’єкта').openPopup();
+                        } else {
+                            map.setView([item.lat, item.lng], nextZoom);
+                        }
                     });
 
                     markerLayer.addLayer(marker);
                     return;
                 }
 
-                var objectMarker = L.marker([item.lat, item.lng]);
+                if (item.type === 'group') {
+                    var groupMarker = L.marker([item.lat, item.lng], {
+                        icon: createClusterIcon(item.count)
+                    });
+
+                    groupMarker.bindPopup(buildGroupPopup(item), {
+                        maxWidth: 320
+                    });
+
+                    markerLayer.addLayer(groupMarker);
+                    return;
+                }
+
+                var objectMarker = L.marker([item.lat, item.lng], {
+                    icon: createObjectIcon('object')
+                });
                 objectMarker.bindPopup(buildPopup(item));
                 markerLayer.addLayer(objectMarker);
             }
@@ -795,7 +1129,8 @@ private fun buildObjectsMapHtml(
                 }
 
                 searchMarker = L.marker([object.lat, object.lng], {
-                    title: object.accountNumber || object.title || 'Об’єкт'
+                    title: object.accountNumber || object.title || 'Об’єкт',
+                    icon: createObjectIcon('search')
                 }).addTo(map);
 
                 searchMarker.bindPopup(buildPopup(object)).openPopup();

@@ -349,7 +349,8 @@ data class MobileObjectsOverviewResponse(
     val city: CityDto,
     val externalRegionId: Int,
     val center: MobileMapCenterDto,
-    val total: Int
+    val total: Int,
+    val gbrCallsigns: List<String> = emptyList()
 )
 
 data class MobileObjectClustersResponse(
@@ -372,7 +373,11 @@ data class MobileObjectClusterDto(
     val title: String?,
     val clientName: String?,
     val address: String?,
-    val cardUrl: String?
+    val cardUrl: String?,
+    val gbr: String?,
+    val gbrReserve: String?,
+    val gbrReserve2: String?,
+    val objects: List<MobileObjectDto>?
 )
 
 data class MobileObjectsResponse(
@@ -399,5 +404,8 @@ data class MobileObjectDto(
     val lat: Double?,
     val lng: Double?,
     val cardUrl: String?,
-    val rawRegionId: Int?
+    val rawRegionId: Int?,
+    val gbr: String?,
+    val gbrReserve: String?,
+    val gbrReserve2: String?
 )

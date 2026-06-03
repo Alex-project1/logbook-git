@@ -16,6 +16,12 @@ type NormalizedObject = {
   lng: number | null;
   cardUrl: string | null;
   rawRegionId: number | null;
+  gbr: string | null;
+  gbrId: number | null;
+  gbrReserve: string | null;
+  gbrReserveId: number | null;
+  gbrReserve2: string | null;
+  gbrReserve2Id: number | null;
 };
 
 const DEFAULT_CITY_CONFIG_BY_NAME: Record<string, ExternalCityConfig> = {
@@ -217,6 +223,12 @@ function normalizeObject(raw: any): NormalizedObject {
     lng,
     cardUrl: firstString(raw?.object_card_url, raw?.cardUrl, raw?.card_url) || null,
     rawRegionId: toNumberOrNull(raw?.region_id ?? raw?.regionId ?? raw?.city_id ?? raw?.cityId),
+    gbr: firstString(raw?.gbr, raw?.gbr_name, raw?.crew, raw?.crewName) || null,
+    gbrId: toNumberOrNull(raw?.gbr_id ?? raw?.gbrId),
+    gbrReserve: firstString(raw?.gbr_rezerv, raw?.gbr_reserve, raw?.gbrReserve) || null,
+    gbrReserveId: toNumberOrNull(raw?.gbr_rezerv_id ?? raw?.gbr_reserve_id ?? raw?.gbrReserveId),
+    gbrReserve2: firstString(raw?.gbr_rezerv_2, raw?.gbr_reserve_2, raw?.gbrReserve2) || null,
+    gbrReserve2Id: toNumberOrNull(raw?.gbr_rezerv_2_id ?? raw?.gbr_reserve_2_id ?? raw?.gbrReserve2Id),
   };
 }
 
@@ -308,6 +320,20 @@ function hasValidCoordinates(object: NormalizedObject) {
   );
 }
 
+function normalizeGbrFilter(value: unknown) {
+  return String(value || "").trim();
+}
+
+function getGbrCallsigns(objects: NormalizedObject[]) {
+  return Array.from(
+    new Set(
+      objects
+        .map((object) => object.gbr?.trim())
+        .filter((value): value is string => Boolean(value))
+    )
+  ).sort((a, b) => a.localeCompare(b, "uk", { numeric: true, sensitivity: "base" }));
+}
+
 type BBox = {
   south: number;
   west: number;
@@ -351,9 +377,13 @@ function getClusterCellSize(zoom: number) {
   return 0.0007;
 }
 
-function createClusterResponse(objects: NormalizedObject[], zoom: number, bbox: BBox | null) {
+function createClusterResponse(objects: NormalizedObject[], zoom: number, bbox: BBox | null, gbrFilter: string) {
+  const filteredByGbr = gbrFilter
+    ? objects.filter((object) => object.gbr === gbrFilter)
+    : objects;
+
   const filtered = bbox
-    ? objects.filter(
+    ? filteredByGbr.filter(
         (object) =>
           object.lat !== null &&
           object.lng !== null &&
@@ -362,7 +392,7 @@ function createClusterResponse(objects: NormalizedObject[], zoom: number, bbox: 
           object.lng >= bbox.west &&
           object.lng <= bbox.east
       )
-    : objects;
+    : filteredByGbr;
 
   const cellSize = getClusterCellSize(zoom);
   const groups = new Map<string, NormalizedObject[]>();
@@ -395,6 +425,9 @@ function createClusterResponse(objects: NormalizedObject[], zoom: number, bbox: 
         clientName: object.clientName,
         address: object.address,
         cardUrl: object.cardUrl,
+        gbr: object.gbr,
+        gbrReserve: object.gbrReserve,
+        gbrReserve2: object.gbrReserve2,
       };
     }
 
@@ -407,17 +440,57 @@ function createClusterResponse(objects: NormalizedObject[], zoom: number, bbox: 
       { lat: 0, lng: 0 }
     );
 
+    const groupLat = sum.lat / group.length;
+    const groupLng = sum.lng / group.length;
+    const shouldExposeGroup =
+      zoom >= 17 ||
+      group.length <= 5 ||
+      group.every(
+        (object) =>
+          Math.abs((object.lat as number) - (group[0].lat as number)) < 0.00001 &&
+          Math.abs((object.lng as number) - (group[0].lng as number)) < 0.00001
+      );
+
+    if (shouldExposeGroup) {
+      return {
+        id: `group:${key}`,
+        type: "group",
+        lat: groupLat,
+        lng: groupLng,
+        count: group.length,
+        accountNumber: null,
+        title: null,
+        clientName: null,
+        address: null,
+        cardUrl: null,
+        objects: group.slice(0, 50).map((object) => ({
+          accountNumber: object.accountNumber,
+          title: object.title,
+          clientName: object.clientName,
+          address: object.address,
+          lat: object.lat,
+          lng: object.lng,
+          cardUrl: object.cardUrl,
+          rawRegionId: object.rawRegionId,
+          gbr: object.gbr,
+          gbrReserve: object.gbrReserve,
+          gbrReserve2: object.gbrReserve2,
+        })),
+      };
+    }
+
     return {
       id: `cluster:${key}`,
       type: "cluster",
-      lat: sum.lat / group.length,
-      lng: sum.lng / group.length,
+      lat: groupLat,
+      lng: groupLng,
       count: group.length,
       accountNumber: null,
       title: null,
       clientName: null,
       address: null,
       cardUrl: null,
+      objects: null,
     };
   });
 
@@ -462,6 +535,7 @@ export async function getMobileObjectsOverview(req: Request, res: Response) {
         lng: cityConfig.lng,
       },
       total: objects.length,
+      gbrCallsigns: getGbrCallsigns(objects),
     });
   } catch (error) {
     console.error("getMobileObjectsOverview error:", error);
@@ -499,8 +573,9 @@ export async function getMobileObjectClusters(req: Request, res: Response) {
       ? Math.max(1, Math.min(19, Math.round(zoomRaw)))
       : 12;
     const bbox = parseBBox(req);
+    const gbrFilter = normalizeGbrFilter(req.query.gbr);
     const objects = await loadRegionObjects(cityConfig);
-    const clustered = createClusterResponse(objects, zoom, bbox);
+    const clustered = createClusterResponse(objects, zoom, bbox, gbrFilter);
 
     return res.json({
       city,
