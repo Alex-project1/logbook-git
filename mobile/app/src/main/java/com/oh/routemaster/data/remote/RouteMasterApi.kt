@@ -75,6 +75,27 @@ suspend fun createMobileShift(
         @Header("Authorization") authorization: String
     ): MobileHistoryResponse
 
+    @GET("api/mobile/objects/overview")
+    suspend fun getMobileObjectsOverview(
+        @Header("Authorization") authorization: String
+    ): MobileObjectsOverviewResponse
+
+    @GET("api/mobile/objects/clusters")
+    suspend fun getMobileObjectClusters(
+        @Header("Authorization") authorization: String,
+        @Query("zoom") zoom: Int,
+        @Query("south") south: Double,
+        @Query("west") west: Double,
+        @Query("north") north: Double,
+        @Query("east") east: Double
+    ): MobileObjectClustersResponse
+
+    @GET("api/mobile/objects/search")
+    suspend fun searchMobileObject(
+        @Header("Authorization") authorization: String,
+        @Query("accountNumber") accountNumber: String
+    ): MobileObjectSearchResponse
+
 }
 
 data class DeviceTokenResponse(

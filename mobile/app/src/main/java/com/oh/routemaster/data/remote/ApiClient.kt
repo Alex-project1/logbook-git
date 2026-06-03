@@ -4,22 +4,20 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
 
 object ApiClient {
-    /*
-     * Для Android Emulator:
-     * 10.0.2.2 = localhost компьютера, где запущен backend.
-     *
-     * Если тестируешь на реальном телефоне, замени на IP компьютера в Wi-Fi:
-     * http://192.168.1.100:5000/
-     */
-  private const val BASE_URL = "http://127.0.0.1:5000/"
+    private const val BASE_URL = "http://127.0.0.1:5000/"
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
     }
 
     private val okHttpClient = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(90, TimeUnit.SECONDS)
+        .writeTimeout(90, TimeUnit.SECONDS)
+        .callTimeout(120, TimeUnit.SECONDS)
         .addInterceptor(loggingInterceptor)
         .build()
 

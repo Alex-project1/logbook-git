@@ -31,6 +31,7 @@ import com.oh.routemaster.ui.screens.HomeScreen
 import com.oh.routemaster.ui.screens.LoginScreen
 import com.oh.routemaster.ui.screens.NewShiftScreen
 import com.oh.routemaster.ui.screens.NotificationsScreen
+import com.oh.routemaster.ui.screens.ObjectsScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
@@ -39,6 +40,7 @@ import kotlinx.coroutines.withContext
 private enum class AppScreen {
     HOME,
     NEW_SHIFT,
+    OBJECTS,
     HISTORY,
     NOTIFICATIONS
 }
@@ -188,6 +190,12 @@ fun RouteMasterApp() {
     )
 }
 
+                        AppScreen.OBJECTS -> {
+                            ObjectsScreen(
+                                accessToken = savedToken.orEmpty()
+                            )
+                        }
+
                         AppScreen.HISTORY -> {
                             HistoryScreen(
                                 accessToken = savedToken.orEmpty()
@@ -234,6 +242,13 @@ private fun RouteMasterBottomBar(
         )
 
         NavigationBarItem(
+            selected = currentScreen == AppScreen.OBJECTS,
+            onClick = { onSelectScreen(AppScreen.OBJECTS) },
+            icon = { Text("🗺️") },
+            label = { Text("Об’єкти") }
+        )
+
+        NavigationBarItem(
             selected = currentScreen == AppScreen.HISTORY,
             onClick = { onSelectScreen(AppScreen.HISTORY) },
             icon = { Text("📜") },
@@ -262,7 +277,7 @@ private fun RouteMasterBottomBar(
                     Text("🔔")
                 }
             },
-            label = { Text("Повідомлення") }
+            label = { Text("SMS") }
         )
     }
 }

@@ -345,3 +345,59 @@ data class MobileHistoryPostDutyMemberDto(
     val comment: String?
 )
 
+data class MobileObjectsOverviewResponse(
+    val city: CityDto,
+    val externalRegionId: Int,
+    val center: MobileMapCenterDto,
+    val total: Int
+)
+
+data class MobileObjectClustersResponse(
+    val city: CityDto,
+    val externalRegionId: Int,
+    val center: MobileMapCenterDto,
+    val zoom: Int,
+    val total: Int,
+    val visible: Int,
+    val data: List<MobileObjectClusterDto>
+)
+
+data class MobileObjectClusterDto(
+    val id: String,
+    val type: String,
+    val lat: Double,
+    val lng: Double,
+    val count: Int,
+    val accountNumber: String?,
+    val title: String?,
+    val clientName: String?,
+    val address: String?,
+    val cardUrl: String?
+)
+
+data class MobileObjectsResponse(
+    val city: CityDto,
+    val externalRegionId: Int,
+    val center: MobileMapCenterDto,
+    val data: List<MobileObjectDto>
+)
+
+data class MobileObjectSearchResponse(
+    val data: List<MobileObjectDto>
+)
+
+data class MobileMapCenterDto(
+    val lat: Double,
+    val lng: Double
+)
+
+data class MobileObjectDto(
+    val accountNumber: String,
+    val title: String,
+    val clientName: String,
+    val address: String,
+    val lat: Double?,
+    val lng: Double?,
+    val cardUrl: String?,
+    val rawRegionId: Int?
+)

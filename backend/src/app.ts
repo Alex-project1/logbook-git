@@ -22,6 +22,7 @@ import adminNotificationsRoutes from "./modules/notifications/notifications.rout
 import mobileNotificationsRoutes from "./modules/notifications/notifications.mobile.routes";
 import mobilePostDutiesRoutes from "./modules/post-duties/post-duties.mobile.routes";
 import mobileHistoryRoutes from "./modules/mobile-history/mobile-history.routes";
+import mobileObjectsRoutes from "./modules/mobile-objects/objects.mobile.routes";
 
 const app = express();
 
@@ -54,6 +55,7 @@ app.use("/api/mobile", mobileRoutes);
 app.use("/api/mobile/shifts", mobileShiftRoutes);
 app.use("/api/mobile/post-duties", mobilePostDutiesRoutes);
 app.use("/api/mobile/history", mobileHistoryRoutes);
+app.use("/api/mobile/objects", mobileObjectsRoutes);
 app.use("/api/mobile/notifications", mobileNotificationsRoutes);
 
 app.use("/api/admin/manual-shifts", manualShiftsRoutes);
