@@ -3571,3 +3571,35 @@ body,
     left: 7px;
   }
 }
+tr td:first-child {
+text-align: left;
+}
+tr th:first-child {
+text-align: left;
+}
+
+.data-table th {
+  color: var(--color-text-label);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background:
+    linear-gradient(
+      to bottom,
+      var(--color-surface-muted),
+      #f3f4f6
+    );
+  border-bottom: 1px solid var(--color-border-strong);
+  white-space: nowrap;
+}
+.data-table thead th {
+  border-top: 1px solid var(--color-border);
+}
+@media (hover: hover) and (pointer: fine) {
+  .data-table th:hover {
+    color: var(--color-text);
+    background: #eef2f7;
+  }
+}
