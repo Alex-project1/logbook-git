@@ -1,5 +1,0 @@
-Добавь в mobile/app/build.gradle.kts в блок dependencies:
-
-implementation("androidx.compose.material:material-icons-extended")
-
-Важно: если эта строка уже есть, второй раз добавлять не нужно.

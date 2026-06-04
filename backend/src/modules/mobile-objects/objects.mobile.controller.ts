@@ -324,12 +324,39 @@ function normalizeGbrFilter(value: unknown) {
   return String(value || "").trim();
 }
 
+function hasValidObjectCoordinates(object: NormalizedObject) {
+  return (
+    object.lat !== null &&
+    object.lng !== null &&
+    Number.isFinite(object.lat) &&
+    Number.isFinite(object.lng) &&
+    object.lat !== 0 &&
+    object.lng !== 0
+  );
+}
+
+function getObjectGbrCallsigns(object: NormalizedObject) {
+  return [object.gbr, object.gbrReserve, object.gbrReserve2]
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value));
+}
+
+function objectMatchesGbr(object: NormalizedObject, gbrFilter: string) {
+  if (!gbrFilter) {
+    return true;
+  }
+
+  return getObjectGbrCallsigns(object).some(
+    (value) => value.localeCompare(gbrFilter, "uk", { sensitivity: "base" }) === 0
+  );
+}
+
 function getGbrCallsigns(objects: NormalizedObject[]) {
   return Array.from(
     new Set(
       objects
-        .map((object) => object.gbr?.trim())
-        .filter((value): value is string => Boolean(value))
+        .filter(hasValidObjectCoordinates)
+        .flatMap(getObjectGbrCallsigns)
     )
   ).sort((a, b) => a.localeCompare(b, "uk", { numeric: true, sensitivity: "base" }));
 }
@@ -378,9 +405,9 @@ function getClusterCellSize(zoom: number) {
 }
 
 function createClusterResponse(objects: NormalizedObject[], zoom: number, bbox: BBox | null, gbrFilter: string) {
-  const filteredByGbr = gbrFilter
-    ? objects.filter((object) => object.gbr === gbrFilter)
-    : objects;
+  const filteredByGbr = objects.filter(
+    (object) => hasValidObjectCoordinates(object) && objectMatchesGbr(object, gbrFilter)
+  );
 
   const filtered = bbox
     ? filteredByGbr.filter(

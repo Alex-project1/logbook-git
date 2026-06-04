@@ -101,13 +101,37 @@ fun ObjectsScreen(
         }
 
         status = "Ваше місцезнаходження знайдено"
-        val js = "if (window.routeMasterShowMyLocation) { window.routeMasterShowMyLocation(${location.latitude}, ${location.longitude}); }"
+        error = ""
+
+        val lat = location.latitude
+        val lng = location.longitude
+        val js = """
+            (function() {
+                if (window.routeMasterShowMyLocation) {
+                    return window.routeMasterShowMyLocation($lat, $lng);
+                }
+                return false;
+            })();
+        """.trimIndent()
+
+        val retryJs = """
+            setTimeout(function() {
+                if (window.routeMasterShowMyLocation) {
+                    window.routeMasterShowMyLocation($lat, $lng);
+                }
+            }, 700);
+        """.trimIndent()
+
         val currentWebView = webView
 
         if (currentWebView == null) {
             error = "Мапа ще завантажується. Спробуйте натиснути “Знайти мене” ще раз."
         } else {
-            currentWebView.evaluateJavascript(js, null)
+            currentWebView.evaluateJavascript(js) { result ->
+                if (result != "true") {
+                    currentWebView.evaluateJavascript(retryJs, null)
+                }
+            }
         }
     }
 
@@ -154,6 +178,10 @@ fun ObjectsScreen(
             cityTitle = response.city.name
             totalObjects = response.total
             gbrCallsigns = response.gbrCallsigns
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .distinct()
+                .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it })
             if (selectedGbr != null && selectedGbr !in response.gbrCallsigns) {
                 selectedGbr = null
             }
@@ -264,28 +292,33 @@ fun ObjectsScreen(
                     )
                 )
 
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                searchObject()
-                            }
-                        },
-                        enabled = !searching,
-                        modifier = Modifier.weight(1f)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(if (searching) "Пошук..." else "Знайти")
-                    }
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    searchObject()
+                                }
+                            },
+                            enabled = !searching,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(if (searching) "Пошук..." else "Знайти")
+                        }
 
-                    Button(
-                        onClick = { requestFindMe() },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Знайти мене")
+                        Button(
+                            onClick = { requestFindMe() },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Знайти мене")
+                        }
                     }
 
                     TextButton(
@@ -298,7 +331,8 @@ fun ObjectsScreen(
                                 )
                             }
                         },
-                        enabled = !loading
+                        enabled = !loading,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Оновити")
                     }
@@ -833,11 +867,11 @@ private fun buildObjectsMapHtml(
 
         .object-icon.me {
             position: relative;
-            background: #3b82f6;
-            width: 24px;
-            height: 24px;
+            background: #38bdf8;
+            width: 26px;
+            height: 26px;
             border: 4px solid #ffffff;
-            box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.28), 0 8px 20px rgba(0, 0, 0, 0.45);
+            box-shadow: 0 0 0 8px rgba(56, 189, 248, 0.25), 0 0 24px rgba(56, 189, 248, 0.75), 0 8px 20px rgba(0, 0, 0, 0.45);
         }
 
         .object-icon.me::after {
@@ -845,11 +879,11 @@ private fun buildObjectsMapHtml(
             position: absolute;
             left: 50%;
             top: 50%;
-            width: 42px;
-            height: 42px;
+            width: 48px;
+            height: 48px;
             transform: translate(-50%, -50%);
             border-radius: 999px;
-            border: 2px solid rgba(96, 165, 250, 0.75);
+            border: 2px solid rgba(125, 211, 252, 0.85);
             box-sizing: border-box;
         }
 
@@ -1118,6 +1152,56 @@ private fun buildObjectsMapHtml(
             window.routeMasterForceReloadClusters = function() {
                 lastRequestKey = '';
                 requestClusters();
+            };
+
+            window.routeMasterShowMyLocation = function(lat, lng) {
+                if (lat == null || lng == null) {
+                    log('my location skipped: empty coordinates');
+                    return false;
+                }
+
+                var latNumber = Number(lat);
+                var lngNumber = Number(lng);
+
+                if (!isFinite(latNumber) || !isFinite(lngNumber)) {
+                    log('my location skipped: bad coordinates');
+                    return false;
+                }
+
+                if (myLocationMarker) {
+                    myLocationMarker.setLatLng([latNumber, lngNumber]);
+                } else {
+                    myLocationMarker = L.marker([latNumber, lngNumber], {
+                        title: 'Моє місцезнаходження',
+                        icon: createObjectIcon('me'),
+                        zIndexOffset: 10000
+                    }).addTo(map);
+                }
+
+                myLocationMarker
+                    .bindPopup(
+                        '<div>' +
+                        '<div class="popup-title">Ви тут</div>' +
+                        '<div class="popup-text">Поточне місцезнаходження телефону</div>' +
+                        '</div>'
+                    )
+                    .openPopup();
+
+                var targetZoom = Math.max(map.getZoom(), 16);
+                map.invalidateSize(true);
+                map.setView([latNumber, lngNumber], targetZoom, { animate: true });
+
+                setTimeout(function() {
+                    map.invalidateSize(true);
+                    map.panTo([latNumber, lngNumber], { animate: true });
+                    if (myLocationMarker) {
+                        myLocationMarker.openPopup();
+                    }
+                }, 350);
+
+                hideLoader();
+                log('my location focused: ' + latNumber + ',' + lngNumber);
+                return true;
             };
 
             window.routeMasterFocusObject = function(object) {

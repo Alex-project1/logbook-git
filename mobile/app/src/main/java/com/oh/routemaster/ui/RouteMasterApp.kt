@@ -18,6 +18,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -32,6 +33,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.dp
 import com.oh.routemaster.data.local.TokenStore
 import com.oh.routemaster.data.remote.ApiClient
 import com.oh.routemaster.data.remote.MobileLoginRequest
@@ -241,10 +243,22 @@ private fun RouteMasterBottomBar(
     unreadCount: Int,
     onSelectScreen: (AppScreen) -> Unit
 ) {
-    NavigationBar {
+    val itemColors = NavigationBarItemDefaults.colors(
+        selectedIconColor = MaterialTheme.colorScheme.primary,
+        selectedTextColor = MaterialTheme.colorScheme.primary,
+        indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.78f),
+        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.78f)
+    )
+
+    NavigationBar(
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 10.dp
+    ) {
         NavigationBarItem(
             selected = currentScreen == AppScreen.HOME,
             onClick = { onSelectScreen(AppScreen.HOME) },
+            colors = itemColors,
             icon = { Icon(Icons.Rounded.Home, contentDescription = null) },
             label = { Text("Головна") }
         )
@@ -252,6 +266,7 @@ private fun RouteMasterBottomBar(
         NavigationBarItem(
             selected = currentScreen == AppScreen.NEW_SHIFT,
             onClick = { onSelectScreen(AppScreen.NEW_SHIFT) },
+            colors = itemColors,
             icon = { Icon(Icons.Rounded.AddCircle, contentDescription = null) },
             label = { Text("Зміна") }
         )
@@ -259,6 +274,7 @@ private fun RouteMasterBottomBar(
         NavigationBarItem(
             selected = currentScreen == AppScreen.OBJECTS,
             onClick = { onSelectScreen(AppScreen.OBJECTS) },
+            colors = itemColors,
             icon = { Icon(Icons.Rounded.Map, contentDescription = null) },
             label = { Text("Об’єкти") }
         )
@@ -266,6 +282,7 @@ private fun RouteMasterBottomBar(
         NavigationBarItem(
             selected = currentScreen == AppScreen.HISTORY,
             onClick = { onSelectScreen(AppScreen.HISTORY) },
+            colors = itemColors,
             icon = { Icon(Icons.Rounded.History, contentDescription = null) },
             label = { Text("Історія") }
         )
@@ -273,6 +290,7 @@ private fun RouteMasterBottomBar(
         NavigationBarItem(
             selected = currentScreen == AppScreen.NOTIFICATIONS,
             onClick = { onSelectScreen(AppScreen.NOTIFICATIONS) },
+            colors = itemColors,
             icon = {
                 BadgedBox(
                     badge = {
