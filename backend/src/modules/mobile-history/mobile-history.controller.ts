@@ -16,6 +16,16 @@ function toNumber(value: unknown): number {
   return Number(value);
 }
 
+function parsePositiveInteger(value: unknown, fallback: number) {
+  const numberValue = Number(value);
+
+  if (!Number.isFinite(numberValue) || numberValue < 1) {
+    return fallback;
+  }
+
+  return Math.floor(numberValue);
+}
+
 function buildShiftSummary(trips: any[]) {
   let regularOh = 0;
   let regularPartner = 0;
@@ -123,8 +133,27 @@ export async function getMobileHistory(req: Request, res: Response) {
     }
 
     const cityId = req.mobileUser.cityId;
+    const page = parsePositiveInteger(req.query.page, 1);
+    const pageSizeRaw = parsePositiveInteger(req.query.pageSize, 10);
+    const pageSize = Math.min(Math.max(pageSizeRaw, 1), 50);
 
-    const [shifts, postDuties] = await Promise.all([
+    const takePerSource = page * pageSize;
+
+    const [shiftTotal, postDutyTotal, shifts, postDuties] = await Promise.all([
+      prisma.shift.count({
+        where: {
+          cityId,
+          deletedAt: null,
+        },
+      }),
+
+      prisma.postDuty.count({
+        where: {
+          cityId,
+          deletedAt: null,
+        },
+      }),
+
       prisma.shift.findMany({
         where: {
           cityId,
@@ -133,7 +162,7 @@ export async function getMobileHistory(req: Request, res: Response) {
         orderBy: {
           shiftDate: "desc",
         },
-        take: 100,
+        take: takePerSource,
         include: {
           crew: {
             select: {
@@ -186,6 +215,7 @@ export async function getMobileHistory(req: Request, res: Response) {
           },
         },
       }),
+
       prisma.postDuty.findMany({
         where: {
           cityId,
@@ -194,7 +224,7 @@ export async function getMobileHistory(req: Request, res: Response) {
         orderBy: {
           dutyDate: "desc",
         },
-        take: 100,
+        take: takePerSource,
         include: {
           post: {
             select: {
@@ -263,14 +293,14 @@ export async function getMobileHistory(req: Request, res: Response) {
               id: event.id,
               eventCategory: event.eventCategory,
               alarmSource: event.alarmSource,
-              countTotal: event.countTotal,
+              countTotal: event.countTotal ?? 0,
               isCombat: event.isCombat,
               reason: event.reason,
               customReasonText: event.customReasonText,
-              ohCount: event.ohCount,
-              partnerCount: event.partnerCount,
-              detainedCount: event.detainedCount,
-              transferredCount: event.transferredCount,
+              ohCount: event.ohCount ?? 0,
+              partnerCount: event.partnerCount ?? 0,
+              detainedCount: event.detainedCount ?? 0,
+              transferredCount: event.transferredCount ?? 0,
               note: event.note,
             })),
           })),
@@ -303,11 +333,21 @@ export async function getMobileHistory(req: Request, res: Response) {
       },
     }));
 
-    const data = [...shiftItems, ...postDutyItems].sort((a, b) => {
+    const merged = [...shiftItems, ...postDutyItems].sort((a, b) => {
       return new Date(b.date).getTime() - new Date(a.date).getTime();
     });
 
+    const total = shiftTotal + postDutyTotal;
+    const startIndex = (page - 1) * pageSize;
+    const data = merged.slice(startIndex, startIndex + pageSize);
+
     return res.json({
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.max(Math.ceil(total / pageSize), 1),
+      },
       data,
     });
   } catch (error) {

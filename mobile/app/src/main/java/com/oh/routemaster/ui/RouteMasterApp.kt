@@ -1,11 +1,20 @@
 package com.oh.routemaster.ui
 
+import android.app.Activity
+import android.graphics.Color
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AddCircle
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Map
+import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -19,8 +28,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import com.oh.routemaster.data.local.TokenStore
 import com.oh.routemaster.data.remote.ApiClient
 import com.oh.routemaster.data.remote.MobileLoginRequest
@@ -36,6 +47,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
 
 private enum class AppScreen {
     HOME,
@@ -50,6 +63,8 @@ fun RouteMasterApp() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val tokenStore = remember { TokenStore(context.applicationContext) }
+
+    ApplyDarkSystemBars()
 
     var savedToken by remember { mutableStateOf<String?>(null) }
     var currentScreen by remember { mutableStateOf(AppScreen.HOME) }
@@ -230,28 +245,28 @@ private fun RouteMasterBottomBar(
         NavigationBarItem(
             selected = currentScreen == AppScreen.HOME,
             onClick = { onSelectScreen(AppScreen.HOME) },
-            icon = { Text("🏠") },
+            icon = { Icon(Icons.Rounded.Home, contentDescription = null) },
             label = { Text("Головна") }
         )
 
         NavigationBarItem(
             selected = currentScreen == AppScreen.NEW_SHIFT,
             onClick = { onSelectScreen(AppScreen.NEW_SHIFT) },
-            icon = { Text("➕") },
+            icon = { Icon(Icons.Rounded.AddCircle, contentDescription = null) },
             label = { Text("Зміна") }
         )
 
         NavigationBarItem(
             selected = currentScreen == AppScreen.OBJECTS,
             onClick = { onSelectScreen(AppScreen.OBJECTS) },
-            icon = { Text("🗺️") },
+            icon = { Icon(Icons.Rounded.Map, contentDescription = null) },
             label = { Text("Об’єкти") }
         )
 
         NavigationBarItem(
             selected = currentScreen == AppScreen.HISTORY,
             onClick = { onSelectScreen(AppScreen.HISTORY) },
-            icon = { Text("📜") },
+            icon = { Icon(Icons.Rounded.History, contentDescription = null) },
             label = { Text("Історія") }
         )
 
@@ -274,11 +289,35 @@ private fun RouteMasterBottomBar(
                         }
                     }
                 ) {
-                    Text("🔔")
+                    Icon(Icons.Rounded.Notifications, contentDescription = null)
                 }
             },
             label = { Text("SMS") }
         )
+    }
+}
+
+
+@Composable
+private fun ApplyDarkSystemBars() {
+    val view = LocalView.current
+
+    if (view.isInEditMode) {
+        return
+    }
+
+    SideEffect {
+        val window = (view.context as? Activity)?.window ?: return@SideEffect
+
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+
+        window.statusBarColor = Color.TRANSPARENT
+        window.navigationBarColor = Color.TRANSPARENT
+
+        WindowInsetsControllerCompat(window, view).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
+        }
     }
 }
 

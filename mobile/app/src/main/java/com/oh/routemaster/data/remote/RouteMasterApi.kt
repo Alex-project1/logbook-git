@@ -31,7 +31,7 @@ interface RouteMasterApi {
     suspend fun getNotifications(
         @Header("Authorization") authorization: String,
         @Query("page") page: Int = 1,
-        @Query("pageSize") pageSize: Int = 20
+        @Query("pageSize") pageSize: Int = 10
     ): MobileNotificationsResponse
 
     @GET("api/mobile/notifications/{id}")
@@ -72,7 +72,9 @@ suspend fun createMobileShift(
 
     @GET("api/mobile/history")
     suspend fun getMobileHistory(
-        @Header("Authorization") authorization: String
+        @Header("Authorization") authorization: String,
+        @Query("page") page: Int = 1,
+        @Query("pageSize") pageSize: Int = 10
     ): MobileHistoryResponse
 
     @GET("api/mobile/objects/overview")

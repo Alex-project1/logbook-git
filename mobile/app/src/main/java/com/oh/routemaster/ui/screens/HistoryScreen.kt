@@ -15,6 +15,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,6 +32,7 @@ import com.oh.routemaster.data.remote.ApiClient
 import com.oh.routemaster.data.remote.MobileHistoryItemDto
 import com.oh.routemaster.data.remote.MobileHistoryPostDutyDto
 import com.oh.routemaster.data.remote.MobileHistoryShiftDto
+import com.oh.routemaster.data.remote.PaginationDto
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -39,29 +41,46 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
 
+private const val HISTORY_PAGE_SIZE = 10
+
 @Composable
 fun HistoryScreen(
     accessToken: String
 ) {
     val scope = rememberCoroutineScope()
 
+    var page by remember { mutableStateOf(1) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf("") }
     var items by remember { mutableStateOf<List<MobileHistoryItemDto>>(emptyList()) }
+    var pagination by remember {
+        mutableStateOf(
+            PaginationDto(
+                page = 1,
+                pageSize = HISTORY_PAGE_SIZE,
+                total = 0,
+                totalPages = 1
+            )
+        )
+    }
     var openedItemKey by remember { mutableStateOf<String?>(null) }
 
-    suspend fun loadHistory() {
+    suspend fun loadHistory(targetPage: Int = page) {
         loading = true
         error = ""
 
         try {
             val response = withContext(Dispatchers.IO) {
                 ApiClient.api.getMobileHistory(
-                    authorization = "Bearer $accessToken"
+                    authorization = "Bearer $accessToken",
+                    page = targetPage,
+                    pageSize = HISTORY_PAGE_SIZE
                 )
             }
 
             items = response.data
+            pagination = response.pagination
+            openedItemKey = null
         } catch (exception: Exception) {
             error = "Не вдалося завантажити історію: ${getHistoryApiErrorMessage(exception)}"
             exception.printStackTrace()
@@ -70,8 +89,8 @@ fun HistoryScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        loadHistory()
+    LaunchedEffect(page) {
+        loadHistory(page)
     }
 
     Column(
@@ -86,16 +105,24 @@ fun HistoryScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Історія",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold
-            )
+            Column {
+                Text(
+                    text = "Історія",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Text(
+                    text = "По 10 записів · усього: ${pagination.total}",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
 
             Button(
                 onClick = {
                     scope.launch {
-                        loadHistory()
+                        loadHistory(page)
                     }
                 },
                 enabled = !loading
@@ -114,7 +141,7 @@ fun HistoryScreen(
                     message = error,
                     onRetry = {
                         scope.launch {
-                            loadHistory()
+                            loadHistory(page)
                         }
                     }
                 )
@@ -137,6 +164,67 @@ fun HistoryScreen(
                         }
                     )
                 }
+
+                PaginationControls(
+                    page = pagination.page,
+                    totalPages = pagination.totalPages,
+                    total = pagination.total,
+                    onPrevious = {
+                        if (page > 1) {
+                            page -= 1
+                        }
+                    },
+                    onNext = {
+                        if (page < pagination.totalPages) {
+                            page += 1
+                        }
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PaginationControls(
+    page: Int,
+    totalPages: Int,
+    total: Int,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedButton(
+                onClick = onPrevious,
+                enabled = page > 1
+            ) {
+                Text("Назад")
+            }
+
+            Text(
+                text = "$page / $totalPages · $total",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            OutlinedButton(
+                onClick = onNext,
+                enabled = page < totalPages
+            ) {
+                Text("Далі")
             }
         }
     }

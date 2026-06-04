@@ -236,6 +236,7 @@ data class CreatedMobileShiftSummaryDto(
 )
 
 data class MobileHistoryResponse(
+    val pagination: PaginationDto,
     val data: List<MobileHistoryItemDto>
 )
 

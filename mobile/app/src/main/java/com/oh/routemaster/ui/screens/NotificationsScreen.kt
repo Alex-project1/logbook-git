@@ -17,6 +17,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -29,13 +30,17 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.oh.routemaster.data.remote.ApiClient
 import com.oh.routemaster.data.remote.MobileNotificationDto
+import com.oh.routemaster.data.remote.PaginationDto
 import com.oh.routemaster.data.remote.ReplyNotificationRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+private const val NOTIFICATIONS_PAGE_SIZE = 10
 
 @Composable
 fun NotificationsScreen(
@@ -44,7 +49,19 @@ fun NotificationsScreen(
 ) {
     val scope = rememberCoroutineScope()
 
+    var page by remember { mutableStateOf(1) }
     var notifications by remember { mutableStateOf<List<MobileNotificationDto>>(emptyList()) }
+    var pagination by remember {
+        mutableStateOf(
+            PaginationDto(
+                page = 1,
+                pageSize = NOTIFICATIONS_PAGE_SIZE,
+                total = 0,
+                totalPages = 1
+            )
+        )
+    }
+
     var selectedNotification by remember { mutableStateOf<MobileNotificationDto?>(null) }
 
     var loading by remember { mutableStateOf(true) }
@@ -52,7 +69,7 @@ fun NotificationsScreen(
     var error by remember { mutableStateOf("") }
     var replyText by remember { mutableStateOf("") }
 
-    suspend fun loadNotifications() {
+    suspend fun loadNotifications(targetPage: Int = page) {
         loading = true
         error = ""
 
@@ -60,22 +77,23 @@ fun NotificationsScreen(
             val response = withContext(Dispatchers.IO) {
                 ApiClient.api.getNotifications(
                     authorization = "Bearer $accessToken",
-                    page = 1,
-                    pageSize = 50
+                    page = targetPage,
+                    pageSize = NOTIFICATIONS_PAGE_SIZE
                 )
             }
 
             notifications = response.data
+            pagination = response.pagination
         } catch (exception: Exception) {
-            error = "Не вдалося завантажити повідомлення: ${exception.message}"
+            error = "Не вдалося завантажити повідомлення"
             exception.printStackTrace()
         } finally {
             loading = false
         }
     }
 
-    LaunchedEffect(Unit) {
-        loadNotifications()
+    LaunchedEffect(page) {
+        loadNotifications(page)
     }
 
     Column(
@@ -84,14 +102,45 @@ fun NotificationsScreen(
             .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        NotificationsHeader(
-            onRefresh = {
-                scope.launch {
-                    loadNotifications()
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "Повідомлення",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Text(
+                    text = "По 10 повідомлень · усього: ${pagination.total}",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            loadNotifications(page)
+                        }
+                    },
+                    enabled = !loading
+                ) {
+                    Text("Оновити")
                 }
-            },
-            onBack = onBack
-        )
+
+                TextButton(onClick = onBack) {
+                    Text("Назад")
+                }
+            }
+        }
 
         if (error.isNotBlank()) {
             Text(
@@ -101,12 +150,21 @@ fun NotificationsScreen(
         }
 
         if (loading) {
-            LoadingState()
-        } else if (notifications.isEmpty() && error.isBlank()) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                CircularProgressIndicator()
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Завантаження...")
+            }
+        } else if (notifications.isEmpty()) {
             Text("Повідомлень поки немає")
-        } else if (notifications.isNotEmpty()) {
+        } else {
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.weight(1f)
             ) {
                 items(notifications) { notification ->
                     NotificationListItem(
@@ -117,70 +175,135 @@ fun NotificationsScreen(
                         }
                     )
                 }
+
+                item {
+                    NotificationsPaginationControls(
+                        page = pagination.page,
+                        totalPages = pagination.totalPages,
+                        total = pagination.total,
+                        onPrevious = {
+                            if (page > 1) {
+                                page -= 1
+                            }
+                        },
+                        onNext = {
+                            if (page < pagination.totalPages) {
+                                page += 1
+                            }
+                        }
+                    )
+                }
             }
         }
     }
 
     selectedNotification?.let { notification ->
-        NotificationDetailsDialog(
-            notification = notification,
-            replyText = replyText,
-            actionLoading = actionLoading,
-            onReplyTextChange = { replyText = it },
-            onDismiss = {
+        AlertDialog(
+            onDismissRequest = {
                 selectedNotification = null
                 replyText = ""
             },
-            onRead = {
-                scope.launch {
-                    actionLoading = true
+            title = {
+                Text(notification.title)
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(notification.message)
 
-                    try {
-                        val updated = withContext(Dispatchers.IO) {
-                            ApiClient.api.markNotificationAsRead(
-                                authorization = "Bearer $accessToken",
-                                id = notification.id
-                            ).data
-                        }
+                    Text("Статус: ${getNotificationStatusLabel(notification)}")
+                    Text("Надіслано: ${formatMobileDate(notification.sentAt)}")
+                    Text("Ознайомився: ${formatMobileDate(notification.readAt)}")
+                    Text("Відповів: ${formatMobileDate(notification.repliedAt)}")
 
-                        selectedNotification = updated
-                        loadNotifications()
-                    } catch (exception: Exception) {
-                        error = "Не вдалося відмітити повідомлення"
-                        exception.printStackTrace()
-                    } finally {
-                        actionLoading = false
+                    OutlinedTextField(
+                        value = replyText,
+                        onValueChange = { replyText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Відповідь") },
+                        enabled = notification.repliedAt == null,
+                        minLines = 3
+                    )
+                }
+            },
+            confirmButton = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                actionLoading = true
+
+                                try {
+                                    val updated = withContext(Dispatchers.IO) {
+                                        ApiClient.api.markNotificationAsRead(
+                                            authorization = "Bearer $accessToken",
+                                            id = notification.id
+                                        ).data
+                                    }
+
+                                    selectedNotification = updated
+                                    loadNotifications(page)
+                                } catch (exception: Exception) {
+                                    error = "Не вдалося відмітити повідомлення"
+                                    exception.printStackTrace()
+                                } finally {
+                                    actionLoading = false
+                                }
+                            }
+                        },
+                        enabled = !actionLoading && notification.readAt == null
+                    ) {
+                        Text("Ознайомився")
+                    }
+
+                    Button(
+                        onClick = {
+                            if (replyText.isBlank()) {
+                                error = "Введіть текст відповіді"
+                                return@Button
+                            }
+
+                            scope.launch {
+                                actionLoading = true
+
+                                try {
+                                    val updated = withContext(Dispatchers.IO) {
+                                        ApiClient.api.replyNotification(
+                                            authorization = "Bearer $accessToken",
+                                            id = notification.id,
+                                            body = ReplyNotificationRequest(
+                                                replyText = replyText.trim()
+                                            )
+                                        ).data
+                                    }
+
+                                    selectedNotification = updated
+                                    loadNotifications(page)
+                                } catch (exception: Exception) {
+                                    error = "Не вдалося надіслати відповідь"
+                                    exception.printStackTrace()
+                                } finally {
+                                    actionLoading = false
+                                }
+                            }
+                        },
+                        enabled = !actionLoading && notification.repliedAt == null
+                    ) {
+                        Text("Відповісти")
                     }
                 }
             },
-            onReply = {
-                if (replyText.isBlank()) {
-                    error = "Введіть текст відповіді"
-                    return@NotificationDetailsDialog
-                }
-
-                scope.launch {
-                    actionLoading = true
-
-                    try {
-                        val updated = withContext(Dispatchers.IO) {
-                            ApiClient.api.replyNotification(
-                                authorization = "Bearer $accessToken",
-                                id = notification.id,
-                                body = ReplyNotificationRequest(
-                                    replyText = replyText.trim()
-                                )
-                            ).data
-                        }
-
-                        selectedNotification = updated
-                        loadNotifications()
-                    } catch (exception: Exception) {
-                        error = "Не вдалося надіслати відповідь"
-                        exception.printStackTrace()
-                    } finally {
-                        actionLoading = false
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        selectedNotification = null
+                        replyText = ""
                     }
+                ) {
+                    Text("Закрити")
                 }
             }
         )
@@ -188,113 +311,49 @@ fun NotificationsScreen(
 }
 
 @Composable
-private fun NotificationsHeader(
-    onRefresh: () -> Unit,
-    onBack: () -> Unit
+private fun NotificationsPaginationControls(
+    page: Int,
+    totalPages: Int,
+    total: Int,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit
 ) {
-    Row(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        shape = MaterialTheme.shapes.large
     ) {
-        Text(
-            text = "Повідомлення",
-            style = MaterialTheme.typography.headlineSmall
-        )
-
         Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TextButton(onClick = onRefresh) {
-                Text("Оновити")
-            }
-
-            TextButton(onClick = onBack) {
+            OutlinedButton(
+                onClick = onPrevious,
+                enabled = page > 1
+            ) {
                 Text("Назад")
             }
+
+            Text(
+                text = "$page / $totalPages · $total",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            OutlinedButton(
+                onClick = onNext,
+                enabled = page < totalPages
+            ) {
+                Text("Далі")
+            }
         }
     }
 }
 
 @Composable
-private fun LoadingState() {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        CircularProgressIndicator()
-        Spacer(modifier = Modifier.height(8.dp))
-        Text("Завантаження...")
-    }
-}
-
-@Composable
-private fun NotificationDetailsDialog(
-    notification: MobileNotificationDto,
-    replyText: String,
-    actionLoading: Boolean,
-    onReplyTextChange: (String) -> Unit,
-    onDismiss: () -> Unit,
-    onRead: () -> Unit,
-    onReply: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(notification.title)
-        },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text(notification.message)
-
-                Text("Статус: ${getNotificationStatusLabel(notification)}")
-                Text("Надіслано: ${formatMobileDate(notification.sentAt)}")
-                Text("Ознайомився: ${formatMobileDate(notification.readAt)}")
-                Text("Відповів: ${formatMobileDate(notification.repliedAt)}")
-
-                OutlinedTextField(
-                    value = replyText,
-                    onValueChange = onReplyTextChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Відповідь") },
-                    enabled = notification.repliedAt == null,
-                    minLines = 3
-                )
-            }
-        },
-        confirmButton = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = onRead,
-                    enabled = !actionLoading && notification.readAt == null
-                ) {
-                    Text("Ознайомився")
-                }
-
-                Button(
-                    onClick = onReply,
-                    enabled = !actionLoading && notification.repliedAt == null
-                ) {
-                    Text("Відповісти")
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Закрити")
-            }
-        }
-    )
-}
-
-@Composable
-private fun NotificationListItem(
+fun NotificationListItem(
     notification: MobileNotificationDto,
     onClick: () -> Unit
 ) {
@@ -341,7 +400,7 @@ private fun NotificationListItem(
     }
 }
 
-private fun getNotificationStatusLabel(notification: MobileNotificationDto): String {
+fun getNotificationStatusLabel(notification: MobileNotificationDto): String {
     return when {
         notification.repliedAt != null -> "Відповідь надіслано"
         notification.readAt != null -> "Ознайомлено"
@@ -349,7 +408,7 @@ private fun getNotificationStatusLabel(notification: MobileNotificationDto): Str
     }
 }
 
-private fun formatMobileDate(value: String?): String {
+fun formatMobileDate(value: String?): String {
     if (value.isNullOrBlank()) {
         return "—"
     }
