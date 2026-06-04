@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -83,6 +82,7 @@ fun ObjectsScreen(
     var totalObjects by remember { mutableStateOf(0) }
     var gbrCallsigns by remember { mutableStateOf<List<String>>(emptyList()) }
     var selectedGbr by remember { mutableStateOf<String?>(null) }
+    var controlsExpanded by remember { mutableStateOf(true) }
 
     var loading by remember { mutableStateOf(true) }
     var searching by remember { mutableStateOf(false) }
@@ -251,24 +251,19 @@ fun ObjectsScreen(
         )
     }
 
+    LaunchedEffect(controlsExpanded) {
+        webView?.evaluateJavascript(
+            "setTimeout(function(){ if (window.routeMasterResizeMap) window.routeMasterResizeMap(); if (window.routeMasterForceReloadClusters) window.routeMasterForceReloadClusters(); }, 250);",
+            null
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+            .padding(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(
-            text = "Об’єкти",
-            style = MaterialTheme.typography.headlineSmall
-        )
-
-        if (cityTitle.isNotBlank()) {
-            Text(
-                text = "Місто: $cityTitle",
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
@@ -279,96 +274,137 @@ fun ObjectsScreen(
                 modifier = Modifier.padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Пошук за номером об’єкта") },
-                    placeholder = { Text("Наприклад: ZP1067") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.Characters,
-                        keyboardType = KeyboardType.Text
-                    )
-                )
-
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        Button(
-                            onClick = {
-                                scope.launch {
-                                    searchObject()
-                                }
-                            },
-                            enabled = !searching,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text(if (searching) "Пошук..." else "Знайти")
+                        Text(
+                            text = "Об’єкти",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+
+                        val filterLabel = selectedGbr ?: "Усі позивні"
+                        val cityLabel = if (cityTitle.isNotBlank()) {
+                            "Місто: $cityTitle"
+                        } else {
+                            "Місто не визначено"
                         }
 
-                        Button(
-                            onClick = { requestFindMe() },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Знайти мене")
-                        }
+                        Text(
+                            text = if (controlsExpanded) {
+                                "$cityLabel · пошук і фільтри"
+                            } else {
+                                "$cityLabel · фільтр: $filterLabel"
+                            },
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
 
                     TextButton(
-                        onClick = {
-                            scope.launch {
-                                loadOverview()
-                                webView?.evaluateJavascript(
-                                    "if (window.routeMasterForceReloadClusters) window.routeMasterForceReloadClusters();",
-                                    null
-                                )
-                            }
-                        },
-                        enabled = !loading,
-                        modifier = Modifier.fillMaxWidth()
+                        onClick = { controlsExpanded = !controlsExpanded }
                     ) {
-                        Text("Оновити")
+                        Text(if (controlsExpanded) "Згорнути ▲" else "Розгорнути ▼")
                     }
                 }
 
-                if (gbrCallsigns.isNotEmpty()) {
-                    Text(
-                        text = "Фільтр за позивним",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                if (controlsExpanded) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Пошук за номером об’єкта") },
+                        placeholder = { Text("Наприклад: ZP1067") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Characters,
+                            keyboardType = KeyboardType.Text
+                        )
                     )
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        if (selectedGbr == null) {
-                            Button(onClick = { selectedGbr = null }) {
-                                Text("Усі")
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        searchObject()
+                                    }
+                                },
+                                enabled = !searching,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(if (searching) "Пошук..." else "Знайти")
                             }
-                        } else {
-                            TextButton(onClick = { selectedGbr = null }) {
-                                Text("Усі")
+
+                            Button(
+                                onClick = { requestFindMe() },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Знайти мене")
                             }
                         }
 
-                        gbrCallsigns.forEach { callsign ->
-                            if (selectedGbr == callsign) {
-                                Button(onClick = { selectedGbr = callsign }) {
-                                    Text(callsign)
+                        TextButton(
+                            onClick = {
+                                scope.launch {
+                                    loadOverview()
+                                    webView?.evaluateJavascript(
+                                        "if (window.routeMasterForceReloadClusters) window.routeMasterForceReloadClusters();",
+                                        null
+                                    )
+                                }
+                            },
+                            enabled = !loading,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Оновити")
+                        }
+                    }
+
+                    if (gbrCallsigns.isNotEmpty()) {
+                        Text(
+                            text = "Фільтр за позивним",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (selectedGbr == null) {
+                                Button(onClick = { selectedGbr = null }) {
+                                    Text("Усі")
                                 }
                             } else {
-                                TextButton(onClick = { selectedGbr = callsign }) {
-                                    Text(callsign)
+                                TextButton(onClick = { selectedGbr = null }) {
+                                    Text("Усі")
+                                }
+                            }
+
+                            gbrCallsigns.forEach { callsign ->
+                                if (selectedGbr == callsign) {
+                                    Button(onClick = { selectedGbr = callsign }) {
+                                        Text(callsign)
+                                    }
+                                } else {
+                                    TextButton(onClick = { selectedGbr = callsign }) {
+                                        Text(callsign)
+                                    }
                                 }
                             }
                         }
@@ -378,14 +414,16 @@ fun ObjectsScreen(
                 if (status.isNotBlank()) {
                     Text(
                         text = status,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.bodySmall
                     )
                 }
 
                 if (error.isNotBlank()) {
                     Text(
                         text = error,
-                        color = MaterialTheme.colorScheme.error
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
                     )
                 }
             }
@@ -394,8 +432,7 @@ fun ObjectsScreen(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
-                .heightIn(min = 360.dp),
+                .weight(1f, fill = true),
             contentAlignment = Alignment.Center
         ) {
             when {
@@ -760,8 +797,11 @@ private fun buildObjectsMapHtml(
     <link rel="stylesheet" href="api/mobile/objects/map-assets/leaflet.css" />
     <style>
         html, body {
-            width: 100vw;
-            height: 100vh;
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            min-height: 100%;
             margin: 0;
             padding: 0;
             overflow: hidden;
@@ -771,11 +811,11 @@ private fun buildObjectsMapHtml(
         }
 
         #map {
-            position: fixed;
+            position: absolute;
             inset: 0;
-            width: 100vw;
-            height: 100vh;
-            min-height: 360px;
+            width: 100%;
+            height: 100%;
+            min-height: 100%;
             background: #111827;
         }
 
@@ -819,8 +859,59 @@ private fun buildObjectsMapHtml(
             margin-bottom: 4px;
         }
 
+        .leaflet-popup {
+            max-width: calc(100vw - 36px);
+        }
+
+        .leaflet-popup-content-wrapper {
+            max-width: calc(100vw - 36px);
+            border-radius: 14px;
+            touch-action: none;
+        }
+
+        .leaflet-popup-content {
+            width: 286px !important;
+            max-width: calc(100vw - 64px);
+            max-height: 360px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            box-sizing: border-box;
+            touch-action: none;
+            overscroll-behavior: contain;
+            user-select: none;
+        }
+
+        .popup-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 6px;
+        }
+
+        .popup-close-link {
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 34px;
+            height: 34px;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.18);
+            color: #e5e7eb;
+            font-size: 20px;
+            font-weight: 800;
+            line-height: 1;
+            text-decoration: none;
+        }
+
+        .popup-close-link:active {
+            background: rgba(56, 189, 248, 0.28);
+        }
+
         .popup-actions {
             display: flex;
+            flex-wrap: wrap;
             gap: 8px;
             margin-top: 10px;
         }
@@ -834,6 +925,7 @@ private fun buildObjectsMapHtml(
             font-weight: 700;
             text-decoration: none;
             background: #2563eb;
+            white-space: nowrap;
         }
 
         .popup-actions a.secondary {
@@ -908,11 +1000,169 @@ private fun buildObjectsMapHtml(
             border-top: 1px solid rgba(255, 255, 255, 0.12);
             padding-top: 8px;
         }
+    
+        .object-modal {
+            position: absolute;
+            inset: 0;
+            z-index: 2147483000;
+            display: block;
+            background: #0f172a !important;
+            color: #e5e7eb;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        .object-modal.hidden {
+            display: none !important;
+        }
+
+        .object-modal-panel {
+            position: absolute;
+            inset: 0;
+            z-index: 2147483001;
+            width: 100%;
+            height: 100%;
+            max-width: 100%;
+            max-height: 100%;
+            background: #0f172a !important;
+            color: #e5e7eb;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-sizing: border-box;
+            box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.12);
+        }
+
+        .object-modal-header {
+            flex: 0 0 auto;
+            min-height: 58px;
+            padding: 14px 14px 12px 16px;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+            background: #111827 !important;
+            box-sizing: border-box;
+        }
+
+        .object-modal-title {
+            min-width: 0;
+            font-size: 17px;
+            font-weight: 800;
+            line-height: 1.25;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+        }
+
+        .object-modal-close {
+            flex: 0 0 auto;
+            width: 44px;
+            height: 44px;
+            border: 0;
+            border-radius: 999px;
+            background: rgba(56, 189, 248, 0.20);
+            color: #e5e7eb;
+            font-size: 30px;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .object-modal-close:active {
+            background: rgba(56, 189, 248, 0.38);
+        }
+
+        .object-modal-body {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 14px;
+            box-sizing: border-box;
+            -webkit-overflow-scrolling: touch;
+            background: #0f172a !important;
+        }
+
+        .modal-object-card {
+            width: 100%;
+            box-sizing: border-box;
+            border-radius: 16px;
+            padding: 14px;
+            margin-bottom: 12px;
+            background: rgba(30, 41, 59, 0.98);
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        .modal-object-card:last-child {
+            margin-bottom: 0;
+        }
+
+        .modal-object-title {
+            font-size: 16px;
+            font-weight: 800;
+            line-height: 1.25;
+            margin-bottom: 8px;
+        }
+
+        .modal-object-text {
+            font-size: 14px;
+            line-height: 1.4;
+            margin-bottom: 6px;
+            color: #d1d5db;
+        }
+
+        .modal-object-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .modal-object-actions a,
+        .modal-object-actions span {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 38px;
+            border-radius: 10px;
+            padding: 8px 12px;
+            box-sizing: border-box;
+            font-weight: 800;
+            text-decoration: none;
+        }
+
+        .modal-object-actions a {
+            color: #ffffff;
+            background: #2563eb;
+        }
+
+        .modal-object-actions a.secondary {
+            background: #374151;
+        }
+
+        .modal-object-actions span.disabled {
+            color: #94a3b8;
+            background: rgba(148, 163, 184, 0.12);
+        }
+
+
     </style>
 </head>
 <body>
     <div id="map"></div>
     <div id="loader">Завантаження мапи...</div>
+
+    <div id="object-modal" class="object-modal hidden">
+        <div class="object-modal-panel">
+            <div class="object-modal-header">
+                <div id="object-modal-title" class="object-modal-title">Об’єкт</div>
+                <button id="object-modal-close" class="object-modal-close" type="button">×</button>
+            </div>
+            <div id="object-modal-body" class="object-modal-body"></div>
+        </div>
+    </div>
 
     <script src="api/mobile/objects/map-assets/leaflet.js"></script>
 
@@ -944,12 +1194,15 @@ private fun buildObjectsMapHtml(
             var searchMarker = null;
             var myLocationMarker = null;
             var lastRequestKey = '';
+            var popupOpen = false;
+            var suppressClusterReloadUntil = 0;
 
             log('overview total=' + totalObjects);
 
             var map = L.map('map', {
                 zoomControl: true,
-                preferCanvas: false
+                preferCanvas: false,
+                closePopupOnClick: false
             }).setView([cityCenter.lat, cityCenter.lng], 12);
 
             L.tileLayer('api/mobile/objects/tile/{z}/{x}/{y}.png', {
@@ -985,7 +1238,10 @@ private fun buildObjectsMapHtml(
 
                 var html = '';
                 html += '<div>';
+                html += '<div class="popup-header">';
                 html += '<div class="popup-title">' + account + ' · ' + title + '</div>';
+                html += '<a class="popup-close-link" href="#close-popup" aria-label="Закрити">×</a>';
+                html += '</div>';
 
                 if (client) {
                     html += '<div class="popup-text">Клієнт: ' + client + '</div>';
@@ -1019,7 +1275,10 @@ private fun buildObjectsMapHtml(
             function buildGroupPopup(item) {
                 var html = '';
                 html += '<div>';
+                html += '<div class="popup-header">';
                 html += '<div class="popup-title">Об’єкти за цією адресою: ' + item.count + '</div>';
+                html += '<a class="popup-close-link" href="#close-popup" aria-label="Закрити">×</a>';
+                html += '</div>';
                 html += '<div class="group-list">';
 
                 var list = Array.isArray(item.objects) ? item.objects : [];
@@ -1034,6 +1293,142 @@ private fun buildObjectsMapHtml(
                 html += '</div>';
                 return html;
             }
+
+            function buildObjectModalCard(object) {
+                var accountRaw = object.accountNumber || '';
+                var account = escapeHtml(accountRaw || 'Без номера');
+                var title = escapeHtml(object.title || 'Об’єкт');
+                var client = escapeHtml(object.clientName || '');
+                var address = escapeHtml(object.address || 'Адреса не вказана');
+                var cardUrl = object.cardUrl || '';
+                var hasAccount = String(accountRaw).length > 0;
+                var hasCard = String(cardUrl).indexOf('http://') === 0 || String(cardUrl).indexOf('https://') === 0;
+
+                var html = '';
+                html += '<div class="modal-object-card">';
+                html += '<div class="modal-object-title">' + account + ' · ' + title + '</div>';
+
+                if (client) {
+                    html += '<div class="modal-object-text">Клієнт: ' + client + '</div>';
+                }
+
+                html += '<div class="modal-object-text">Адреса: ' + address + '</div>';
+
+                if (object.gbr) {
+                    html += '<div class="modal-object-text">Позивний: ' + escapeHtml(object.gbr) + '</div>';
+                }
+
+                if (object.gbrReserve) {
+                    html += '<div class="modal-object-text">Резерв: ' + escapeHtml(object.gbrReserve) + '</div>';
+                }
+
+                html += '<div class="modal-object-actions">';
+
+                if (hasCard || hasAccount) {
+                    html += '<a href="routemaster://card?account=' + encodeUrl(accountRaw) + '&url=' + encodeUrl(cardUrl) + '">Картка</a>';
+                } else {
+                    html += '<span class="disabled">Картка відсутня</span>';
+                }
+
+                html += '<a class="secondary" href="routemaster://route?lat=' + object.lat + '&lng=' + object.lng + '">Маршрут</a>';
+                html += '</div>';
+                html += '</div>';
+
+                return html;
+            }
+
+            function openObjectModal(object) {
+                if (!object) {
+                    return;
+                }
+
+                var account = escapeHtml(object.accountNumber || 'Без номера');
+                var title = escapeHtml(object.title || 'Об’єкт');
+
+                openObjectsModal(
+                    account + ' · ' + title,
+                    buildObjectModalCard(object)
+                );
+            }
+
+            function openGroupModal(item) {
+                var list = Array.isArray(item.objects) ? item.objects : [];
+                var html = '';
+
+                if (list.length === 0) {
+                    html = '<div class="modal-object-card"><div class="modal-object-text">Об’єкти не знайдено</div></div>';
+                } else {
+                    for (var i = 0; i < list.length; i++) {
+                        html += buildObjectModalCard(list[i]);
+                    }
+                }
+
+                openObjectsModal(
+                    'Об’єкти за цією адресою: ' + item.count,
+                    html
+                );
+            }
+
+            function openObjectsModal(title, bodyHtml) {
+                var modal = document.getElementById('object-modal');
+                var panel = modal ? modal.querySelector('.object-modal-panel') : null;
+                var modalTitle = document.getElementById('object-modal-title');
+                var modalBody = document.getElementById('object-modal-body');
+
+                if (!modal || !panel || !modalTitle || !modalBody) {
+                    console.error('[RouteMasterMap] modal nodes missing');
+                    return;
+                }
+
+                modalTitle.innerHTML = title;
+                modalBody.innerHTML = bodyHtml || '<div class="modal-object-card"><div class="modal-object-text">Немає даних</div></div>';
+                modal.classList.remove('hidden');
+
+                modal.style.display = 'block';
+                modal.style.background = '#0f172a';
+                modal.style.zIndex = '2147483000';
+                panel.style.display = 'flex';
+                panel.style.background = '#0f172a';
+                panel.style.zIndex = '2147483001';
+
+                popupOpen = true;
+                suppressClusterReloadUntil = Date.now() + 1500;
+            }
+
+            function closeObjectsModal() {
+                var modal = document.getElementById('object-modal');
+                var modalBody = document.getElementById('object-modal-body');
+
+                if (modal) {
+                    modal.classList.add('hidden');
+                    modal.style.display = 'none';
+                }
+
+                if (modalBody) {
+                    modalBody.innerHTML = '';
+                }
+
+                popupOpen = false;
+                suppressClusterReloadUntil = Date.now() + 350;
+
+                setTimeout(function() {
+                    requestClusters();
+                    if (map) {
+                        map.invalidateSize(true);
+                    }
+                }, 420);
+            }
+
+            document.getElementById('object-modal-close').addEventListener('click', function(event) {
+                event.preventDefault();
+                closeObjectsModal();
+            });
+
+            document.getElementById('object-modal').addEventListener('click', function(event) {
+                if (event.target && event.target.id === 'object-modal') {
+                    closeObjectsModal();
+                }
+            });
 
             function createObjectIcon(kind) {
                 var className = 'object-icon';
@@ -1090,8 +1485,8 @@ private fun buildObjectsMapHtml(
                         icon: createClusterIcon(item.count)
                     });
 
-                    groupMarker.bindPopup(buildGroupPopup(item), {
-                        maxWidth: 320
+                    groupMarker.on('click', function() {
+                        openGroupModal(item);
                     });
 
                     markerLayer.addLayer(groupMarker);
@@ -1101,11 +1496,20 @@ private fun buildObjectsMapHtml(
                 var objectMarker = L.marker([item.lat, item.lng], {
                     icon: createObjectIcon('object')
                 });
-                objectMarker.bindPopup(buildPopup(item));
+
+                objectMarker.on('click', function() {
+                    openObjectModal(item);
+                });
+
                 markerLayer.addLayer(objectMarker);
             }
 
             window.routeMasterSetClusters = function(items) {
+                if (popupOpen || Date.now() < suppressClusterReloadUntil) {
+                    log('cluster update skipped while popup is open');
+                    return;
+                }
+
                 markerLayer.clearLayers();
 
                 if (!Array.isArray(items)) {
@@ -1126,6 +1530,11 @@ private fun buildObjectsMapHtml(
             };
 
             function requestClusters() {
+                if (popupOpen || Date.now() < suppressClusterReloadUntil) {
+                    log('request clusters skipped while popup is open');
+                    return;
+                }
+
                 var bounds = map.getBounds();
                 var zoom = map.getZoom();
                 var south = bounds.getSouth();
@@ -1142,9 +1551,173 @@ private fun buildObjectsMapHtml(
                 RouteMasterBridge.requestClusters(zoom, south, west, north, east);
             }
 
+            var popupDragState = {
+                active: false,
+                lastX: 0,
+                lastY: 0,
+                moved: false
+            };
+
+            function findPopupWrapper(target) {
+                while (target && target !== document) {
+                    if (target.classList && target.classList.contains('leaflet-popup-content-wrapper')) {
+                        return target;
+                    }
+
+                    target = target.parentNode;
+                }
+
+                return null;
+            }
+
+            function isPopupActionTarget(target) {
+                while (target && target !== document) {
+                    if (
+                        target.tagName === 'A' ||
+                        target.tagName === 'BUTTON' ||
+                        (target.classList && (
+                            target.classList.contains('popup-close-link') ||
+                            target.classList.contains('popup-actions')
+                        ))
+                    ) {
+                        return true;
+                    }
+
+                    target = target.parentNode;
+                }
+
+                return false;
+            }
+
+            function getPointFromEvent(event) {
+                var source = event.touches && event.touches.length > 0 ? event.touches[0] : event;
+                return {
+                    x: source.clientX,
+                    y: source.clientY
+                };
+            }
+
+            function popupDragStart(event) {
+                if (isPopupActionTarget(event.target)) {
+                    return;
+                }
+
+                var wrapper = findPopupWrapper(event.target);
+
+                if (!wrapper) {
+                    return;
+                }
+
+                var point = getPointFromEvent(event);
+                popupDragState.active = true;
+                popupDragState.lastX = point.x;
+                popupDragState.lastY = point.y;
+                popupDragState.moved = false;
+                suppressClusterReloadUntil = Date.now() + 1500;
+
+                if (event.cancelable) {
+                    event.preventDefault();
+                }
+            }
+
+            function popupDragMove(event) {
+                if (!popupDragState.active) {
+                    return;
+                }
+
+                var point = getPointFromEvent(event);
+                var dx = point.x - popupDragState.lastX;
+                var dy = point.y - popupDragState.lastY;
+
+                if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+                    popupDragState.moved = true;
+                    suppressClusterReloadUntil = Date.now() + 1500;
+                    map.panBy([-dx, -dy], {
+                        animate: false
+                    });
+                }
+
+                popupDragState.lastX = point.x;
+                popupDragState.lastY = point.y;
+
+                if (event.cancelable) {
+                    event.preventDefault();
+                }
+            }
+
+            function popupDragEnd() {
+                if (!popupDragState.active) {
+                    return;
+                }
+
+                popupDragState.active = false;
+                suppressClusterReloadUntil = Date.now() + 600;
+
+                if (popupDragState.moved) {
+                    setTimeout(function() {
+                        requestClusters();
+                    }, 700);
+                }
+            }
+
+            document.addEventListener('touchstart', popupDragStart, { passive: false });
+            document.addEventListener('touchmove', popupDragMove, { passive: false });
+            document.addEventListener('touchend', popupDragEnd, { passive: true });
+            document.addEventListener('mousedown', popupDragStart, false);
+            document.addEventListener('mousemove', popupDragMove, false);
+            document.addEventListener('mouseup', popupDragEnd, false);
+
+            document.addEventListener('click', function(event) {
+                var target = event.target;
+
+                while (target && target !== document) {
+                    if (target.classList && target.classList.contains('popup-close-link')) {
+                        event.preventDefault();
+                        map.closePopup();
+                        popupOpen = false;
+                        suppressClusterReloadUntil = Date.now() + 350;
+                        setTimeout(function() {
+                            requestClusters();
+                        }, 420);
+                        return;
+                    }
+
+                    target = target.parentNode;
+                }
+            });
+
+            function resizeMapToContainer() {
+                try {
+                    var mapElement = document.getElementById('map');
+
+                    if (mapElement) {
+                        mapElement.style.width = '100%';
+                        mapElement.style.height = '100%';
+                        mapElement.style.minHeight = '100%';
+                    }
+
+                    document.documentElement.style.height = '100%';
+                    document.body.style.height = '100%';
+
+                    if (map) {
+                        map.invalidateSize(true);
+                    }
+                } catch (error) {
+                    log('resize failed: ' + error.message);
+                }
+            }
+
+            window.routeMasterResizeMap = function() {
+                resizeMapToContainer();
+            };
+
+            window.addEventListener('resize', function() {
+                setTimeout(resizeMapToContainer, 120);
+            });
+
             window.routeMasterMapReady = function() {
                 setTimeout(function() {
-                    map.invalidateSize(true);
+                    resizeMapToContainer();
                     requestClusters();
                 }, 250);
             };
@@ -1183,7 +1756,11 @@ private fun buildObjectsMapHtml(
                         '<div>' +
                         '<div class="popup-title">Ви тут</div>' +
                         '<div class="popup-text">Поточне місцезнаходження телефону</div>' +
-                        '</div>'
+                        '</div>',
+                        {
+                            autoPan: false,
+                            closeOnClick: false
+                        }
                     )
                     .openPopup();
 
@@ -1217,10 +1794,19 @@ private fun buildObjectsMapHtml(
                     icon: createObjectIcon('search')
                 }).addTo(map);
 
-                searchMarker.bindPopup(buildPopup(object)).openPopup();
+                suppressClusterReloadUntil = Date.now() + 1500;
                 map.setView([object.lat, object.lng], 17);
+                openObjectModal(object);
                 hideLoader();
             };
+
+            map.on('popupopen', function() {
+                suppressClusterReloadUntil = Date.now() + 700;
+            });
+
+            map.on('popupclose', function() {
+                suppressClusterReloadUntil = Date.now() + 350;
+            });
 
             map.on('moveend zoomend', function() {
                 requestClusters();
