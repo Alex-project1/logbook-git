@@ -2717,49 +2717,20 @@ private fun TimeSelectField(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { openPicker() },
-            shape = MaterialTheme.shapes.medium,
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            ),
-            border = BorderStroke(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outline
-            )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        OutlinedButton(
+            onClick = { openPicker() },
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(5.dp)
-                ) {
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Text(
-                        text = value.ifBlank { "Не вибрано" },
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-
-                Text(
-                    text = "🕒",
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.titleMedium
-                )
-            }
+            Text(
+                text = "🕒 ${value.ifBlank { "Обрати час" }}",
+                fontWeight = FontWeight.SemiBold
+            )
         }
 
         if (!supportingText.isNullOrBlank()) {
