@@ -68,6 +68,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.io.IOException
+import android.app.TimePickerDialog
 
 private enum class ShiftKind {
     GBR,
@@ -753,14 +754,14 @@ fun validateGbrForm(data: MobileBootstrapDto): GbrFormErrors {
             gbrSaveSuccess = if (response.duplicated) {
                 "Наряд вже був збережений раніше"
             } else {
-                "Наряд ГБР збережено. Пробіг по поїздках: ${response.data.totalDistanceKm} км"
+                "Наряд ГШР збережено. Пробіг по поїздках: ${response.data.totalDistanceKm} км"
             }
 
             lastSavedKind = ShiftKind.GBR
             successDialogTitle = if (response.duplicated) {
                 "Наряд вже збережений"
             } else {
-                "Наряд ГБР збережено"
+                "Наряд ГШР збережено"
             }
             successDialogMessage = if (response.duplicated) {
                 "Цей наряд вже був збережений раніше."
@@ -770,7 +771,7 @@ fun validateGbrForm(data: MobileBootstrapDto): GbrFormErrors {
             successDialogOpen = true
             summarySectionOpen = true
         } catch (exception: IOException) {
-            val title = "$shiftDate · ${findCrewLabel(data.crews, selectedCrewId).ifBlank { "Наряд ГБР" }}"
+            val title = "$shiftDate · ${findCrewLabel(data.crews, selectedCrewId).ifBlank { "Наряд ГШР" }}"
 
             withContext(Dispatchers.IO) {
                 pendingStore.addPending(
@@ -791,16 +792,16 @@ fun validateGbrForm(data: MobileBootstrapDto): GbrFormErrors {
                 pendingStore.getPending(gson).size
             }
 
-            gbrSaveSuccess = "Немає зв’язку. Наряд ГБР збережено в чергу."
+            gbrSaveSuccess = "Немає зв’язку. Наряд ГШР збережено в чергу."
             pendingStatus = "Очікує відправки: $pendingLeft"
             lastSavedKind = ShiftKind.GBR
             successDialogTitle = "Збережено в чергу"
-            successDialogMessage = "Немає доступу до сервера. Наряд ГБР збережено на телефоні та буде відправлено пізніше."
+            successDialogMessage = "Немає доступу до сервера. Наряд ГШР збережено на телефоні та буде відправлено пізніше."
             successDialogOpen = true
             summarySectionOpen = true
             exception.printStackTrace()
         } catch (exception: Exception) {
-            gbrSaveError = "Не вдалося зберегти наряд ГБР: ${getApiErrorMessage(exception)}"
+            gbrSaveError = "Не вдалося зберегти наряд ГШР: ${getApiErrorMessage(exception)}"
             summarySectionOpen = true
             exception.printStackTrace()
         } finally {
@@ -1095,6 +1096,7 @@ fun validateGbrForm(data: MobileBootstrapDto): GbrFormErrors {
                             shiftDate = shiftDate,
                             shiftTime = shiftTime,
                             odometerStart = odometerStart,
+                            tripDistanceKm = calculateTripsDistanceKm(trips),
                             driverHasWeapon = driverHasWeapon,
                             seniorHasWeapon = seniorHasWeapon,
                             tripsCount = trips.size,
@@ -1178,7 +1180,7 @@ fun validateGbrForm(data: MobileBootstrapDto): GbrFormErrors {
             text = if (shiftKind == ShiftKind.POST) {
                 "Зберігаємо постове чергування..."
             } else {
-                "Зберігаємо наряд ГБР..."
+                "Зберігаємо наряд ГШР..."
             }
         )
     }
@@ -1258,14 +1260,14 @@ private fun ShiftKindSelector(
                 onClick = { onSelect(ShiftKind.GBR) },
                 modifier = Modifier.weight(1f)
             ) {
-                Text("Наряд ГБР")
+                Text("Наряд ГШР")
             }
         } else {
             OutlinedButton(
                 onClick = { onSelect(ShiftKind.GBR) },
                 modifier = Modifier.weight(1f)
             ) {
-                Text("Наряд ГБР")
+                Text("Наряд ГШР")
             }
         }
 
@@ -2048,22 +2050,33 @@ private fun TripAccordionCard(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        OutlinedTextField(
+                        TimeSelectField(
                             value = trip.departureTime,
-                            onValueChange = onChangeDepartureTime,
+                            label = "Виїзд",
                             modifier = Modifier.weight(1f),
-                            label = { Text("Виїзд") },
-                            placeholder = { Text("08:00") },
-                            singleLine = true
+                            onTimeSelected = { selectedTime ->
+                                onChangeDepartureTime(selectedTime)
+
+                                val departureMinutes = parseTimeToMinutes(selectedTime)
+                                val arrivalMinutes = parseTimeToMinutes(trip.arrivalTime)
+
+                                if (
+                                    departureMinutes != null &&
+                                    arrivalMinutes != null &&
+                                    arrivalMinutes < departureMinutes
+                                ) {
+                                    onChangeArrivalTime(selectedTime)
+                                }
+                            }
                         )
 
-                        OutlinedTextField(
+                        TimeSelectField(
                             value = trip.arrivalTime,
-                            onValueChange = onChangeArrivalTime,
+                            label = "Прибуття",
                             modifier = Modifier.weight(1f),
-                            label = { Text("Прибуття") },
-                            placeholder = { Text("08:30") },
-                            singleLine = true
+                            minTime = trip.departureTime,
+                            supportingText = "Не раніше виїзду",
+                            onTimeSelected = onChangeArrivalTime
                         )
                     }
 
@@ -2477,6 +2490,7 @@ private fun GbrSummaryCard(
     shiftDate: String,
     shiftTime: String,
     odometerStart: String,
+    tripDistanceKm: Double,
     driverHasWeapon: Boolean,
     seniorHasWeapon: Boolean,
     tripsCount: Int,
@@ -2497,13 +2511,22 @@ private fun GbrSummaryCard(
     Column(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text("Тип: Наряд ГБР")
+        Text("Тип: Наряд ГШР")
         Text("Наряд: ${crew.ifBlank { "Не вибрано" }}")
         Text("Авто: ${vehicle.ifBlank { "Не вибрано" }}")
         Text("Водій: ${driver.ifBlank { "Не вибрано" }}")
         Text("Старший: ${senior.ifBlank { "Не вибрано" }}")
+        val odometerStartNumber = odometerStart.toDoubleOrNull()
+        val odometerEndLabel = if (odometerStartNumber == null) {
+            "Не вказано"
+        } else {
+            "${formatDistanceValue(odometerStartNumber + tripDistanceKm)} км"
+        }
+
         Text("Дата і час: $shiftDate $shiftTime")
-        Text("Пробіг: ${odometerStart.ifBlank { "Не вказано" }}")
+        Text("Спідометр початок: ${odometerStart.ifBlank { "Не вказано" }}")
+        Text("Спідометр кінець: $odometerEndLabel")
+        Text("Добовий пробіг: ${formatDistanceValue(tripDistanceKm)} км")
         Text("Поїздок: $tripsCount")
         Text("Зброя: водій ${if (driverHasWeapon) "так" else "ні"}, старший ${if (seniorHasWeapon) "так" else "ні"}")
 
@@ -2526,12 +2549,12 @@ private fun GbrSummaryCard(
             modifier = Modifier.fillMaxWidth(),
             enabled = !saving
         ) {
-            Text(if (saving) "Збереження..." else "Зберегти наряд ГБР")
+            Text(if (saving) "Збереження..." else "Зберегти наряд ГШР")
         }
 
         if (!isValid) {
             Text(
-                text = "Натисніть “Зберегти наряд ГБР” — додаток покаже всі поля, які потрібно заповнити.",
+                text = "Натисніть “Зберегти наряд ГШР” — додаток покаже всі поля, які потрібно заповнити.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -2647,6 +2670,152 @@ private fun DraftRestoreDialog(
     )
 }
 
+
+
+@Composable
+private fun TimeSelectField(
+    value: String,
+    label: String,
+    modifier: Modifier = Modifier,
+    minTime: String? = null,
+    supportingText: String? = null,
+    onTimeSelected: (String) -> Unit
+) {
+    val context = LocalContext.current
+
+    fun openPicker() {
+        val currentMinutes =
+            parseTimeToMinutes(value)
+                ?: parseTimeToMinutes(minTime)
+                ?: parseTimeToMinutes(getCurrentTimeInput())
+                ?: 0
+
+        TimePickerDialog(
+            context,
+            { _, hourOfDay, minute ->
+                val selectedMinutes = hourOfDay * 60 + minute
+                val minMinutes = parseTimeToMinutes(minTime)
+
+                val finalMinutes = if (
+                    minMinutes != null &&
+                    selectedMinutes < minMinutes
+                ) {
+                    minMinutes
+                } else {
+                    selectedMinutes
+                }
+
+                onTimeSelected(formatMinutesToTime(finalMinutes))
+            },
+            currentMinutes / 60,
+            currentMinutes % 60,
+            true
+        ).show()
+    }
+
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { openPicker() },
+            shape = MaterialTheme.shapes.medium,
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            ),
+            border = BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline
+            )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Text(
+                        text = value.ifBlank { "Не вибрано" },
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                Text(
+                    text = "🕒",
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+        }
+
+        if (!supportingText.isNullOrBlank()) {
+            Text(
+                text = supportingText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private fun parseTimeToMinutes(value: String?): Int? {
+    val trimmedValue = value?.trim().orEmpty()
+
+    if (trimmedValue.isBlank()) {
+        return null
+    }
+
+    val parts = trimmedValue.split(":")
+
+    if (parts.size != 2) {
+        return null
+    }
+
+    val hour = parts[0].toIntOrNull()
+    val minute = parts[1].toIntOrNull()
+
+    if (hour == null || minute == null) {
+        return null
+    }
+
+    if (hour !in 0..23 || minute !in 0..59) {
+        return null
+    }
+
+    return hour * 60 + minute
+}
+
+private fun formatTimeInput(
+    hour: Int,
+    minute: Int
+): String {
+    return String.format(Locale.US, "%02d:%02d", hour, minute)
+}
+
+private fun formatMinutesToTime(minutes: Int): String {
+    val normalizedMinutes = minutes.coerceIn(0, 23 * 60 + 59)
+
+    return formatTimeInput(
+        hour = normalizedMinutes / 60,
+        minute = normalizedMinutes % 60
+    )
+}
+
+
 @Composable
 private fun SavingDialog(
     text: String
@@ -2744,6 +2913,20 @@ private fun buildTripSubtitle(trip: TripDraft): String {
     return "$from → $to"
 }
 
+private fun calculateTripsDistanceKm(trips: List<TripDraft>): Double {
+    return trips.sumOf { trip ->
+        trip.distanceKm
+            .replace(",", ".")
+            .toDoubleOrNull()
+            ?: 0.0
+    }
+}
+
+private fun formatDistanceValue(value: Double): String {
+    val formatted = String.format(Locale.US, "%.2f", value)
+    return formatted.trimEnd('0').trimEnd('.')
+}
+
 
 private fun getTripValidationErrors(
     trip: TripDraft,
@@ -2770,6 +2953,25 @@ private fun getTripValidationErrors(
 
     if (trip.arrivalTime.isBlank()) {
         errors.add("вкажіть час прибуття")
+    }
+
+    val departureMinutes = parseTimeToMinutes(trip.departureTime)
+    val arrivalMinutes = parseTimeToMinutes(trip.arrivalTime)
+
+    if (trip.departureTime.isNotBlank() && departureMinutes == null) {
+        errors.add("некоректний час виїзду")
+    }
+
+    if (trip.arrivalTime.isNotBlank() && arrivalMinutes == null) {
+        errors.add("некоректний час прибуття")
+    }
+
+    if (
+        departureMinutes != null &&
+        arrivalMinutes != null &&
+        arrivalMinutes < departureMinutes
+    ) {
+        errors.add("час прибуття не може бути раніше часу виїзду")
     }
 
     if (trip.distanceKm.replace(",", ".").toDoubleOrNull() == null) {

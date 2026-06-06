@@ -16,6 +16,7 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -68,6 +69,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private const val OBJECTS_MAP_TAG = "RM_OBJECTS_MAP"
+private const val OBJECTS_WEB_BASE_URL = "https://api.avdemo.uk/"
+private const val OBJECTS_WEB_HOST = "api.avdemo.uk"
+private const val OBJECTS_MAP_ASSET_VERSION = "20260605"
 
 @Composable
 fun ObjectsScreen(
@@ -521,16 +525,31 @@ private fun ObjectsMapWebView(
                         request: WebResourceRequest?
                     ): Boolean {
                         val url = request?.url ?: return false
+                        val scheme = url.scheme.orEmpty()
+                        val host = url.host.orEmpty()
 
-                        if (url.scheme == "routemaster") {
+                        if (scheme == "routemaster") {
                             handleRouteMasterUrl(context, url, accessToken, scope, onError)
                             return true
                         }
 
-                        if ((url.scheme == "http" || url.scheme == "https") &&
-                            url.host != "127.0.0.1" &&
-                            url.host != "localhost"
+                        val isHttp = scheme == "http" || scheme == "https"
+
+                        // Важно: ресурсы самой карты должны оставаться внутри WebView.
+                        // Иначе WebView может не загрузить leaflet.js/leaflet.css, и будет ошибка:
+                        // "Leaflet is not loaded".
+                        if (isHttp && (
+                                host == OBJECTS_WEB_HOST ||
+                                    host == "127.0.0.1" ||
+                                    host == "localhost"
+                            )
                         ) {
+                            return false
+                        }
+
+                        // Внешние ссылки открываем только если это основная навигация,
+                        // а не служебная загрузка css/js/png внутри карты.
+                        if (isHttp && request.isForMainFrame) {
                             openExternalUrl(context, url.toString())
                             return true
                         }
@@ -547,6 +566,30 @@ private fun ObjectsMapWebView(
                             OBJECTS_MAP_TAG,
                             "WebView error url=${request?.url} description=${error?.description}"
                         )
+                    }
+
+                    override fun onReceivedHttpError(
+                        view: WebView?,
+                        request: WebResourceRequest?,
+                        errorResponse: WebResourceResponse?
+                    ) {
+                        super.onReceivedHttpError(view, request, errorResponse)
+
+                        val failedUrl = request?.url?.toString().orEmpty()
+                        val statusCode = errorResponse?.statusCode ?: 0
+                        val reason = errorResponse?.reasonPhrase.orEmpty()
+
+                        Log.e(
+                            OBJECTS_MAP_TAG,
+                            "WebView HTTP error url=$failedUrl status=$statusCode reason=$reason"
+                        )
+
+                        if (
+                            failedUrl.contains("/api/mobile/objects/map-assets/leaflet.js") ||
+                                failedUrl.contains("/api/mobile/objects/map-assets/leaflet.css")
+                        ) {
+                            onError("Не вдалося завантажити Leaflet: HTTP $statusCode $reason")
+                        }
                     }
 
                     override fun onPageFinished(view: WebView?, url: String?) {
@@ -577,11 +620,13 @@ private fun ObjectsMapWebView(
                 settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                 settings.allowContentAccess = true
                 settings.allowFileAccess = true
+                settings.loadsImagesAutomatically = true
+                settings.blockNetworkLoads = false
 
                 addJavascriptInterface(bridge, "RouteMasterBridge")
 
                 loadDataWithBaseURL(
-                    "http://127.0.0.1:5000/",
+                    OBJECTS_WEB_BASE_URL,
                     html,
                     "text/html",
                     "UTF-8",
@@ -794,7 +839,7 @@ private fun buildObjectsMapHtml(
         name="viewport"
         content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"
     />
-    <link rel="stylesheet" href="api/mobile/objects/map-assets/leaflet.css" />
+<link rel="stylesheet" href="https://api.avdemo.uk/api/mobile/objects/map-assets/leaflet.css?v=$OBJECTS_MAP_ASSET_VERSION">
     <style>
         html, body {
             position: fixed;
@@ -1164,7 +1209,7 @@ private fun buildObjectsMapHtml(
         </div>
     </div>
 
-    <script src="api/mobile/objects/map-assets/leaflet.js"></script>
+    <script src="https://api.avdemo.uk/api/mobile/objects/map-assets/leaflet.js?v=$OBJECTS_MAP_ASSET_VERSION"></script>
 
     <script>
         function log(message) {
@@ -1205,7 +1250,7 @@ private fun buildObjectsMapHtml(
                 closePopupOnClick: false
             }).setView([cityCenter.lat, cityCenter.lng], 12);
 
-            L.tileLayer('api/mobile/objects/tile/{z}/{x}/{y}.png', {
+            L.tileLayer('https://api.avdemo.uk/api/mobile/objects/tile/{z}/{x}/{y}.png?v=$OBJECTS_MAP_ASSET_VERSION', {
                 maxZoom: 19,
                 minZoom: 1,
                 attribution: ''
