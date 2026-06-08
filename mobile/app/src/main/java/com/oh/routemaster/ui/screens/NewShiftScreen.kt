@@ -2728,7 +2728,7 @@ private fun TimeSelectField(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                text = "🕒 ${value.ifBlank { "Обрати час" }}",
+                text = "🕒 ${value.ifBlank { "Обрати" }}",
                 fontWeight = FontWeight.SemiBold
             )
         }

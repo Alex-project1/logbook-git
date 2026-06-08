@@ -9,7 +9,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.oh.routemaster.ui.RouteMasterApp
-import com.oh.routemaster.ui.theme.RouteMasterTheme
 
 class MainActivity : ComponentActivity() {
     private val notificationPermissionLauncher = registerForActivityResult(
@@ -25,9 +24,7 @@ class MainActivity : ComponentActivity() {
         requestNotificationPermissionIfNeeded()
 
         setContent {
-            RouteMasterTheme {
-                RouteMasterApp()
-            }
+            RouteMasterApp()
         }
     }
 

@@ -1,7 +1,9 @@
 package com.oh.routemaster.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -9,18 +11,23 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 @Composable
 fun HomeScreen(
     status: String,
     unreadCount: Int,
+    darkTheme: Boolean,
+    onThemeChange: (Boolean) -> Unit,
     onLogout: () -> Unit,
     onRegisterFcm: () -> Unit,
     onRefreshUnread: () -> Unit
@@ -34,7 +41,8 @@ fun HomeScreen(
     ) {
         Text(
             text = "Route Master",
-            style = MaterialTheme.typography.headlineMedium
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.onBackground
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -49,7 +57,8 @@ fun HomeScreen(
             ) {
                 Text(
                     text = "Головна",
-                    style = MaterialTheme.typography.titleLarge
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold
                 )
 
                 Text(
@@ -60,6 +69,54 @@ fun HomeScreen(
                 Text(
                     text = "Непрочитаних повідомлень: $unreadCount",
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large,
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            ),
+            border = BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline
+            )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(18.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = if (darkTheme) "🌙 Темна тема" else "☀️ Світла тема",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    Text(
+                        text = if (darkTheme) {
+                            "Золотий акцент на темному фоні"
+                        } else {
+                            "Світла бежево-золота палітра"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Switch(
+                    checked = darkTheme,
+                    onCheckedChange = onThemeChange
                 )
             }
         }
