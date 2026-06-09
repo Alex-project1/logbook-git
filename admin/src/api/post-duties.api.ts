@@ -16,6 +16,7 @@ export type PostDutyMember = {
 export type PostDuty = {
   id: number;
   cityId: number;
+  departmentId: number;
   postId: number;
   vehicleId: number | null;
 
@@ -31,6 +32,12 @@ export type PostDuty = {
   city: {
     id: number;
     name: string;
+  };
+
+  department: {
+    id: number;
+    name: string;
+    type: "GBR" | "POST" | "OTHER";
   };
 
   post: {
@@ -51,6 +58,7 @@ export type PostDutiesFilters = {
   page?: number;
   pageSize?: number;
   cityId?: number;
+  departmentId?: number;
   postId?: number;
   vehicleId?: number;
   employeeId?: number;
@@ -80,6 +88,7 @@ export type PostDutyMemberInput = {
 
 export type SavePostDutyInput = {
   cityId: number;
+  departmentId: number;
   postId: number;
   vehicleId?: number | null;
   dutyDate: string;
@@ -94,6 +103,7 @@ function buildParams(filters: PostDutiesFilters) {
   if (filters.page) params.page = filters.page;
   if (filters.pageSize) params.pageSize = filters.pageSize;
   if (filters.cityId) params.cityId = filters.cityId;
+  if (filters.departmentId) params.departmentId = filters.departmentId;
   if (filters.postId) params.postId = filters.postId;
   if (filters.vehicleId) params.vehicleId = filters.vehicleId;
   if (filters.employeeId) params.employeeId = filters.employeeId;

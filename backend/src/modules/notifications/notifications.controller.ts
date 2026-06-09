@@ -3,11 +3,15 @@ import { z } from "zod";
 import { prisma } from "../../config/prisma";
 import {
   buildCityAccessWhere,
+  buildDepartmentAccessWhere,
   getAllowedCityIds,
+  getAllowedDepartmentIds,
 } from "../../utils/admin-access";
 import { sendNotificationPush } from "../../services/push.service";
 const createNotificationSchema = z.object({
   cityId: z.number().int().positive(),
+  departmentId: z.number().int().positive().optional().nullable(),
+  targetUserKind: z.enum(["CREW", "POST"]).optional().nullable(),
   mobileUserIds: z.array(z.number().int().positive()).min(1),
   title: z.string().min(1, "Введите заголовок уведомления").max(255),
   message: z.string().min(1, "Введите текст уведомления").max(5000),
@@ -59,6 +63,8 @@ function mapNotificationListItem(notification: any) {
   return {
     id: notification.id,
     city: notification.city,
+    department: notification.department ?? null,
+    targetUserKind: notification.targetUserKind ?? null,
     senderUser: notification.senderUser,
     title: notification.title,
     message: notification.message,
@@ -103,6 +109,7 @@ export async function createNotification(req: Request, res: Response) {
     }
 
     const allowedCityIds = await getAllowedCityIds(req);
+    const allowedDepartmentIds = await getAllowedDepartmentIds(req);
 
     if (
       allowedCityIds !== null &&
@@ -131,6 +138,29 @@ export async function createNotification(req: Request, res: Response) {
       });
     }
 
+    if (parsed.data.departmentId) {
+      const department = await prisma.department.findFirst({
+        where: {
+          id: parsed.data.departmentId,
+          cityId: parsed.data.cityId,
+          deletedAt: null,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+
+      if (!department) {
+        return res.status(404).json({ message: "Подразделение не найдено или неактивно" });
+      }
+
+      if (
+        allowedDepartmentIds !== null &&
+        !allowedDepartmentIds.includes(parsed.data.departmentId)
+      ) {
+        return res.status(403).json({ message: "Недостаточно прав для выбранного подразделения" });
+      }
+    }
+
     const mobileUserIds = Array.from(new Set(parsed.data.mobileUserIds));
 
     const mobileUsers = await prisma.mobileUser.findMany({
@@ -139,6 +169,8 @@ export async function createNotification(req: Request, res: Response) {
           in: mobileUserIds,
         },
         cityId: parsed.data.cityId,
+        ...(parsed.data.departmentId ? { departmentId: parsed.data.departmentId } : {}),
+        ...(parsed.data.targetUserKind ? { userKind: parsed.data.targetUserKind } : {}),
         deletedAt: null,
         isActive: true,
       },
@@ -159,6 +191,8 @@ export async function createNotification(req: Request, res: Response) {
     const notification = await prisma.notification.create({
       data: {
         cityId: parsed.data.cityId,
+        departmentId: parsed.data.departmentId || null,
+        targetUserKind: parsed.data.targetUserKind || null,
         senderUserId: req.user?.id ?? null,
         title: parsed.data.title.trim(),
         message: parsed.data.message.trim(),
@@ -175,6 +209,13 @@ export async function createNotification(req: Request, res: Response) {
             name: true,
           },
         },
+        department: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+          },
+        },
         senderUser: {
           select: {
             id: true,
@@ -189,6 +230,9 @@ export async function createNotification(req: Request, res: Response) {
                 id: true,
                 login: true,
                 cityId: true,
+                userKind: true,
+                departmentId: true,
+                department: { select: { id: true, name: true, type: true } },
                 city: {
                   select: {
                     id: true,
@@ -213,6 +257,8 @@ export async function createNotification(req: Request, res: Response) {
         entityId: notification.id,
         newValue: {
           cityId: parsed.data.cityId,
+          departmentId: parsed.data.departmentId || null,
+          targetUserKind: parsed.data.targetUserKind || null,
           recipientsCount: mobileUserIds.length,
           mobileUserIds,
         },
@@ -256,6 +302,13 @@ export async function createNotification(req: Request, res: Response) {
             name: true,
           },
         },
+        department: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+          },
+        },
         senderUser: {
           select: {
             id: true,
@@ -270,6 +323,9 @@ export async function createNotification(req: Request, res: Response) {
                 id: true,
                 login: true,
                 cityId: true,
+                userKind: true,
+                departmentId: true,
+                department: { select: { id: true, name: true, type: true } },
                 city: {
                   select: {
                     id: true,
@@ -307,11 +363,13 @@ export async function getNotifications(req: Request, res: Response) {
     );
 
     const cityId = parsePositiveNumber(req.query.cityId);
+    const departmentId = parsePositiveNumber(req.query.departmentId);
     const mobileUserId = parsePositiveNumber(req.query.mobileUserId);
     const dateFrom = parseDate(req.query.dateFrom);
     const dateTo = parseDate(req.query.dateTo);
 
     const allowedCityIds = await getAllowedCityIds(req);
+    const allowedDepartmentIds = await getAllowedDepartmentIds(req);
 
     if (allowedCityIds !== null && cityId && !allowedCityIds.includes(cityId)) {
       return res.status(403).json({
@@ -319,9 +377,18 @@ export async function getNotifications(req: Request, res: Response) {
       });
     }
 
+    if (
+      allowedDepartmentIds !== null &&
+      departmentId &&
+      !allowedDepartmentIds.includes(departmentId)
+    ) {
+      return res.status(403).json({ message: "Недостаточно прав для выбранного подразделения" });
+    }
+
     const where = {
       deletedAt: null,
       ...(cityId ? { cityId } : buildCityAccessWhere(allowedCityIds)),
+      ...(departmentId ? { departmentId } : buildDepartmentAccessWhere(allowedDepartmentIds)),
       ...(dateFrom || dateTo
         ? {
             createdAt: {
@@ -357,6 +424,13 @@ export async function getNotifications(req: Request, res: Response) {
               name: true,
             },
           },
+          department: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+            },
+          },
           senderUser: {
             select: {
               id: true,
@@ -371,6 +445,9 @@ export async function getNotifications(req: Request, res: Response) {
                   id: true,
                   login: true,
                   cityId: true,
+                  userKind: true,
+                  departmentId: true,
+                  department: { select: { id: true, name: true, type: true } },
                   city: {
                     select: {
                       id: true,
@@ -417,18 +494,27 @@ export async function getNotificationById(req: Request, res: Response) {
     }
 
     const allowedCityIds = await getAllowedCityIds(req);
+    const allowedDepartmentIds = await getAllowedDepartmentIds(req);
 
     const notification = await prisma.notification.findFirst({
       where: {
         id: notificationId,
         deletedAt: null,
         ...buildCityAccessWhere(allowedCityIds),
+        ...buildDepartmentAccessWhere(allowedDepartmentIds),
       },
       include: {
         city: {
           select: {
             id: true,
             name: true,
+          },
+        },
+        department: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
           },
         },
         senderUser: {
@@ -445,6 +531,9 @@ export async function getNotificationById(req: Request, res: Response) {
                 id: true,
                 login: true,
                 cityId: true,
+                userKind: true,
+                departmentId: true,
+                department: { select: { id: true, name: true, type: true } },
                 city: {
                   select: {
                     id: true,

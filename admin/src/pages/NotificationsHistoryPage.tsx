@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { getAccessibleCities } from "../api/cities.api";
 import type { City } from "../api/cities.api";
+import { getDepartments } from "../api/departments.api";
+import type { Department } from "../api/departments.api";
 import { getMobileUsers } from "../api/mobile-users.api";
 import type { MobileUser } from "../api/mobile-users.api";
 import {
@@ -9,11 +11,13 @@ import {
   type AdminNotification,
 } from "../api/notifications.api";
 import { AccordionSection } from "../components/AccordionSection";
+import { dedupeDepartments, formatDepartmentOption } from "../utils/department-options";
 
 type SectionId = "filters" | "list";
 
 type Filters = {
   cityId: number;
+  departmentId: number;
   mobileUserId: number;
   dateFrom: string;
   dateTo: string;
@@ -23,6 +27,7 @@ type Filters = {
 
 const initialFilters: Filters = {
   cityId: 0,
+  departmentId: 0,
   mobileUserId: 0,
   dateFrom: "",
   dateTo: "",
@@ -149,6 +154,7 @@ function getRecipientTimelineItems(
 
 export function NotificationsHistoryPage() {
   const [cities, setCities] = useState<City[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [mobileUsers, setMobileUsers] = useState<MobileUser[]>([]);
 
   const [filters, setFilters] = useState<Filters>(initialFilters);
@@ -174,21 +180,34 @@ export function NotificationsHistoryPage() {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const filteredMobileUsers = useMemo(() => {
-    if (!filters.cityId) return mobileUsers;
+  const visibleDepartments = useMemo(() => {
+    return dedupeDepartments(
+      departments.filter((department) => {
+        if (filters.cityId && department.cityId !== filters.cityId) return false;
+        return department.isActive && !department.deletedAt;
+      }),
+    );
+  }, [departments, filters.cityId]);
 
-    return mobileUsers.filter((user) => user.cityId === filters.cityId);
-  }, [filters.cityId, mobileUsers]);
+  const filteredMobileUsers = useMemo(() => {
+    return mobileUsers.filter((user) => {
+      if (filters.cityId && user.cityId !== filters.cityId) return false;
+      if (filters.departmentId && user.departmentId !== filters.departmentId) return false;
+      return true;
+    });
+  }, [filters.cityId, filters.departmentId, mobileUsers]);
 
   useEffect(() => {
     async function loadReferences() {
       try {
-        const [citiesData, usersData] = await Promise.all([
+        const [citiesData, departmentsData, usersData] = await Promise.all([
           getAccessibleCities(false),
-          getMobileUsers(undefined, false),
+          getDepartments({ includeInactive: false }),
+          getMobileUsers({ includeInactive: false }),
         ]);
 
         setCities(citiesData);
+        setDepartments(departmentsData);
         setMobileUsers(usersData);
       } catch {
         setError("Не удалось загрузить справочники");
@@ -219,6 +238,7 @@ export function NotificationsHistoryPage() {
         page: nextFilters.page,
         pageSize: nextFilters.pageSize,
         cityId: nextFilters.cityId || undefined,
+        departmentId: nextFilters.departmentId || undefined,
         mobileUserId: nextFilters.mobileUserId || undefined,
         dateFrom: nextFilters.dateFrom || undefined,
         dateTo: nextFilters.dateTo || undefined,
@@ -255,7 +275,8 @@ export function NotificationsHistoryPage() {
       ...prev,
       [key]: value,
       page: key === "page" ? Number(value) : 1,
-      ...(key === "cityId" ? { mobileUserId: 0 } : {}),
+      ...(key === "cityId" ? { departmentId: 0, mobileUserId: 0 } : {}),
+      ...(key === "departmentId" ? { mobileUserId: 0 } : {}),
     }));
   }
 
@@ -309,6 +330,24 @@ export function NotificationsHistoryPage() {
                 {cities.map((city) => (
                   <option key={city.id} value={city.id}>
                     {city.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="field">
+              <span>Подразделение</span>
+              <select
+                value={filters.departmentId}
+                onChange={(event) =>
+                  updateFilter("departmentId", Number(event.target.value))
+                }
+              >
+                <option value={0}>Все подразделения</option>
+
+                {visibleDepartments.map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {formatDepartmentOption(department, { showCity: !filters.cityId })}
                   </option>
                 ))}
               </select>
@@ -399,6 +438,7 @@ export function NotificationsHistoryPage() {
                       <th>№</th>
                       <th>Дата</th>
                       <th>Город</th>
+                      <th>Подразделение</th>
                       <th>Кто отправил</th>
                       <th>Получатели</th>
                       <th>Доставлено</th>
@@ -423,6 +463,7 @@ export function NotificationsHistoryPage() {
                         </td>
                         <td>{formatDateTime(notification.createdAt)}</td>
                         <td>{notification.city.name}</td>
+                        <td>{notification.department ? formatDepartmentOption(notification.department, { showCity: false }) : "Все"}</td>
                         <td>
                           {notification.senderUser?.name ||
                             notification.senderUser?.login ||
@@ -515,6 +556,9 @@ export function NotificationsHistoryPage() {
                   <span>Город</span>
                   <strong>{selectedNotification.city.name}</strong>
 
+                  <span>Подразделение</span>
+                  <strong>{selectedNotification.department ? formatDepartmentOption(selectedNotification.department, { showCity: false }) : "Все подразделения"}</strong>
+
                   <span>Отправил</span>
                   <strong>
                     {selectedNotification.senderUser?.name ||
@@ -569,7 +613,11 @@ export function NotificationsHistoryPage() {
                       >
                         <div className="notification-recipient-person">
                           <strong>{recipient.mobileUser.login}</strong>
-                          <span>{recipient.mobileUser.city?.name ?? "—"}</span>
+                          <span>
+                            {recipient.mobileUser.department
+                              ? formatDepartmentOption(recipient.mobileUser.department, { showCity: false })
+                              : recipient.mobileUser.city?.name ?? "—"}
+                          </span>
 
                           <span
                             className={`status-badge notification-recipient-status ${getRecipientStatusClass(

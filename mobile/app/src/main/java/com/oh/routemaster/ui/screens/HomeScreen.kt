@@ -21,11 +21,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.oh.routemaster.data.remote.BootstrapMobileUserDto
 
 @Composable
 fun HomeScreen(
     status: String,
     unreadCount: Int,
+    mobileUser: BootstrapMobileUserDto?,
     darkTheme: Boolean,
     onThemeChange: (Boolean) -> Unit,
     onLogout: () -> Unit,
@@ -65,6 +67,15 @@ fun HomeScreen(
                     text = status,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                if (mobileUser != null) {
+                    UserContextBlock(mobileUser = mobileUser)
+                } else {
+                    Text(
+                        text = "Користувач: завантаження даних...",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
 
                 Text(
                     text = "Непрочитаних повідомлень: $unreadCount",
@@ -140,5 +151,46 @@ fun HomeScreen(
         TextButton(onClick = onLogout) {
             Text("Вийти")
         }
+    }
+}
+
+@Composable
+private fun UserContextBlock(
+    mobileUser: BootstrapMobileUserDto
+) {
+    val userKind = mobileUser.userKind.orEmpty()
+    val primaryLabel = when (userKind) {
+        "CREW" -> "Позивний"
+        "POST" -> "Пост"
+        else -> "Користувач"
+    }
+
+    val primaryValue = when (userKind) {
+        "CREW" -> mobileUser.crew?.name
+        "POST" -> mobileUser.dutyPost?.name
+        else -> null
+    }.orEmpty().ifBlank {
+        mobileUser.displayName.orEmpty().ifBlank { mobileUser.login }
+    }
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        Text(
+            text = "$primaryLabel: $primaryValue",
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+
+        Text(
+            text = "Підрозділ: ${mobileUser.department?.name ?: "—"}",
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Text(
+            text = "Місто: ${mobileUser.city?.name ?: "—"}",
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }

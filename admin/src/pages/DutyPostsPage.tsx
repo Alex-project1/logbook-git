@@ -1,530 +1,257 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { getAccessibleCities } from "../api/cities.api";
-import type { City } from "../api/cities.api";
 import { getAdminMe } from "../api/auth.api";
 import type { AdminUser } from "../api/auth.api";
-import {
-  createDutyPost,
-  deleteDutyPost,
-  getDutyPosts,
-  restoreDutyPost,
-  updateDutyPost,
-} from "../api/duty-posts.api";
+import { getAccessibleCities } from "../api/cities.api";
+import type { City } from "../api/cities.api";
+import { getDepartments } from "../api/departments.api";
+import type { Department } from "../api/departments.api";
+import { dedupeDepartments, formatDepartmentOption } from "../utils/department-options";
+import { createDutyPost, deleteDutyPost, getDutyPosts, restoreDutyPost, updateDutyPost } from "../api/duty-posts.api";
 import type { DutyPost } from "../api/duty-posts.api";
 import { RowActionMenu } from "../components/RowActionMenu";
-import { AccordionSection } from "../components/AccordionSection";
 
 type FormState = {
   cityId: number;
+  departmentId: number;
   name: string;
+  login: string;
+  password: string;
+  confirmPassword: string;
+  newPassword: string;
+  confirmNewPassword: string;
   comment: string;
   isActive: boolean;
 };
 
 const initialForm: FormState = {
   cityId: 0,
+  departmentId: 0,
   name: "",
+  login: "",
+  password: "",
+  confirmPassword: "",
+  newPassword: "",
+  confirmNewPassword: "",
   comment: "",
   isActive: true,
 };
 
+function getErrorMessage(error: unknown, fallback: string) {
+  const maybe = error as { response?: { data?: { message?: string } } };
+  return maybe.response?.data?.message || fallback;
+}
+
 export function DutyPostsPage() {
   const [cities, setCities] = useState<City[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [posts, setPosts] = useState<DutyPost[]>([]);
-  const [selectedCityId, setSelectedCityId] = useState<number>(0);
+  const [selectedCityId, setSelectedCityId] = useState(0);
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState(0);
   const [showArchive, setShowArchive] = useState(false);
-
   const [form, setForm] = useState<FormState>(initialForm);
   const [editingPost, setEditingPost] = useState<DutyPost | null>(null);
-
   const [currentUser, setCurrentUser] = useState<AdminUser | null>(null);
-
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const activeCities = useMemo(
-    () => cities.filter((city) => city.isActive),
-    [cities],
+  const activeCities = useMemo(() => cities.filter((city) => city.isActive), [cities]);
+  const activeDepartments = useMemo(
+    () => dedupeDepartments(departments.filter((department) => department.isActive && !department.deletedAt)),
+    [departments],
   );
-
+  const formDepartments = useMemo(
+    () => activeDepartments.filter((department) => department.cityId === form.cityId),
+    [activeDepartments, form.cityId],
+  );
+  const filterDepartments = useMemo(
+    () => activeDepartments.filter((department) => !selectedCityId || department.cityId === selectedCityId),
+    [activeDepartments, selectedCityId],
+  );
   const roleCode = currentUser?.role?.code;
-  const canEditDutyPosts = roleCode === "super_admin" || roleCode === "admin";
+  const canEdit = roleCode === "super_admin" || roleCode === "admin";
 
-  type SectionId = "form" | "list";
-
-  const [openedSections, setOpenedSections] = useState<
-    Record<SectionId, boolean>
-  >({
-    form: false,
-    list: true,
-  });
-  function toggleSection(section: SectionId) {
-    setOpenedSections((prev) => ({
-      ...prev,
-      [section]: !prev[section],
-    }));
-  }
-
-  async function loadCurrentUser() {
-    try {
-      const response = await getAdminMe();
-      setCurrentUser(response.user);
-    } catch {
-      setCurrentUser(null);
-    }
-  }
-
-  async function loadInitialData() {
-    setLoading(true);
-    setError("");
-
-    try {
-      const citiesData = await getAccessibleCities();
-      setCities(citiesData);
-
-      const firstCityId = citiesData[0]?.id ?? 0;
-
-      setSelectedCityId((current) => current || firstCityId);
-      setForm((prev) => ({
-        ...prev,
-        cityId: prev.cityId || firstCityId,
-      }));
-
-      const postsData = await getDutyPosts(
-        firstCityId || undefined,
-        showArchive,
-      );
-      setPosts(postsData);
-    } catch {
-      setError("Не удалось загрузить данные");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function loadPosts(cityId = selectedCityId, archive = showArchive) {
-    setError("");
-
-    try {
-      const data = await getDutyPosts(cityId || undefined, archive);
-      setPosts(data);
-    } catch {
-      setError("Не удалось загрузить посты");
-    }
+  async function loadPosts(cityId = selectedCityId, departmentId = selectedDepartmentId, archive = showArchive) {
+    const data = await getDutyPosts({ cityId: cityId || undefined, departmentId: departmentId || undefined, archive, includeInactive: true });
+    setPosts(data);
   }
 
   useEffect(() => {
-    loadCurrentUser();
-    loadInitialData();
+    async function load() {
+      try {
+        setLoading(true);
+        const [me, citiesData, departmentsData] = await Promise.all([
+          getAdminMe().catch(() => null),
+          getAccessibleCities(),
+          getDepartments({ includeInactive: true }),
+        ]);
+        setCurrentUser(me?.user ?? null);
+        setCities(citiesData);
+        setDepartments(departmentsData);
+        const firstCityId = citiesData[0]?.id ?? 0;
+        const firstDepartmentId = departmentsData.find((department) => department.cityId === firstCityId)?.id ?? 0;
+        setForm((prev) => ({ ...prev, cityId: prev.cityId || firstCityId, departmentId: prev.departmentId || firstDepartmentId }));
+        const postsData = await getDutyPosts({ includeInactive: true });
+        setPosts(postsData);
+      } catch (caught) {
+        setError(getErrorMessage(caught, "Не удалось загрузить посты"));
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
   }, []);
 
-  async function handleCityFilterChange(cityId: number) {
-    setSelectedCityId(cityId);
-
-    setForm((prev) => ({
-      ...prev,
-      cityId: cityId || activeCities[0]?.id || 0,
-    }));
-
-    await loadPosts(cityId, showArchive);
+  function resetForm() {
+    const cityId = selectedCityId || activeCities[0]?.id || 0;
+    const departmentId = departments.find((department) => department.cityId === cityId && department.isActive)?.id ?? 0;
+    setEditingPost(null);
+    setForm({ ...initialForm, cityId, departmentId });
+    setError("");
   }
 
-  async function handleArchiveFilterChange(value: string) {
-    const archive = value === "archive";
-
-    setShowArchive(archive);
-    setEditingPost(null);
-
-    setForm({
-      ...initialForm,
-      cityId: selectedCityId || activeCities[0]?.id || 0,
-    });
-
-    setError("");
-    setSuccess("");
-
-    await loadPosts(selectedCityId, archive);
+  function handleFormCityChange(cityId: number) {
+    const departmentId = departments.find((department) => department.cityId === cityId && department.isActive)?.id ?? 0;
+    setForm((prev) => ({ ...prev, cityId, departmentId }));
   }
 
   function startEdit(post: DutyPost) {
     setEditingPost(post);
-
     setForm({
       cityId: post.cityId,
+      departmentId: post.departmentId,
       name: post.name,
-      comment: post.comment ?? "",
+      login: post.login || post.mobileUser?.login || "",
+      password: "",
+      confirmPassword: "",
+      newPassword: "",
+      confirmNewPassword: "",
+      comment: post.comment || "",
       isActive: post.isActive,
     });
-
     setError("");
     setSuccess("");
   }
 
-  function resetForm() {
-    setEditingPost(null);
-
-    setForm({
-      ...initialForm,
-      cityId: selectedCityId || activeCities[0]?.id || 0,
-    });
-
-    setError("");
-  }
-
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!form.cityId) return setError("Выберите город");
+    if (!form.departmentId) return setError("Выберите подразделение");
+    if (!form.name.trim()) return setError("Введите название поста");
+    if (!form.login.trim()) return setError("Введите логин приложения");
 
-    if (!form.cityId) {
-      setError("Выберите город");
-      return;
+    if (!editingPost) {
+      if (!form.password) return setError("Введите пароль");
+      if (form.password.length < 6) return setError("Пароль должен быть минимум 6 символов");
+      if (form.password !== form.confirmPassword) return setError("Пароли не совпадают");
     }
 
-    if (!form.name.trim()) {
-      setError("Введите название поста");
-      return;
+    if (editingPost && (form.newPassword || form.confirmNewPassword)) {
+      if (form.newPassword.length < 6) return setError("Новый пароль должен быть минимум 6 символов");
+      if (form.newPassword !== form.confirmNewPassword) return setError("Новые пароли не совпадают");
     }
 
     setSaving(true);
     setError("");
     setSuccess("");
-
     try {
+      const basePayload = {
+        cityId: form.cityId,
+        departmentId: form.departmentId,
+        name: form.name.trim(),
+        login: form.login.trim(),
+        comment: form.comment.trim() || null,
+        isActive: form.isActive,
+      };
+
       if (editingPost) {
         await updateDutyPost(editingPost.id, {
-          cityId: form.cityId,
-          name: form.name.trim(),
-          comment: form.comment.trim() || null,
-          isActive: form.isActive,
+          ...basePayload,
+          ...(form.newPassword ? { newPassword: form.newPassword, confirmNewPassword: form.confirmNewPassword } : {}),
         });
-
         setSuccess("Пост обновлен");
       } else {
-        await createDutyPost({
-          cityId: form.cityId,
-          name: form.name.trim(),
-          comment: form.comment.trim() || null,
-          isActive: form.isActive,
-        });
-
-        setSuccess("Пост добавлен");
+        await createDutyPost({ ...basePayload, password: form.password, confirmPassword: form.confirmPassword });
+        setSuccess("Пост создан. Логин и пароль можно передать пользователю приложения.");
       }
-
       resetForm();
-      await loadPosts(selectedCityId, showArchive);
-    } catch (err: any) {
-      setError(err.response?.data?.message || "Не удалось сохранить пост");
+      await loadPosts();
+    } catch (caught) {
+      setError(getErrorMessage(caught, "Не удалось сохранить пост"));
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleToggleActive(post: DutyPost) {
-    setError("");
-    setSuccess("");
-
-    try {
-      await updateDutyPost(post.id, {
-        isActive: !post.isActive,
-      });
-
-      setSuccess(post.isActive ? "Пост отключен" : "Пост включен");
-      await loadPosts(selectedCityId, showArchive);
-    } catch (err: any) {
-      setError(
-        err.response?.data?.message || "Не удалось изменить статус поста",
-      );
-    }
-  }
-
-  async function handleDelete(post: DutyPost) {
-    const confirmed = window.confirm(
-      `Удалить пост "${post.name}"? Он будет скрыт из системы.`,
-    );
-
-    if (!confirmed) return;
-
-    setError("");
-    setSuccess("");
-
+  async function handleArchive(post: DutyPost) {
+    if (!window.confirm(`Отправить пост "${post.name}" в архив? Пользователь приложения тоже будет отключен.`)) return;
     try {
       await deleteDutyPost(post.id);
-      setSuccess("Пост удален");
-      await loadPosts(selectedCityId, showArchive);
-    } catch (err: any) {
-      setError(err.response?.data?.message || "Не удалось удалить пост");
+      setSuccess("Пост отправлен в архив");
+      await loadPosts();
+    } catch (caught) {
+      setError(getErrorMessage(caught, "Не удалось отправить пост в архив"));
     }
   }
 
   async function handleRestore(post: DutyPost) {
-    setError("");
-    setSuccess("");
-
     try {
       await restoreDutyPost(post.id);
       setSuccess("Пост восстановлен");
-      await loadPosts(selectedCityId, showArchive);
-    } catch (err: any) {
-      setError(err.response?.data?.message || "Не удалось восстановить пост");
+      await loadPosts();
+    } catch (caught) {
+      setError(getErrorMessage(caught, "Не удалось восстановить пост"));
     }
   }
 
+  async function handleCityFilterChange(cityId: number) {
+    setSelectedCityId(cityId);
+    setSelectedDepartmentId(0);
+    setForm((prev) => ({ ...prev, cityId: cityId || activeCities[0]?.id || 0, departmentId: departments.find((department) => department.cityId === (cityId || activeCities[0]?.id || 0) && department.isActive)?.id ?? 0 }));
+    await loadPosts(cityId, 0, showArchive);
+  }
+
+  async function handleDepartmentFilterChange(departmentId: number) {
+    setSelectedDepartmentId(departmentId);
+    await loadPosts(selectedCityId, departmentId, showArchive);
+  }
+
+  async function handleArchiveFilterChange(value: string) {
+    const archive = value === "archive";
+    setShowArchive(archive);
+    setEditingPost(null);
+    await loadPosts(selectedCityId, selectedDepartmentId, archive);
+  }
+
   return (
-    <div className="page">
-      <div className="page-header">
-        <div>
-          <h1>Посты</h1>
-          <p>Справочник дополнительных и стационарных постов по городам</p>
-        </div>
+    <div className="page-card">
+      <div className="page-header"><div><h1>Доп. посты</h1><p>Пост создается вместе с логином приложения и привязывается к подразделению.</p></div></div>
+      {error && <div className="alert alert-error">{error}</div>}
+      {success && <div className="alert alert-success">{success}</div>}
+
+      {canEdit && !showArchive && (
+        <form className="form-grid" onSubmit={handleSubmit}>
+          <label>Город<select value={form.cityId} onChange={(event) => handleFormCityChange(Number(event.target.value))}><option value={0}>Выберите город</option>{activeCities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></label>
+          <label>Подразделение<select value={form.departmentId} onChange={(event) => setForm((prev) => ({ ...prev, departmentId: Number(event.target.value) }))}><option value={0}>Выберите подразделение</option>{formDepartments.map((department) => <option key={department.id} value={department.id}>{formatDepartmentOption(department, { showCity: false })}</option>)}</select></label>
+          <label>Название поста<input value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} /></label>
+          <label>Логин приложения<input value={form.login} onChange={(event) => setForm((prev) => ({ ...prev, login: event.target.value }))} /></label>
+          {!editingPost && <><label>Пароль<input type="password" value={form.password} onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))} /></label><label>Подтвердить пароль<input type="password" value={form.confirmPassword} onChange={(event) => setForm((prev) => ({ ...prev, confirmPassword: event.target.value }))} /></label></>}
+          {editingPost && <><div className="alert alert-info">Текущий пароль не хранится в открытом виде. Для изменения задайте новый пароль.</div><label>Новый пароль<input type="password" value={form.newPassword} onChange={(event) => setForm((prev) => ({ ...prev, newPassword: event.target.value }))} /></label><label>Подтвердить новый пароль<input type="password" value={form.confirmNewPassword} onChange={(event) => setForm((prev) => ({ ...prev, confirmNewPassword: event.target.value }))} /></label></>}
+          <label>Комментарий<input value={form.comment} onChange={(event) => setForm((prev) => ({ ...prev, comment: event.target.value }))} /></label>
+          <label className="checkbox-row"><input type="checkbox" checked={form.isActive} onChange={(event) => setForm((prev) => ({ ...prev, isActive: event.target.checked }))} />Активный</label>
+          <div className="form-actions"><button type="submit" disabled={saving}>{saving ? "Сохранение..." : editingPost ? "Обновить" : "Добавить"}</button>{editingPost && <button type="button" className="secondary-button" onClick={resetForm}>Отменить</button>}</div>
+        </form>
+      )}
+
+      <div className="filters-row">
+        <label>Город<select value={selectedCityId} onChange={(event) => handleCityFilterChange(Number(event.target.value))}><option value={0}>Все города</option>{cities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></label>
+        <label>Подразделение<select value={selectedDepartmentId} onChange={(event) => handleDepartmentFilterChange(Number(event.target.value))}><option value={0}>Все подразделения</option>{filterDepartments.map((department) => <option key={department.id} value={department.id}>{formatDepartmentOption(department, { showCity: !selectedCityId })}</option>)}</select></label>
+        <label>Состояние<select value={showArchive ? "archive" : "active"} onChange={(event) => handleArchiveFilterChange(event.target.value)}><option value="active">Активные</option><option value="archive">Архив</option></select></label>
       </div>
 
-      <div className="content-grid">
-        {canEditDutyPosts && (
-          <AccordionSection
-            title={editingPost ? "Редактировать пост" : "Добавить пост"}
-            subtitle=" "
-            open={openedSections.form}
-            onToggle={() => {
-              toggleSection("form");
-            }}
-          >
-            <form className="panel-card" onSubmit={handleSubmit}>
-              <h2></h2>
-
-              <label className="field">
-                <span>Город</span>
-                <select
-                  value={form.cityId}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      cityId: Number(event.target.value),
-                    }))
-                  }
-                >
-                  <option value={0}>Выберите город</option>
-
-                  {activeCities.map((city) => (
-                    <option key={city.id} value={city.id}>
-                      {city.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="field">
-                <span>Название поста</span>
-                <input
-                  value={form.name}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      name: event.target.value,
-                    }))
-                  }
-                  placeholder="Например: КПП-1"
-                />
-              </label>
-
-              <label className="field">
-                <span>Комментарий</span>
-                <textarea
-                  value={form.comment}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      comment: event.target.value,
-                    }))
-                  }
-                  placeholder="Необязательно"
-                  rows={3}
-                />
-              </label>
-
-              <label className="checkbox-field">
-                <input
-                  type="checkbox"
-                  checked={form.isActive}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      isActive: event.target.checked,
-                    }))
-                  }
-                />
-                <span>Пост активен</span>
-              </label>
-
-              {error && <div className="form-error">{error}</div>}
-              {success && <div className="form-success">{success}</div>}
-
-              <div className="form-actions">
-                <button className="primary-button" disabled={saving}>
-                  {saving
-                    ? "Сохранение..."
-                    : editingPost
-                      ? "Сохранить"
-                      : "Добавить"}
-                </button>
-
-                {editingPost && (
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={resetForm}
-                  >
-                    Отмена
-                  </button>
-                )}
-              </div>
-            </form>
-          </AccordionSection>
-        )}
-        <AccordionSection
-          title="Список постов"
-          subtitle={`Всего: ${posts.length}`}
-          open={openedSections.list}
-          onToggle={()=>{toggleSection('list')}}
-        >
-          <div className="panel-card table-card">
-            <div className="table-header">
-              
-
-              <div className="table-header-actions">
-                <select
-                  className="compact-select"
-                  value={selectedCityId}
-                  onChange={(event) =>
-                    handleCityFilterChange(Number(event.target.value))
-                  }
-                >
-                  <option value={0}>Все города</option>
-
-                  {cities.map((city) => (
-                    <option key={city.id} value={city.id}>
-                      {city.name}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  className="compact-select"
-                  value={showArchive ? "archive" : "active"}
-                  onChange={(event) =>
-                    handleArchiveFilterChange(event.target.value)
-                  }
-                >
-                  <option value="active">Рабочие</option>
-                  <option value="archive">Архив</option>
-                </select>
-
-                <button
-                  className="secondary-button"
-                  onClick={() => loadPosts(selectedCityId, showArchive)}
-                >
-                  Обновить
-                </button>
-              </div>
-            </div>
-
-            {loading ? (
-              <div className="empty-state">Загрузка...</div>
-            ) : posts.length === 0 ? (
-              <div className="empty-state">
-                {showArchive ? "В архиве нет постов" : "Посты еще не добавлены"}
-              </div>
-            ) : (
-              <div className="table-wrap">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Пост</th>
-                      <th>Город</th>
-                      <th>Комментарий</th>
-                      <th>Статус</th>
-                      {canEditDutyPosts && <th>Действия</th>}
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {posts.map((post) => (
-                      <tr key={post.id}>
-                        <td>{post.id}</td>
-
-                        <td>
-                          <strong>{post.name}</strong>
-                        </td>
-
-                        <td>{post.city?.name ?? post.cityId}</td>
-
-                        <td>{post.comment || "—"}</td>
-
-                        <td>
-                          {showArchive ? (
-                            <span className="status-badge status-inactive">
-                              В архиве
-                            </span>
-                          ) : (
-                            <span
-                              className={
-                                post.isActive
-                                  ? "status-badge status-active"
-                                  : "status-badge status-inactive"
-                              }
-                            >
-                              {post.isActive ? "Активен" : "Отключен"}
-                            </span>
-                          )}
-                        </td>
-
-                        {canEditDutyPosts && (
-                          <td className="actions-cell">
-                            {showArchive ? (
-                              <RowActionMenu
-                                items={[
-                                  {
-                                    label: "Восстановить",
-                                    onClick: () => handleRestore(post),
-                                  },
-                                ]}
-                              />
-                            ) : (
-                              <RowActionMenu
-                                items={[
-                                  {
-                                    label: "Редактировать",
-                                    variant: "edit",
-                                    onClick: () => startEdit(post),
-                                  },
-                                  {
-                                    label: post.isActive
-                                      ? "Отключить"
-                                      : "Включить",
-                                    onClick: () => handleToggleActive(post),
-                                  },
-                                  {
-                                    label: "Удалить",
-                                    variant: "danger",
-                                    onClick: () => handleDelete(post),
-                                  },
-                                ]}
-                              />
-                            )}
-                          </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </AccordionSection>
-      </div>
+      {loading ? <p>Загрузка...</p> : <div className="table-wrapper"><table><thead><tr><th>Пост</th><th>Логин</th><th>Город</th><th>Подразделение</th><th>Комментарий</th><th>Статус</th><th></th></tr></thead><tbody>{posts.map((post) => <tr key={post.id}><td>{post.name}</td><td>{post.login || post.mobileUser?.login || "—"}</td><td>{post.city?.name || post.cityId}</td><td>{post.department ? formatDepartmentOption(post.department, { showCity: !selectedCityId }) : post.departmentId}</td><td>{post.comment || "—"}</td><td>{post.deletedAt ? "Архив" : post.isActive ? "Активен" : "Отключен"}</td><td>{canEdit && <RowActionMenu items={showArchive ? [{ label: "Восстановить", onClick: () => handleRestore(post), variant: "edit" }] : [{ label: "Редактировать", onClick: () => startEdit(post), variant: "edit" }, { label: "В архив", onClick: () => handleArchive(post), variant: "danger" }]} />}</td></tr>)}{posts.length === 0 && <tr><td colSpan={7}>Нет постов</td></tr>}</tbody></table></div>}
     </div>
   );
 }

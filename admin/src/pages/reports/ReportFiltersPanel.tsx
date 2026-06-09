@@ -1,6 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getCities } from "../../api/cities.api";
 import type { City } from "../../api/cities.api";
+import { getDepartments } from "../../api/departments.api";
+import type { Department } from "../../api/departments.api";
+import { dedupeDepartments, formatDepartmentOption } from "../../utils/department-options";
 import type { ReportFilters } from "../../api/reports.api";
 
 type Props = {
@@ -23,15 +26,31 @@ export function ReportFiltersPanel({
   excelLoading,
 }: Props) {
   const [cities, setCities] = useState<City[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
 
   useEffect(() => {
-    async function loadCities() {
-      const data = await getCities(false);
-      setCities(data);
+    async function loadReferences() {
+      const [citiesData, departmentsData] = await Promise.all([
+        getCities(false),
+        getDepartments({ includeInactive: true }),
+      ]);
+
+      setCities(citiesData);
+      setDepartments(departmentsData);
     }
 
-    loadCities();
+    loadReferences();
   }, []);
+
+  const visibleDepartments = useMemo(() => {
+    return dedupeDepartments(
+      departments.filter((department) => {
+        if (department.deletedAt || !department.isActive) return false;
+        if (value.cityId && department.cityId !== value.cityId) return false;
+        return true;
+      }),
+    );
+  }, [departments, value.cityId]);
 
   return (
     <div className="report-filters panel-card">
@@ -72,6 +91,7 @@ export function ReportFiltersPanel({
               onChange({
                 ...value,
                 cityId: Number(event.target.value) || undefined,
+                departmentId: undefined,
               })
             }
           >
@@ -80,6 +100,27 @@ export function ReportFiltersPanel({
             {cities.map((city) => (
               <option key={city.id} value={city.id}>
                 {city.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="field">
+          <span>Подразделение</span>
+          <select
+            value={value.departmentId ?? 0}
+            onChange={(event) =>
+              onChange({
+                ...value,
+                departmentId: Number(event.target.value) || undefined,
+              })
+            }
+          >
+            <option value={0}>Все подразделения</option>
+
+            {visibleDepartments.map((department) => (
+              <option key={department.id} value={department.id}>
+                {formatDepartmentOption(department, { showCity: !value.cityId, showType: false })}
               </option>
             ))}
           </select>

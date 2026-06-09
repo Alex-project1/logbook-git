@@ -5,6 +5,7 @@ import {
   AppSyncStatus,
   ShiftSourceType,
   TripEventCategory,
+  MobileUserKind,
 } from "@prisma/client";
 import { prisma } from "../../config/prisma";
 
@@ -174,6 +175,19 @@ export async function createMobileShift(req: Request, res: Response) {
 
     const data = parsed.data;
     const cityId = req.mobileUser.cityId;
+    const departmentId = req.mobileUser.departmentId;
+
+    if (req.mobileUser.userKind !== MobileUserKind.CREW || !req.mobileUser.crewId) {
+      return res.status(403).json({
+        message: "Створення зміни ГШР доступне тільки користувачу-наряду",
+      });
+    }
+
+    if (data.crewId !== req.mobileUser.crewId) {
+      return res.status(403).json({
+        message: "Не можна відправити зміну за інший наряд",
+      });
+    }
 
     if (data.driverEmployeeId === data.seniorEmployeeId) {
       return res.status(400).json({
@@ -213,6 +227,7 @@ export async function createMobileShift(req: Request, res: Response) {
         where: {
           id: data.crewId,
           cityId,
+          departmentId,
           deletedAt: null,
           isActive: true,
         },
@@ -221,6 +236,7 @@ export async function createMobileShift(req: Request, res: Response) {
         where: {
           id: data.vehicleId,
           cityId,
+          departmentId,
           deletedAt: null,
           isActive: true,
         },
@@ -229,6 +245,7 @@ export async function createMobileShift(req: Request, res: Response) {
         where: {
           id: data.driverEmployeeId,
           cityId,
+          departmentId,
           deletedAt: null,
           isActive: true,
         },
@@ -237,6 +254,7 @@ export async function createMobileShift(req: Request, res: Response) {
         where: {
           id: data.seniorEmployeeId,
           cityId,
+          departmentId,
           deletedAt: null,
           isActive: true,
         },
@@ -362,10 +380,11 @@ export async function createMobileShift(req: Request, res: Response) {
         data: {
           localShiftId: data.localShiftId,
           cityId,
+          departmentId,
           mobileUserId: req.mobileUser!.id,
           sourceType: ShiftSourceType.MOBILE_APP,
 
-          crewId: data.crewId,
+          crewId: req.mobileUser!.crewId!,
           vehicleId: data.vehicleId,
           driverEmployeeId: data.driverEmployeeId,
           driverHasWeapon: data.driverHasWeapon,

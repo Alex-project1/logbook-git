@@ -32,6 +32,9 @@ export async function requireMobileAuth(
       },
       include: {
         city: true,
+        department: true,
+        crew: true,
+        dutyPost: true,
       },
     });
 
@@ -40,7 +43,9 @@ export async function requireMobileAuth(
       !mobileUser.isActive ||
       mobileUser.deletedAt ||
       !mobileUser.city.isActive ||
-      mobileUser.city.deletedAt
+      mobileUser.city.deletedAt ||
+      !mobileUser.department.isActive ||
+      mobileUser.department.deletedAt
     ) {
       return res.status(401).json({
         message: "Mobile user is not active",
@@ -51,6 +56,16 @@ export async function requireMobileAuth(
       id: mobileUser.id,
       login: mobileUser.login,
       cityId: mobileUser.cityId,
+      departmentId: mobileUser.departmentId,
+      userKind: mobileUser.userKind,
+      crewId: mobileUser.crewId,
+      dutyPostId: mobileUser.dutyPostId,
+      displayName:
+        mobileUser.displayName ||
+        mobileUser.crew?.name ||
+        mobileUser.dutyPost?.name ||
+        mobileUser.login,
+      departmentType: mobileUser.department.type,
     };
 
     next();

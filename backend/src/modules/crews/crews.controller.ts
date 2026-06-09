@@ -1,16 +1,26 @@
 import { Request, Response } from "express";
 import { z } from "zod";
+import bcrypt from "bcrypt";
+import { CrewDutyType, CrewTransportType, DepartmentType, MobileUserKind } from "@prisma/client";
 import { prisma } from "../../config/prisma";
-import { CrewDutyType, CrewTransportType } from "@prisma/client";
 import {
   buildCityAccessWhere,
-  canEditCityData,
+  buildDepartmentAccessWhere,
+  canEditDepartmentData,
   getAllowedCityIds,
+  getAllowedDepartmentIds,
 } from "../../utils/admin-access";
+import { validateDepartmentInCity } from "../../utils/departments";
+
+const passwordSchema = z.string().min(6, "Пароль должен быть минимум 6 символов");
 
 const createCrewSchema = z.object({
   cityId: z.number().int().positive(),
+  departmentId: z.number().int().positive(),
   name: z.string().min(1, "Crew name is required"),
+  login: z.string().min(1, "Login is required"),
+  password: passwordSchema,
+  confirmPassword: z.string().min(1),
   comment: z.string().optional().nullable(),
   dutyType: z.nativeEnum(CrewDutyType).optional(),
   transportType: z.nativeEnum(CrewTransportType).optional(),
@@ -20,74 +30,80 @@ const createCrewSchema = z.object({
 
 const updateCrewSchema = z.object({
   cityId: z.number().int().positive().optional(),
+  departmentId: z.number().int().positive().optional(),
   name: z.string().min(1, "Crew name is required").optional(),
+  login: z.string().min(1, "Login is required").optional(),
+  newPassword: z.string().optional(),
+  confirmNewPassword: z.string().optional(),
   comment: z.string().optional().nullable(),
   dutyType: z.nativeEnum(CrewDutyType).optional(),
   transportType: z.nativeEnum(CrewTransportType).optional(),
   durationHours: z.number().positive().max(24).optional(),
   isActive: z.boolean().optional(),
 });
-function normalizeCrewDurationHours(
-  dutyType: CrewDutyType,
-  durationHours?: number | null,
-) {
-  if (dutyType === CrewDutyType.FULL_DAY) {
-    return 24;
-  }
 
+function normalizeCrewDurationHours(dutyType: CrewDutyType, durationHours?: number | null) {
+  if (dutyType === CrewDutyType.FULL_DAY) return 24;
   const value = Number(durationHours);
-
-  if (!Number.isFinite(value) || value <= 0 || value > 24) {
-    throw new Error("Для дневного или ночного наряда укажите часы от 0 до 24");
-  }
-
+  if (!Number.isFinite(value) || value <= 0 || value > 24) throw new Error("Для дневного или ночного наряда укажите часы от 0 до 24");
   return Number(value.toFixed(2));
 }
+
+function crewSelect() {
+  return {
+    id: true,
+    cityId: true,
+    departmentId: true,
+    name: true,
+    comment: true,
+    isActive: true,
+    deletedAt: true,
+    createdAt: true,
+    updatedAt: true,
+    dutyType: true,
+    transportType: true,
+    durationHours: true,
+    city: { select: { id: true, name: true } },
+    department: { select: { id: true, name: true, type: true } },
+    mobileUsers: {
+      where: { userKind: MobileUserKind.CREW },
+      select: { id: true, login: true, isActive: true, deletedAt: true },
+      take: 1,
+    },
+  } as const;
+}
+
+function sanitizeCrew(crew: any) {
+  const mobileUser = crew.mobileUsers?.[0] ?? null;
+  const { mobileUsers, ...rest } = crew;
+  return { ...rest, mobileUser, login: mobileUser?.login ?? "" };
+}
+
 export async function getCrews(req: Request, res: Response) {
   try {
     const cityId = req.query.cityId ? Number(req.query.cityId) : undefined;
+    const departmentId = req.query.departmentId ? Number(req.query.departmentId) : undefined;
     const includeInactive = req.query.includeInactive === "true";
     const archive = req.query.archive === "true";
 
     const allowedCityIds = await getAllowedCityIds(req);
+    const allowedDepartmentIds = await getAllowedDepartmentIds(req);
 
-    if (allowedCityIds !== null && cityId && !allowedCityIds.includes(cityId)) {
-      return res.json({
-        data: [],
-      });
-    }
+    if (allowedCityIds !== null && cityId && !allowedCityIds.includes(cityId)) return res.json({ data: [] });
+    if (allowedDepartmentIds !== null && departmentId && !allowedDepartmentIds.includes(departmentId)) return res.json({ data: [] });
 
     const crews = await prisma.crew.findMany({
       where: {
         ...(archive ? { deletedAt: { not: null } } : { deletedAt: null }),
         ...(cityId ? { cityId } : buildCityAccessWhere(allowedCityIds)),
+        ...(departmentId ? { departmentId } : buildDepartmentAccessWhere(allowedDepartmentIds)),
         ...(includeInactive || archive ? {} : { isActive: true }),
       },
-      orderBy: {
-        name: "asc",
-      },
-      select: {
-        id: true,
-        cityId: true,
-        name: true,
-        comment: true,
-        isActive: true,
-        deletedAt: true,
-        createdAt: true,
-        updatedAt: true,
-        dutyType: true,
-        transportType: true,
-        durationHours: true,
-        city: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
+      orderBy: { name: "asc" },
+      select: crewSelect(),
     });
 
-    return res.json({ data: crews });
+    return res.json({ data: crews.map(sanitizeCrew) });
   } catch (error) {
     console.error("getCrews error:", error);
     return res.status(500).json({ message: "Internal server error" });
@@ -97,42 +113,18 @@ export async function getCrews(req: Request, res: Response) {
 export async function getCrewById(req: Request, res: Response) {
   try {
     const crewId = Number(req.params.id);
+    if (!Number.isInteger(crewId)) return res.status(400).json({ message: "Invalid crew id" });
 
-    if (!Number.isInteger(crewId)) {
-      return res.status(400).json({ message: "Invalid crew id" });
-    }
     const allowedCityIds = await getAllowedCityIds(req);
+    const allowedDepartmentIds = await getAllowedDepartmentIds(req);
+
     const crew = await prisma.crew.findFirst({
-      where: {
-        id: crewId,
-        deletedAt: null,
-        ...buildCityAccessWhere(allowedCityIds),
-      },
-      select: {
-        id: true,
-        cityId: true,
-        name: true,
-        comment: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-        dutyType: true,
-        transportType: true,
-        durationHours: true,
-        city: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
+      where: { id: crewId, deletedAt: null, ...buildCityAccessWhere(allowedCityIds), ...buildDepartmentAccessWhere(allowedDepartmentIds) },
+      select: crewSelect(),
     });
 
-    if (!crew) {
-      return res.status(404).json({ message: "Crew not found" });
-    }
-
-    return res.json({ data: crew });
+    if (!crew) return res.status(404).json({ message: "Crew not found" });
+    return res.json({ data: sanitizeCrew(crew) });
   } catch (error) {
     console.error("getCrewById error:", error);
     return res.status(500).json({ message: "Internal server error" });
@@ -142,87 +134,59 @@ export async function getCrewById(req: Request, res: Response) {
 export async function createCrew(req: Request, res: Response) {
   try {
     const parsed = createCrewSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Validation error", errors: parsed.error.flatten() });
+    if (parsed.data.password !== parsed.data.confirmPassword) return res.status(400).json({ message: "Пароли не совпадают" });
 
-    if (!parsed.success) {
-      return res.status(400).json({
-        message: "Validation error",
-        errors: parsed.error.flatten(),
-      });
-    }
-    const canEdit = await canEditCityData(req, parsed.data.cityId);
+    if (!(await canEditDepartmentData(req, parsed.data.departmentId))) return res.status(403).json({ message: "Недостаточно прав для этого подразделения" });
 
-    if (!canEdit) {
-      return res.status(403).json({
-        message: "Недостаточно прав для этого города",
-      });
-    }
+    const department = await validateDepartmentInCity({ cityId: parsed.data.cityId, departmentId: parsed.data.departmentId, requiredType: DepartmentType.GBR });
+    if (!department) return res.status(404).json({ message: "Подразделение ГШР не найдено или неактивно" });
 
-    const city = await prisma.city.findFirst({
-      where: {
-        id: parsed.data.cityId,
-        deletedAt: null,
-        isActive: true,
-      },
-    });
+    const existingCrew = await prisma.crew.findFirst({ where: { cityId: parsed.data.cityId, name: parsed.data.name.trim(), deletedAt: null } });
+    if (existingCrew) return res.status(409).json({ message: "Наряд с таким названием уже существует" });
 
-    if (!city) {
-      return res.status(404).json({ message: "City not found or inactive" });
-    }
+    const existingLogin = await prisma.mobileUser.findUnique({ where: { login: parsed.data.login.trim() } });
+    if (existingLogin) return res.status(409).json({ message: "Такой логин уже используется" });
 
-    const existingCrew = await prisma.crew.findFirst({
-      where: {
-        cityId: parsed.data.cityId,
-        name: parsed.data.name,
-        deletedAt: null,
-      },
-    });
-
-    if (existingCrew) {
-      return res.status(409).json({
-        message: "Crew with this name already exists in this city",
-      });
-    }
     const dutyType = parsed.data.dutyType ?? CrewDutyType.FULL_DAY;
     const transportType = parsed.data.transportType ?? CrewTransportType.AUTO;
-
     let durationHours = 24;
+    try { durationHours = normalizeCrewDurationHours(dutyType, parsed.data.durationHours); } catch (error) { return res.status(400).json({ message: error instanceof Error ? error.message : "Некорректная длительность" }); }
 
-    try {
-      durationHours = normalizeCrewDurationHours(
-        dutyType,
-        parsed.data.durationHours,
-      );
-    } catch (error) {
-      return res.status(400).json({
-        message:
-          error instanceof Error ? error.message : "Некорректная длительность",
+    const passwordHash = await bcrypt.hash(parsed.data.password, 10);
+
+    const crew = await prisma.$transaction(async (tx) => {
+      const createdCrew = await tx.crew.create({
+        data: {
+          cityId: parsed.data.cityId,
+          departmentId: parsed.data.departmentId,
+          name: parsed.data.name.trim(),
+          comment: parsed.data.comment?.trim() || null,
+          dutyType,
+          transportType,
+          durationHours,
+          isActive: parsed.data.isActive ?? true,
+        },
       });
-    }
-    const crew = await prisma.crew.create({
-      data: {
-        cityId: parsed.data.cityId,
-        name: parsed.data.name,
-        comment: parsed.data.comment ?? null,
-        dutyType,
-        transportType,
-        durationHours,
-        isActive: parsed.data.isActive ?? true,
-      },
-      select: {
-        id: true,
-        cityId: true,
-        name: true,
-        comment: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-        dutyType: true,
-        transportType: true,
-        durationHours: true,
-      },
+
+      await tx.mobileUser.create({
+        data: {
+          cityId: parsed.data.cityId,
+          departmentId: parsed.data.departmentId,
+          userKind: MobileUserKind.CREW,
+          crewId: createdCrew.id,
+          login: parsed.data.login.trim(),
+          passwordHash,
+          displayName: createdCrew.name,
+          comment: parsed.data.comment?.trim() || null,
+          isActive: parsed.data.isActive ?? true,
+        },
+      });
+
+      return tx.crew.findUniqueOrThrow({ where: { id: createdCrew.id }, select: crewSelect() });
     });
 
-    return res.status(201).json({ data: crew });
+    return res.status(201).json({ data: sanitizeCrew(crew) });
   } catch (error) {
     console.error("createCrew error:", error);
     return res.status(500).json({ message: "Internal server error" });
@@ -232,122 +196,79 @@ export async function createCrew(req: Request, res: Response) {
 export async function updateCrew(req: Request, res: Response) {
   try {
     const crewId = Number(req.params.id);
-
-    if (!Number.isInteger(crewId)) {
-      return res.status(400).json({ message: "Invalid crew id" });
-    }
+    if (!Number.isInteger(crewId)) return res.status(400).json({ message: "Invalid crew id" });
 
     const parsed = updateCrewSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Validation error", errors: parsed.error.flatten() });
 
-    if (!parsed.success) {
-      return res.status(400).json({
-        message: "Validation error",
-        errors: parsed.error.flatten(),
-      });
+    const crew = await prisma.crew.findFirst({ where: { id: crewId, deletedAt: null } });
+    if (!crew) return res.status(404).json({ message: "Crew not found" });
+    if (!(await canEditDepartmentData(req, crew.departmentId))) return res.status(403).json({ message: "Недостаточно прав для текущего подразделения" });
+
+    const nextCityId = parsed.data.cityId ?? crew.cityId;
+    const nextDepartmentId = parsed.data.departmentId ?? crew.departmentId;
+    if (nextDepartmentId !== crew.departmentId && !(await canEditDepartmentData(req, nextDepartmentId))) return res.status(403).json({ message: "Недостаточно прав для нового подразделения" });
+
+    const department = await validateDepartmentInCity({ cityId: nextCityId, departmentId: nextDepartmentId, requiredType: DepartmentType.GBR });
+    if (!department) return res.status(404).json({ message: "Подразделение ГШР не найдено или неактивно" });
+
+    const nextName = parsed.data.name?.trim() ?? crew.name;
+    const duplicate = await prisma.crew.findFirst({ where: { cityId: nextCityId, name: nextName, deletedAt: null, NOT: { id: crewId } } });
+    if (duplicate) return res.status(409).json({ message: "Наряд с таким названием уже существует" });
+
+    const mobileUser = await prisma.mobileUser.findFirst({ where: { crewId, userKind: MobileUserKind.CREW } });
+    const login = parsed.data.login?.trim();
+    if (login && login !== mobileUser?.login) {
+      const existingLogin = await prisma.mobileUser.findUnique({ where: { login } });
+      if (existingLogin) return res.status(409).json({ message: "Такой логин уже используется" });
     }
 
-    const crew = await prisma.crew.findFirst({
-      where: {
-        id: crewId,
-        deletedAt: null,
-      },
-    });
-
-    if (!crew) {
-      return res.status(404).json({ message: "Crew not found" });
-    }
-    const canEditCurrentCity = await canEditCityData(req, crew.cityId);
-
-    if (!canEditCurrentCity) {
-      return res.status(403).json({
-        message: "Недостаточно прав для этого города",
-      });
+    let passwordHash: string | undefined;
+    if (parsed.data.newPassword || parsed.data.confirmNewPassword) {
+      if (!parsed.data.newPassword || parsed.data.newPassword.length < 6) return res.status(400).json({ message: "Новый пароль должен быть минимум 6 символов" });
+      if (parsed.data.newPassword !== parsed.data.confirmNewPassword) return res.status(400).json({ message: "Новые пароли не совпадают" });
+      passwordHash = await bcrypt.hash(parsed.data.newPassword, 10);
     }
 
-    const newCityId = parsed.data.cityId ?? crew.cityId;
-    const newName = parsed.data.name ?? crew.name;
-
-    if (parsed.data.cityId) {
-      const canEditNewCity = await canEditCityData(req, parsed.data.cityId);
-
-      if (!canEditNewCity) {
-        return res.status(403).json({
-          message: "Недостаточно прав для нового города",
-        });
-      }
-      const city = await prisma.city.findFirst({
-        where: {
-          id: parsed.data.cityId,
-          deletedAt: null,
-          isActive: true,
-        },
-      });
-
-      if (!city) {
-        return res.status(404).json({ message: "City not found or inactive" });
-      }
-    }
-
-    const existingCrew = await prisma.crew.findFirst({
-      where: {
-        cityId: newCityId,
-        name: newName,
-        deletedAt: null,
-        NOT: {
-          id: crewId,
-        },
-      },
-    });
-
-    if (existingCrew) {
-      return res.status(409).json({
-        message: "Crew with this name already exists in this city",
-      });
-    }
     const nextDutyType = parsed.data.dutyType ?? crew.dutyType;
     const nextTransportType = parsed.data.transportType ?? crew.transportType;
-
     let nextDurationHours = 24;
+    try { nextDurationHours = normalizeCrewDurationHours(nextDutyType, parsed.data.durationHours ?? Number(crew.durationHours)); } catch (error) { return res.status(400).json({ message: error instanceof Error ? error.message : "Некорректная длительность" }); }
 
-    try {
-      nextDurationHours = normalizeCrewDurationHours(
-        nextDutyType,
-        parsed.data.durationHours ?? Number(crew.durationHours),
-      );
-    } catch (error) {
-      return res.status(400).json({
-        message:
-          error instanceof Error ? error.message : "Некорректная длительность",
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.crew.update({
+        where: { id: crewId },
+        data: {
+          cityId: parsed.data.cityId,
+          departmentId: parsed.data.departmentId,
+          name: parsed.data.name?.trim(),
+          comment: parsed.data.comment === undefined ? undefined : parsed.data.comment?.trim() || null,
+          isActive: parsed.data.isActive,
+          dutyType: nextDutyType,
+          transportType: nextTransportType,
+          durationHours: nextDurationHours,
+        },
       });
-    }
-    const updatedCrew = await prisma.crew.update({
-      where: {
-        id: crewId,
-      },
-      data: {
-        cityId: parsed.data.cityId,
-        name: parsed.data.name,
-        comment: parsed.data.comment,
-        isActive: parsed.data.isActive,
-        dutyType: nextDutyType,
-        transportType: nextTransportType,
-        durationHours: nextDurationHours,
-      },
-      select: {
-        id: true,
-        cityId: true,
-        name: true,
-        comment: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-        dutyType: true,
-        transportType: true,
-        durationHours: true,
-      },
+
+      if (mobileUser) {
+        await tx.mobileUser.update({
+          where: { id: mobileUser.id },
+          data: {
+            cityId: parsed.data.cityId,
+            departmentId: parsed.data.departmentId,
+            login,
+            passwordHash,
+            displayName: parsed.data.name?.trim(),
+            comment: parsed.data.comment === undefined ? undefined : parsed.data.comment?.trim() || null,
+            isActive: parsed.data.isActive,
+          },
+        });
+      }
+
+      return tx.crew.findUniqueOrThrow({ where: { id: crewId }, select: crewSelect() });
     });
 
-    return res.json({ data: updatedCrew });
+    return res.json({ data: sanitizeCrew(updated) });
   } catch (error) {
     console.error("updateCrew error:", error);
     return res.status(500).json({ message: "Internal server error" });
@@ -357,39 +278,18 @@ export async function updateCrew(req: Request, res: Response) {
 export async function deleteCrew(req: Request, res: Response) {
   try {
     const crewId = Number(req.params.id);
+    if (!Number.isInteger(crewId)) return res.status(400).json({ message: "Invalid crew id" });
 
-    if (!Number.isInteger(crewId)) {
-      return res.status(400).json({ message: "Invalid crew id" });
-    }
+    const crew = await prisma.crew.findFirst({ where: { id: crewId, deletedAt: null } });
+    if (!crew) return res.status(404).json({ message: "Crew not found" });
+    if (!(await canEditDepartmentData(req, crew.departmentId))) return res.status(403).json({ message: "Недостаточно прав для этого подразделения" });
 
-    const crew = await prisma.crew.findFirst({
-      where: {
-        id: crewId,
-        deletedAt: null,
-      },
-    });
+    await prisma.$transaction([
+      prisma.crew.update({ where: { id: crewId }, data: { deletedAt: new Date(), isActive: false } }),
+      prisma.mobileUser.updateMany({ where: { crewId, userKind: MobileUserKind.CREW }, data: { deletedAt: new Date(), isActive: false } }),
+    ]);
 
-    if (!crew) {
-      return res.status(404).json({ message: "Crew not found" });
-    }
-    const canEdit = await canEditCityData(req, crew.cityId);
-
-    if (!canEdit) {
-      return res.status(403).json({
-        message: "Недостаточно прав для этого города",
-      });
-    }
-    await prisma.crew.update({
-      where: {
-        id: crewId,
-      },
-      data: {
-        deletedAt: new Date(),
-        isActive: false,
-      },
-    });
-
-    return res.json({ message: "Crew deleted successfully" });
+    return res.json({ message: "Crew archived successfully" });
   } catch (error) {
     console.error("deleteCrew error:", error);
     return res.status(500).json({ message: "Internal server error" });
@@ -399,60 +299,19 @@ export async function deleteCrew(req: Request, res: Response) {
 export async function restoreCrew(req: Request, res: Response) {
   try {
     const crewId = Number(req.params.id);
+    if (!Number.isInteger(crewId)) return res.status(400).json({ message: "Invalid crew id" });
 
-    if (!Number.isInteger(crewId)) {
-      return res.status(400).json({ message: "Invalid crew id" });
-    }
+    const crew = await prisma.crew.findUnique({ where: { id: crewId } });
+    if (!crew) return res.status(404).json({ message: "Crew not found" });
+    if (!(await canEditDepartmentData(req, crew.departmentId))) return res.status(403).json({ message: "Недостаточно прав для этого подразделения" });
 
-    const crew = await prisma.crew.findUnique({
-      where: {
-        id: crewId,
-      },
+    const restored = await prisma.$transaction(async (tx) => {
+      await tx.crew.update({ where: { id: crewId }, data: { deletedAt: null, isActive: true } });
+      await tx.mobileUser.updateMany({ where: { crewId, userKind: MobileUserKind.CREW }, data: { deletedAt: null, isActive: true } });
+      return tx.crew.findUniqueOrThrow({ where: { id: crewId }, select: crewSelect() });
     });
 
-    if (!crew) {
-      return res.status(404).json({ message: "Crew not found" });
-    }
-
-    if (!crew.deletedAt) {
-      return res.status(400).json({
-        message: "Crew is not archived",
-      });
-    }
-    const canEdit = await canEditCityData(req, crew.cityId);
-
-    if (!canEdit) {
-      return res.status(403).json({
-        message: "Недостаточно прав для этого города",
-      });
-    }
-    const restoredCrew = await prisma.crew.update({
-      where: {
-        id: crewId,
-      },
-      data: {
-        deletedAt: null,
-        isActive: true,
-      },
-      select: {
-        id: true,
-        cityId: true,
-        name: true,
-        comment: true,
-        isActive: true,
-        deletedAt: true,
-        createdAt: true,
-        updatedAt: true,
-        dutyType: true,
-        transportType: true,
-        durationHours: true,
-      },
-    });
-
-    return res.json({
-      message: "Crew restored successfully",
-      data: restoredCrew,
-    });
+    return res.json({ data: sanitizeCrew(restored) });
   } catch (error) {
     console.error("restoreCrew error:", error);
     return res.status(500).json({ message: "Internal server error" });

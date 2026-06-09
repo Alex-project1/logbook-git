@@ -3,6 +3,7 @@ import cors from "cors";
 import adminAuthRoutes from "./modules/auth/auth.routes";
 import adminCitiesRoutes from "./modules/cities/cities.routes";
 import adminEmployeesRoutes from "./modules/employees/employees.routes";
+import adminDepartmentsRoutes from "./modules/departments/departments.routes";
 import adminCrewsRoutes from "./modules/crews/crews.routes";
 import adminVehiclesRoutes from "./modules/vehicles/vehicles.routes";
 import adminTripGoalsRoutes from "./modules/trip-goals/trip-goals.routes";
@@ -38,6 +39,7 @@ app.get("/api/health", (req, res) => {
 
 app.use("/api/admin", adminAuthRoutes);
 app.use("/api/admin/cities", adminCitiesRoutes);
+app.use("/api/admin/departments", adminDepartmentsRoutes);
 app.use("/api/admin/employees", adminEmployeesRoutes);
 app.use("/api/admin/crews", adminCrewsRoutes);
 app.use("/api/admin/vehicles", adminVehiclesRoutes);

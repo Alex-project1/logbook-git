@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { getAccessibleCities } from "../api/cities.api";
 import type { City } from "../api/cities.api";
+import { getDepartments } from "../api/departments.api";
+import type { Department } from "../api/departments.api";
 import { getAdminMe } from "../api/auth.api";
 import type { AdminUser } from "../api/auth.api";
 import { getDutyPosts } from "../api/duty-posts.api";
@@ -11,6 +13,7 @@ import type { Employee } from "../api/employees.api";
 import { getVehicles } from "../api/vehicles.api";
 import type { Vehicle } from "../api/vehicles.api";
 import { RowActionMenu } from "../components/RowActionMenu";
+import { dedupeDepartments, formatDepartmentOption } from "../utils/department-options";
 import {
   createPostDuty,
   deletePostDuty,
@@ -33,6 +36,7 @@ type FormMember = {
 
 type FormState = {
   cityId: number;
+  departmentId: number;
   postId: number;
   vehicleId: number;
   dutyDate: string;
@@ -50,6 +54,7 @@ const initialMember: FormMember = {
 
 const initialForm: FormState = {
   cityId: 0,
+  departmentId: 0,
   postId: 0,
   vehicleId: 0,
   dutyDate: "",
@@ -131,6 +136,7 @@ function AccordionSection({
 
 export function PostDutiesPage() {
   const [cities, setCities] = useState<City[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [dutyPosts, setDutyPosts] = useState<DutyPost[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -177,6 +183,21 @@ export function PostDutiesPage() {
     [cities]
   );
 
+  const activeDepartments = useMemo(
+    () => dedupeDepartments(departments.filter((department) => department.isActive && !department.deletedAt)),
+    [departments]
+  );
+
+  const formDepartments = useMemo(
+    () => activeDepartments.filter((department) => department.cityId === form.cityId),
+    [activeDepartments, form.cityId]
+  );
+
+  const filterDepartments = useMemo(
+    () => activeDepartments.filter((department) => !filters.cityId || department.cityId === filters.cityId),
+    [activeDepartments, filters.cityId]
+  );
+
   const activePosts = useMemo(
     () => dutyPosts.filter((post) => post.isActive),
     [dutyPosts]
@@ -204,7 +225,7 @@ export function PostDutiesPage() {
     }
   }
 
-  async function loadCityReferences(cityId: number) {
+  async function loadCityReferences(cityId: number, departmentId = 0) {
     if (!cityId) {
       setDutyPosts([]);
       setEmployees([]);
@@ -215,17 +236,24 @@ export function PostDutiesPage() {
     setReferencesLoading(true);
 
     try {
+      const params = {
+        cityId,
+        departmentId: departmentId || undefined,
+        includeInactive: false,
+        archive: false,
+      };
+
       const [postsData, employeesData, vehiclesData] = await Promise.all([
-        getDutyPosts(cityId, false),
-        getEmployees(cityId, false),
-        getVehicles(cityId, false),
+        getDutyPosts(params),
+        getEmployees(params),
+        getVehicles(params),
       ]);
 
       setDutyPosts(postsData);
       setEmployees(employeesData);
       setVehicles(vehiclesData);
     } catch {
-      setError("Не удалось загрузить справочники по городу");
+      setError("Не удалось загрузить справочники по городу и подразделению");
     } finally {
       setReferencesLoading(false);
     }
@@ -251,23 +279,30 @@ export function PostDutiesPage() {
     setError("");
 
     try {
-      const citiesData = await getAccessibleCities();
+      const [citiesData, departmentsData] = await Promise.all([
+        getAccessibleCities(),
+        getDepartments({ includeInactive: false }),
+      ]);
       setCities(citiesData);
+      setDepartments(departmentsData);
 
       const firstCityId = citiesData[0]?.id ?? 0;
+      const firstDepartmentId = departmentsData.find((department) => department.cityId === firstCityId && department.isActive)?.id ?? 0;
 
       const nextFilters: PostDutiesFilters = {
         ...defaultFilters,
         cityId: undefined,
+        departmentId: undefined,
       };
       
       setFilters(nextFilters);
       setForm((prev) => ({
         ...prev,
         cityId: firstCityId,
+        departmentId: firstDepartmentId,
       }));
       
-      await loadCityReferences(firstCityId);
+      await loadCityReferences(firstCityId, firstDepartmentId);
       
       const data = await getPostDuties(nextFilters);
       setReport(data);
@@ -336,10 +371,12 @@ export function PostDutiesPage() {
   }
 
   async function handleCityChange(cityId: number) {
+    const departmentId = activeDepartments.find((department) => department.cityId === cityId)?.id ?? 0;
     const nextFilters: PostDutiesFilters = {
       ...filters,
       page: 1,
       cityId: cityId || undefined,
+      departmentId: departmentId || undefined,
       postId: undefined,
       vehicleId: undefined,
       employeeId: undefined,
@@ -350,12 +387,13 @@ export function PostDutiesPage() {
     setForm({
       ...initialForm,
       cityId,
+      departmentId,
     });
 
     setSuccess("");
     setError("");
 
-    await loadCityReferences(cityId);
+    await loadCityReferences(cityId, departmentId);
     await loadPostDuties(nextFilters);
   }
   async function handleFilterCityChange(cityId: number) {
@@ -363,6 +401,7 @@ export function PostDutiesPage() {
       ...filters,
       page: 1,
       cityId: cityId || undefined,
+      departmentId: undefined,
       postId: undefined,
       vehicleId: undefined,
       employeeId: undefined,
@@ -373,7 +412,7 @@ export function PostDutiesPage() {
     setError("");
   
     if (cityId) {
-      await loadCityReferences(cityId);
+      await loadCityReferences(cityId, 0);
     } else {
       setDutyPosts([]);
       setEmployees([]);
@@ -382,8 +421,44 @@ export function PostDutiesPage() {
   
     await loadPostDuties(nextFilters);
   }
+
+  async function handleFilterDepartmentChange(departmentId: number) {
+    const selectedDepartment = activeDepartments.find((department) => department.id === departmentId);
+    const cityId = filters.cityId ?? selectedDepartment?.cityId ?? form.cityId;
+    const nextFilters: PostDutiesFilters = {
+      ...filters,
+      page: 1,
+      cityId: filters.cityId || selectedDepartment?.cityId || undefined,
+      departmentId: departmentId || undefined,
+      postId: undefined,
+      vehicleId: undefined,
+      employeeId: undefined,
+    };
+
+    setFilters(nextFilters);
+    setSuccess("");
+    setError("");
+
+    if (cityId) {
+      await loadCityReferences(cityId, departmentId);
+    }
+
+    await loadPostDuties(nextFilters);
+  }
+
+  async function handleFormDepartmentChange(departmentId: number) {
+    setForm((prev) => ({
+      ...prev,
+      departmentId,
+      postId: 0,
+      vehicleId: 0,
+      members: prev.members.map((member) => ({ ...member, isDriver: false })),
+    }));
+    await loadCityReferences(form.cityId, departmentId);
+  }
   function validateForm() {
     if (!form.cityId) return "Выберите город";
+    if (!form.departmentId) return "Выберите подразделение";
     if (!form.postId) return "Выберите пост";
     if (!form.dutyDate) return "Выберите дату дежурства";
     if (!form.durationHours || form.durationHours <= 0) {
@@ -451,6 +526,7 @@ export function PostDutiesPage() {
 
     const payload = {
       cityId: form.cityId,
+      departmentId: form.departmentId,
       postId: form.postId,
       vehicleId: form.vehicleId || null,
       dutyDate: `${form.dutyDate}T00:00:00.000Z`,
@@ -487,6 +563,7 @@ export function PostDutiesPage() {
 
     setForm({
       cityId: duty.cityId,
+      departmentId: duty.departmentId,
       postId: duty.postId,
       vehicleId: duty.vehicleId ?? 0,
       dutyDate: toDateInputValue(duty.dutyDate),
@@ -500,8 +577,8 @@ export function PostDutiesPage() {
       })),
     });
 
-    if (duty.cityId !== form.cityId) {
-      loadCityReferences(duty.cityId);
+    if (duty.cityId !== form.cityId || duty.departmentId !== form.departmentId) {
+      loadCityReferences(duty.cityId, duty.departmentId);
     }
 
     setError("");
@@ -521,9 +598,12 @@ export function PostDutiesPage() {
 
   function resetForm() {
     setEditingDuty(null);
+    const cityId = filters.cityId ?? activeCities[0]?.id ?? 0;
+    const departmentId = filters.departmentId ?? activeDepartments.find((department) => department.cityId === cityId)?.id ?? 0;
     setForm({
       ...initialForm,
-      cityId: filters.cityId ?? activeCities[0]?.id ?? 0,
+      cityId,
+      departmentId,
     });
     setError("");
   }
@@ -654,6 +734,22 @@ export function PostDutiesPage() {
                     {activeCities.map((city) => (
                       <option key={city.id} value={city.id}>
                         {city.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="field">
+                  <span>Подразделение</span>
+                  <select
+                    value={form.departmentId}
+                    onChange={(event) => handleFormDepartmentChange(Number(event.target.value))}
+                    disabled={referencesLoading || !form.cityId}
+                  >
+                    <option value={0}>Выберите подразделение</option>
+                    {formDepartments.map((department) => (
+                      <option key={department.id} value={department.id}>
+                        {formatDepartmentOption(department, { showCity: false })}
                       </option>
                     ))}
                   </select>
@@ -918,6 +1014,21 @@ export function PostDutiesPage() {
                 </label>
 
                 <label className="field">
+                  <span>Подразделение</span>
+                  <select
+                    value={filters.departmentId ?? 0}
+                    onChange={(event) => handleFilterDepartmentChange(Number(event.target.value))}
+                  >
+                    <option value={0}>Все подразделения</option>
+                    {filterDepartments.map((department) => (
+                      <option key={department.id} value={department.id}>
+                        {formatDepartmentOption(department, { showCity: !filters.cityId })}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="field">
                   <span>Пост</span>
                   <select
                     value={filters.postId ?? 0}
@@ -1056,6 +1167,7 @@ export function PostDutiesPage() {
                       <tr>
                         <th>Дата</th>
                         <th>Город</th>
+                        <th>Подразделение</th>
                         <th>Пост</th>
                         <th>Часы</th>
                         <th>Смена</th>
@@ -1071,6 +1183,7 @@ export function PostDutiesPage() {
                         <tr key={duty.id}>
                           <td>{formatDate(duty.dutyDate)}</td>
                           <td>{duty.city.name}</td>
+                          <td>{duty.department ? formatDepartmentOption(duty.department, { showCity: false }) : "—"}</td>
                           <td>
                             <strong>{duty.post.name}</strong>
                           </td>

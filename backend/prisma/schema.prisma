@@ -45,6 +45,17 @@ enum CrewTransportType {
   AUTO
   MOTO
 }
+
+enum DepartmentType {
+  GBR
+  POST
+  OTHER
+}
+
+enum MobileUserKind {
+  CREW
+  POST
+}
 model Role {
   id          Int      @id @default(autoincrement())
   code        String   @unique
@@ -72,6 +83,7 @@ model User {
 
   role              Role              @relation(fields: [roleId], references: [id])
   adminCityAccesses AdminCityAccess[]
+  adminDepartmentAccesses AdminDepartmentAccess[]
 
   sentNotifications Notification[] @relation("NotificationSender")
 
@@ -99,6 +111,7 @@ model City {
   deletedAt DateTime?
 
   adminAccesses    AdminCityAccess[]
+  departments      Department[]
   mobileUsers      MobileUser[]
   employees        Employee[]
   crews            Crew[]
@@ -112,6 +125,7 @@ model City {
   postDuties PostDuty[] @relation("PostDutyCity")
 
   notifications Notification[]
+  adminDepartmentAccesses AdminDepartmentAccess[]
 
   @@map("cities")
 }
@@ -134,30 +148,96 @@ model AdminCityAccess {
   @@map("admin_city_access")
 }
 
+model Department {
+  id        Int            @id @default(autoincrement())
+  cityId    Int
+  name      String         @db.VarChar(255)
+  type      DepartmentType @default(OTHER)
+  isSystem  Boolean        @default(false)
+  isActive  Boolean        @default(true)
+  comment   String?        @db.VarChar(1000)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  deletedAt DateTime?
+
+  city City @relation(fields: [cityId], references: [id])
+
+  adminAccesses AdminDepartmentAccess[]
+  mobileUsers   MobileUser[]
+  employees     Employee[]
+  crews         Crew[]
+  vehicles      Vehicle[]
+  dutyPosts     DutyPost[]
+  shifts        Shift[]
+  postDuties    PostDuty[]
+  notifications Notification[]
+
+  @@unique([cityId, name])
+  @@index([cityId])
+  @@index([type])
+  @@index([deletedAt])
+  @@map("departments")
+}
+
+model AdminDepartmentAccess {
+  id             Int              @id @default(autoincrement())
+  userId         Int
+  cityId         Int
+  departmentId   Int
+  accessLevel    AdminAccessLevel @default(VIEW)
+  canAddShift    Boolean          @default(false)
+  canDeleteShift Boolean          @default(false)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id])
+  city       City       @relation(fields: [cityId], references: [id])
+  department Department @relation(fields: [departmentId], references: [id])
+
+  @@unique([userId, departmentId])
+  @@index([cityId])
+  @@index([departmentId])
+  @@map("admin_department_access")
+}
+
 model MobileUser {
-  id           Int       @id @default(autoincrement())
+  id           Int            @id @default(autoincrement())
   cityId       Int
-  login        String    @unique
+  departmentId Int
+  userKind     MobileUserKind
+  crewId       Int?
+  dutyPostId   Int?
+  login        String         @unique
   passwordHash String
+  displayName  String?        @db.VarChar(255)
   comment      String?
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  isActive     Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
   deletedAt    DateTime?
 
-  city   City    @relation(fields: [cityId], references: [id])
-  shifts Shift[]
+  city       City       @relation(fields: [cityId], references: [id])
+  department Department @relation(fields: [departmentId], references: [id])
+  crew       Crew?      @relation(fields: [crewId], references: [id])
+  dutyPost   DutyPost?  @relation(fields: [dutyPostId], references: [id])
+
+  shifts     Shift[]
+  postDuties PostDuty[]
 
   notificationRecipients NotificationRecipient[]
   deviceTokens MobileDeviceToken[]
 
   @@index([cityId])
+  @@index([departmentId])
+  @@index([crewId])
+  @@index([dutyPostId])
   @@map("mobile_users")
 }
 
 model Employee {
   id        Int       @id @default(autoincrement())
   cityId    Int
+  departmentId Int
   fullName  String
   position  String?
   comment   String?
@@ -166,7 +246,8 @@ model Employee {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  city City @relation(fields: [cityId], references: [id])
+  city       City       @relation(fields: [cityId], references: [id])
+  department Department @relation(fields: [departmentId], references: [id])
 
   driverShifts Shift[] @relation("DriverEmployee")
   seniorShifts Shift[] @relation("SeniorEmployee")
@@ -174,12 +255,14 @@ model Employee {
   postDutyMembers PostDutyMember[] @relation("EmployeePostDutyMembers")
 
   @@index([cityId])
+  @@index([departmentId])
   @@map("employees")
 }
 
 model Crew {
   id            Int               @id @default(autoincrement())
   cityId        Int
+  departmentId  Int
   name          String
   comment       String?
   dutyType      CrewDutyType      @default(FULL_DAY)
@@ -190,16 +273,20 @@ model Crew {
   updatedAt     DateTime          @updatedAt
   deletedAt     DateTime?
 
-  city   City    @relation(fields: [cityId], references: [id])
-  shifts Shift[]
+  city       City       @relation(fields: [cityId], references: [id])
+  department Department @relation(fields: [departmentId], references: [id])
+  shifts     Shift[]
+  mobileUsers MobileUser[]
 
   @@index([cityId])
+  @@index([departmentId])
   @@map("crews")
 }
 
 model Vehicle {
   id            Int       @id @default(autoincrement())
   cityId        Int
+  departmentId  Int
   title         String
   licensePlate  String?
   startOdometer Int?
@@ -210,10 +297,12 @@ model Vehicle {
   deletedAt     DateTime?
 
   city       City       @relation(fields: [cityId], references: [id])
+  department Department @relation(fields: [departmentId], references: [id])
   shifts     Shift[]
   postDuties PostDuty[] @relation("VehiclePostDuties")
 
   @@index([cityId])
+  @@index([departmentId])
   @@map("vehicles")
 }
 
@@ -267,6 +356,7 @@ model Shift {
   id               Int             @id @default(autoincrement())
   localShiftId     String?         @unique
   cityId           Int
+  departmentId     Int
   mobileUserId     Int?
   createdByAdminId Int?
   sourceType       ShiftSourceType @default(MOBILE_APP)
@@ -296,6 +386,7 @@ shiftDurationHours Decimal           @default(24) @db.Decimal(5, 2)
   deleteReason  String?
 
   city           City        @relation(fields: [cityId], references: [id])
+  department     Department  @relation(fields: [departmentId], references: [id])
   mobileUser     MobileUser? @relation(fields: [mobileUserId], references: [id])
   crew           Crew        @relation(fields: [crewId], references: [id])
   vehicle        Vehicle     @relation(fields: [vehicleId], references: [id])
@@ -306,6 +397,7 @@ shiftDurationHours Decimal           @default(24) @db.Decimal(5, 2)
   telegramSendLogs TelegramSendLog[]
 
   @@index([cityId])
+  @@index([departmentId])
   @@index([crewId])
   @@index([vehicleId])
   @@index([driverEmployeeId])
@@ -470,6 +562,9 @@ model DutyPost {
   cityId Int
   city   City @relation("DutyPostCity", fields: [cityId], references: [id])
 
+  departmentId Int
+  department   Department @relation(fields: [departmentId], references: [id])
+
   name      String    @db.VarChar(255)
   comment   String?   @db.VarChar(1000)
   isActive  Boolean   @default(true)
@@ -479,9 +574,11 @@ model DutyPost {
   updatedAt DateTime @updatedAt
 
   postDuties PostDuty[] @relation("DutyPostDuties")
+  mobileUsers MobileUser[]
 
   @@unique([cityId, name])
   @@index([cityId])
+  @@index([departmentId])
   @@index([deletedAt])
   @@map("duty_posts")
 }
@@ -491,6 +588,12 @@ model PostDuty {
 
   cityId Int
   city   City @relation("PostDutyCity", fields: [cityId], references: [id])
+
+  departmentId Int
+  department   Department @relation(fields: [departmentId], references: [id])
+
+  mobileUserId Int?
+  mobileUser   MobileUser? @relation(fields: [mobileUserId], references: [id])
 
   postId Int
   post   DutyPost @relation("DutyPostDuties", fields: [postId], references: [id])
@@ -510,6 +613,8 @@ model PostDuty {
   members PostDutyMember[] @relation("PostDutyMembers")
 
   @@index([cityId])
+  @@index([departmentId])
+  @@index([mobileUserId])
   @@index([postId])
   @@index([vehicleId])
   @@index([dutyDate])
@@ -542,6 +647,8 @@ model PostDutyMember {
 model Notification {
   id           Int       @id @default(autoincrement())
   cityId       Int
+  departmentId Int?
+  targetUserKind MobileUserKind?
   senderUserId Int?
   title        String    @default("Повідомлення") @db.VarChar(255)
   message      String    @db.Text
@@ -557,10 +664,13 @@ pushProcessedAt          DateTime?
   deletedAt    DateTime?
 
   city       City                    @relation(fields: [cityId], references: [id])
+  department Department?              @relation(fields: [departmentId], references: [id])
   senderUser User?                   @relation("NotificationSender", fields: [senderUserId], references: [id])
   recipients NotificationRecipient[]
 
   @@index([cityId])
+  @@index([departmentId])
+  @@index([targetUserKind])
   @@index([senderUserId])
   @@map("notifications")
 }

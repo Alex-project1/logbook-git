@@ -1,15 +1,36 @@
 import { useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
 import { getAccessibleCities } from "../api/cities.api";
 import type { City } from "../api/cities.api";
+import { getDepartments } from "../api/departments.api";
+import type { Department } from "../api/departments.api";
 import { getMobileUsers } from "../api/mobile-users.api";
-import type { MobileUser } from "../api/mobile-users.api";
+import type { MobileUser, MobileUserKind } from "../api/mobile-users.api";
 import { createNotification } from "../api/notifications.api";
+import { dedupeDepartments, formatDepartmentOption } from "../utils/department-options";
+
+function getKindLabel(kind?: MobileUserKind | "") {
+  if (kind === "CREW") return "Наряди ГБР";
+  if (kind === "POST") return "Пости";
+  return "Усі типи";
+}
+
+function getUserTargetLabel(user: MobileUser) {
+  if (user.userKind === "CREW") {
+    return user.crew?.name ?? user.displayName ?? "Наряд";
+  }
+
+  return user.dutyPost?.name ?? user.displayName ?? "Пост";
+}
 
 export function NotificationsCreatePage() {
   const [cities, setCities] = useState<City[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [mobileUsers, setMobileUsers] = useState<MobileUser[]>([]);
 
   const [cityId, setCityId] = useState(0);
+  const [departmentId, setDepartmentId] = useState(0);
+  const [targetUserKind, setTargetUserKind] = useState<MobileUserKind | "">("");
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
@@ -23,29 +44,48 @@ export function NotificationsCreatePage() {
 
   const selectedCity = useMemo(
     () => cities.find((city) => city.id === cityId) ?? null,
-    [cities, cityId]
+    [cities, cityId],
+  );
+
+  const visibleDepartments = useMemo(() => {
+    return dedupeDepartments(
+      departments.filter((department) => {
+        if (cityId && department.cityId !== cityId) return false;
+        return department.isActive && !department.deletedAt;
+      }),
+    );
+  }, [departments, cityId]);
+
+  const selectedDepartment = useMemo(
+    () => visibleDepartments.find((department) => department.id === departmentId) ?? null,
+    [visibleDepartments, departmentId],
   );
 
   useEffect(() => {
-    async function loadCities() {
+    async function loadReferences() {
       setLoading(true);
       setError("");
 
       try {
-        const data = await getAccessibleCities(false);
-        setCities(data);
+        const [citiesData, departmentsData] = await Promise.all([
+          getAccessibleCities(false),
+          getDepartments({ includeInactive: false }),
+        ]);
 
-        if (data.length > 0) {
-          setCityId(data[0].id);
+        setCities(citiesData);
+        setDepartments(departmentsData);
+
+        if (citiesData.length > 0) {
+          setCityId(citiesData[0].id);
         }
       } catch {
-        setError("Не удалось загрузить города");
+        setError("Не удалось загрузить справочники");
       } finally {
         setLoading(false);
       }
     }
 
-    loadCities();
+    loadReferences();
   }, []);
 
   useEffect(() => {
@@ -60,8 +100,15 @@ export function NotificationsCreatePage() {
       setError("");
 
       try {
-        const data = await getMobileUsers(cityId, false);
-        setMobileUsers(data.filter((user) => user.isActive));
+        const data = await getMobileUsers({
+          cityId,
+          departmentId: departmentId || undefined,
+          userKind: targetUserKind || undefined,
+          includeInactive: false,
+          archive: false,
+        });
+
+        setMobileUsers(data.filter((user) => user.isActive && !user.deletedAt));
         setSelectedUserIds([]);
       } catch {
         setError("Не удалось загрузить пользователей приложения");
@@ -71,13 +118,19 @@ export function NotificationsCreatePage() {
     }
 
     loadUsers();
-  }, [cityId]);
+  }, [cityId, departmentId, targetUserKind]);
+
+  function handleCityChange(nextCityId: number) {
+    setCityId(nextCityId);
+    setDepartmentId(0);
+    setSelectedUserIds([]);
+  }
 
   function toggleUser(userId: number) {
     setSelectedUserIds((prev) =>
       prev.includes(userId)
         ? prev.filter((id) => id !== userId)
-        : [...prev, userId]
+        : [...prev, userId],
     );
   }
 
@@ -89,26 +142,13 @@ export function NotificationsCreatePage() {
     setSelectedUserIds([]);
   }
 
-  async function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: FormEvent) {
     event.preventDefault();
 
-    if (!cityId) {
-      setError("Выберите город");
-      return;
-    }
-
-    if (selectedUserIds.length === 0) {
-      setError("Выберите хотя бы одного пользователя");
-      return;
-    }
-    if (!title.trim()) {
-      setError("Введите заголовок уведомления");
-      return;
-    }
-    if (!message.trim()) {
-      setError("Введите текст уведомления");
-      return;
-    }
+    if (!cityId) return setError("Выберите город");
+    if (selectedUserIds.length === 0) return setError("Выберите хотя бы одного пользователя");
+    if (!title.trim()) return setError("Введите заголовок уведомления");
+    if (!message.trim()) return setError("Введите текст уведомления");
 
     setSending(true);
     setError("");
@@ -117,6 +157,8 @@ export function NotificationsCreatePage() {
     try {
       await createNotification({
         cityId,
+        departmentId: departmentId || null,
+        targetUserKind: targetUserKind || null,
         mobileUserIds: selectedUserIds,
         title: title.trim(),
         message: message.trim(),
@@ -142,7 +184,7 @@ export function NotificationsCreatePage() {
       <div className="page-header">
         <div>
           <h1>Новое уведомление</h1>
-          <p>Отправка сообщения одному или нескольким пользователям приложения</p>
+          <p>Отправка сообщения по городу, подразделению, типу пользователя или конкретным получателям</p>
         </div>
       </div>
 
@@ -153,24 +195,45 @@ export function NotificationsCreatePage() {
         <div className="notification-form-grid">
           <label className="field">
             <span>Город</span>
-            <select
-              value={cityId}
-              onChange={(event) => setCityId(Number(event.target.value))}
-            >
+            <select value={cityId} onChange={(event) => handleCityChange(Number(event.target.value))}>
               {cities.map((city) => (
-                <option key={city.id} value={city.id}>
-                  {city.name}
+                <option key={city.id} value={city.id}>{city.name}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field">
+            <span>Подразделение</span>
+            <select value={departmentId} onChange={(event) => setDepartmentId(Number(event.target.value))}>
+              <option value={0}>Все подразделения города</option>
+              {visibleDepartments.map((department) => (
+                <option key={department.id} value={department.id}>
+                  {formatDepartmentOption(department, { showCity: false })}
                 </option>
               ))}
+            </select>
+          </label>
+
+          <label className="field">
+            <span>Тип получателей</span>
+            <select value={targetUserKind} onChange={(event) => setTargetUserKind(event.target.value as MobileUserKind | "")}>
+              <option value="">Все типы</option>
+              <option value="CREW">Только наряды ГБР</option>
+              <option value="POST">Только посты</option>
             </select>
           </label>
 
           <div className="notification-selected-card">
             <span>Выбрано пользователей</span>
             <strong>{selectedUserIds.length}</strong>
-            <small>{selectedCity?.name ?? "Город не выбран"}</small>
+            <small>
+              {selectedCity?.name ?? "Город не выбран"}
+              {selectedDepartment ? ` · ${selectedDepartment.name}` : ""}
+              {targetUserKind ? ` · ${getKindLabel(targetUserKind)}` : ""}
+            </small>
           </div>
         </div>
+
         <label className="field">
           <span>Заголовок уведомления</span>
           <input
@@ -180,13 +243,14 @@ export function NotificationsCreatePage() {
             onChange={(event) => setTitle(event.target.value)}
           />
         </label>
+
         <label className="field">
           <span>Текст уведомления</span>
           <textarea
             rows={6}
             value={message}
             maxLength={5000}
-            placeholder="Введите текст уведомления для наряда..."
+            placeholder="Введите текст уведомления..."
             onChange={(event) => setMessage(event.target.value)}
           />
         </label>
@@ -195,51 +259,35 @@ export function NotificationsCreatePage() {
           <div className="table-header">
             <div>
               <h2>Получатели</h2>
-              <p>
-                {usersLoading
-                  ? "Загружаем пользователей..."
-                  : `Доступно: ${mobileUsers.length}`}
-              </p>
+              <p>{usersLoading ? "Загружаем пользователей..." : `Доступно: ${mobileUsers.length}`}</p>
             </div>
 
             <div className="table-header-actions">
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={selectAllUsers}
-                disabled={mobileUsers.length === 0}
-              >
+              <button type="button" className="secondary-button" onClick={selectAllUsers} disabled={mobileUsers.length === 0}>
                 Выбрать всех
               </button>
-
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={clearUsers}
-                disabled={selectedUserIds.length === 0}
-              >
+              <button type="button" className="secondary-button" onClick={clearUsers} disabled={selectedUserIds.length === 0}>
                 Снять выбор
               </button>
             </div>
           </div>
 
           {mobileUsers.length === 0 ? (
-            <div className="empty-state">
-              В выбранном городе нет активных пользователей приложения
-            </div>
+            <div className="empty-state">По выбранным фильтрам нет активных пользователей приложения</div>
           ) : (
             <div className="notification-user-grid">
               {mobileUsers.map((user) => (
                 <label className="notification-user-card" key={user.id}>
-                  <input
-                    type="checkbox"
-                    checked={selectedUserIds.includes(user.id)}
-                    onChange={() => toggleUser(user.id)}
-                  />
+                  <input type="checkbox" checked={selectedUserIds.includes(user.id)} onChange={() => toggleUser(user.id)} />
 
                   <span>
                     <strong>{user.login}</strong>
-                    <small>{user.city?.name ?? selectedCity?.name ?? "—"}</small>
+                    <small>{getUserTargetLabel(user)}</small>
+                    <small>
+                      {user.department
+                        ? formatDepartmentOption(user.department, { showCity: false })
+                        : user.city?.name ?? selectedCity?.name ?? "—"}
+                    </small>
                   </span>
                 </label>
               ))}

@@ -1,6 +1,9 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { getCities } from "../../api/cities.api";
 import type { City } from "../../api/cities.api";
+import { getDepartments } from "../../api/departments.api";
+import type { Department } from "../../api/departments.api";
+import { dedupeDepartments, formatDepartmentOption } from "../../utils/department-options";
 import { getCrews } from "../../api/crews.api";
 import type { Crew } from "../../api/crews.api";
 import { getEmployees } from "../../api/employees.api";
@@ -16,6 +19,7 @@ import type {
 } from "../../api/reports.api";
 import { getVehicles } from "../../api/vehicles.api";
 import type { Vehicle } from "../../api/vehicles.api";
+import { filterByReportScope, resetDependentReportFilters } from "../../utils/report-reference-filters";
 
 const defaultFilters: EmployeesTableFilters = {
   page: 1,
@@ -53,6 +57,7 @@ export function ReportsEmployeesPage() {
   const [report, setReport] = useState<EmployeesTableResponse | null>(null);
 
   const [cities, setCities] = useState<City[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [crews, setCrews] = useState<Crew[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -71,6 +76,39 @@ export function ReportsEmployeesPage() {
     () => cities.filter((city) => city.isActive),
     [cities]
   );
+
+  const activeDepartments = useMemo(
+    () =>
+      dedupeDepartments(
+        departments.filter((department) => {
+          if (department.deletedAt || !department.isActive) return false;
+          if (filters.cityId && department.cityId !== filters.cityId) return false;
+          return true;
+        }),
+      ),
+    [departments, filters.cityId],
+  );
+
+  const visibleCrews = useMemo(
+    () => filterByReportScope(crews, filters),
+    [crews, filters.cityId, filters.departmentId],
+  );
+
+  const visibleVehicles = useMemo(
+    () => filterByReportScope(vehicles, filters),
+    [vehicles, filters.cityId, filters.departmentId],
+  );
+
+  const visibleEmployees = useMemo(
+    () => filterByReportScope(employees, filters),
+    [employees, filters.cityId, filters.departmentId],
+  );
+
+  useEffect(() => {
+    getDepartments({ includeInactive: true })
+      .then(setDepartments)
+      .catch(() => setDepartments([]));
+  }, []);
 
   async function loadReferences() {
     setReferencesLoading(true);
@@ -117,11 +155,16 @@ export function ReportsEmployeesPage() {
     key: Key,
     value: EmployeesTableFilters[Key]
   ) {
-    setFilters((prev) => ({
-      ...prev,
-      [key]: value,
-      page: key === "page" ? (value as number) : 1,
-    }));
+    setFilters((prev) =>
+      resetDependentReportFilters(
+        {
+          ...prev,
+          [key]: value,
+          page: key === "page" ? (value as number) : 1,
+        },
+        String(key),
+      ) as typeof prev,
+    );
   }
 
   async function handleApply() {
@@ -257,6 +300,25 @@ export function ReportsEmployeesPage() {
           </label>
 
           <label className="field">
+            <span>Подразделение</span>
+            <select
+              value={filters.departmentId ?? 0}
+              onChange={(event) =>
+                updateFilter("departmentId", Number(event.target.value) || undefined)
+              }
+              disabled={referencesLoading}
+            >
+              <option value={0}>Все подразделения</option>
+
+              {activeDepartments.map((department) => (
+                <option key={department.id} value={department.id}>
+                  {formatDepartmentOption(department, { showCity: !filters.cityId, showType: false })}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field">
             <span>Наряд</span>
             <select
               value={filters.crewId ?? 0}
@@ -266,7 +328,7 @@ export function ReportsEmployeesPage() {
             >
               <option value={0}>Все наряды</option>
 
-              {crews.map((crew) => (
+              {visibleCrews.map((crew) => (
                 <option key={crew.id} value={crew.id}>
                   {crew.name}
                 </option>
@@ -284,7 +346,7 @@ export function ReportsEmployeesPage() {
             >
               <option value={0}>Все автомобили</option>
 
-              {vehicles.map((vehicle) => (
+              {visibleVehicles.map((vehicle) => (
                 <option key={vehicle.id} value={vehicle.id}>
                   {vehicle.title}
                   {vehicle.licensePlate ? ` · ${vehicle.licensePlate}` : ""}
@@ -303,7 +365,7 @@ export function ReportsEmployeesPage() {
             >
               <option value={0}>Все сотрудники</option>
 
-              {employees.map((employee) => (
+              {visibleEmployees.map((employee) => (
                 <option key={employee.id} value={employee.id}>
                   {employee.fullName}
                 </option>

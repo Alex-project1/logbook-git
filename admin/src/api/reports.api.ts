@@ -4,6 +4,7 @@ export type ReportFilters = {
   dateFrom?: string;
   dateTo?: string;
   cityId?: number;
+  departmentId?: number;
 };
 export type CrewDutyType = "FULL_DAY" | "DAY" | "NIGHT";
 export type CrewTransportType = "AUTO" | "MOTO";
@@ -68,6 +69,10 @@ function buildReportParams(filters: ReportFilters) {
 
   if (filters.cityId) {
     params.cityId = filters.cityId;
+  }
+
+  if (filters.departmentId) {
+    params.departmentId = filters.departmentId;
   }
 
   if (filters.dateFrom) {
@@ -167,6 +172,12 @@ export type TripTableRow = {
     name: string;
   };
 
+  department?: {
+    id: number;
+    name: string;
+    type: "GBR" | "POST" | "OTHER";
+  };
+
   shiftDate: string;
   submittedAt: string | null;
 
@@ -259,6 +270,7 @@ function buildTripsTableParams(filters: TripsTableFilters) {
   if (filters.sortDir) params.sortDir = filters.sortDir;
 
   if (filters.cityId) params.cityId = filters.cityId;
+  if (filters.departmentId) params.departmentId = filters.departmentId;
   if (filters.crewId) params.crewId = filters.crewId;
   if (filters.vehicleId) params.vehicleId = filters.vehicleId;
   if (filters.employeeId) params.employeeId = filters.employeeId;
@@ -370,6 +382,12 @@ export type ShiftTableRow = {
     name: string;
   };
 
+  department?: {
+    id: number;
+    name: string;
+    type: "GBR" | "POST" | "OTHER";
+  };
+
   shiftDate: string;
   submittedAt: string | null;
 
@@ -449,6 +467,7 @@ function buildShiftsTableParams(filters: ShiftsTableFilters) {
   if (filters.sortDir) params.sortDir = filters.sortDir;
 
   if (filters.cityId) params.cityId = filters.cityId;
+  if (filters.departmentId) params.departmentId = filters.departmentId;
   if (filters.crewId) params.crewId = filters.crewId;
   if (filters.vehicleId) params.vehicleId = filters.vehicleId;
   if (filters.employeeId) params.employeeId = filters.employeeId;
@@ -536,6 +555,8 @@ export type EmployeeTableRow = {
   fullName: string;
   cityId: number;
   cityName: string;
+  departmentId?: number | null;
+  departmentName?: string | null;
 
   totalShifts: number;
   driverShifts: number;
@@ -623,6 +644,7 @@ function buildEmployeesTableParams(filters: EmployeesTableFilters) {
   if (filters.sortDir) params.sortDir = filters.sortDir;
 
   if (filters.cityId) params.cityId = filters.cityId;
+  if (filters.departmentId) params.departmentId = filters.departmentId;
   if (filters.crewId) params.crewId = filters.crewId;
   if (filters.vehicleId) params.vehicleId = filters.vehicleId;
   if (filters.employeeId) params.employeeId = filters.employeeId;
@@ -711,6 +733,8 @@ export type CrewTableRow = {
   crewName: string;
   cityId: number;
   cityName: string;
+  departmentId?: number | null;
+  departmentName?: string | null;
 
   totalShifts: number;
   totalTrips: number;
@@ -779,6 +803,7 @@ function buildCrewsTableParams(filters: CrewsTableFilters) {
   if (filters.sortDir) params.sortDir = filters.sortDir;
 
   if (filters.cityId) params.cityId = filters.cityId;
+  if (filters.departmentId) params.departmentId = filters.departmentId;
   if (filters.crewId) params.crewId = filters.crewId;
   if (filters.vehicleId) params.vehicleId = filters.vehicleId;
   if (filters.employeeId) params.employeeId = filters.employeeId;
@@ -865,6 +890,8 @@ export type VehicleTableRow = {
   licensePlate: string | null;
   cityId: number;
   cityName: string;
+  departmentId?: number | null;
+  departmentName?: string | null;
 
   totalShifts: number;
   totalTrips: number;
@@ -936,6 +963,7 @@ function buildVehiclesTableParams(filters: VehiclesTableFilters) {
   if (filters.sortDir) params.sortDir = filters.sortDir;
 
   if (filters.cityId) params.cityId = filters.cityId;
+  if (filters.departmentId) params.departmentId = filters.departmentId;
   if (filters.crewId) params.crewId = filters.crewId;
   if (filters.vehicleId) params.vehicleId = filters.vehicleId;
   if (filters.employeeId) params.employeeId = filters.employeeId;
@@ -1055,6 +1083,7 @@ function buildAlarmsReportParams(filters: AlarmsReportFilters) {
   const params: Record<string, string | number> = {};
 
   if (filters.cityId) params.cityId = filters.cityId;
+  if (filters.departmentId) params.departmentId = filters.departmentId;
   if (filters.crewId) params.crewId = filters.crewId;
   if (filters.vehicleId) params.vehicleId = filters.vehicleId;
   if (filters.employeeId) params.employeeId = filters.employeeId;

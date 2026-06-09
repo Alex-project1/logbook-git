@@ -167,3 +167,81 @@ export function buildCityAccessWhere(allowedCityIds: number[] | null) {
     },
   };
 }
+export async function getAllowedDepartmentIds(req: Request) {
+  if (isSuperAdmin(req)) {
+    return null;
+  }
+
+  const userId = getAdminUserId(req);
+
+  if (!userId) {
+    return [];
+  }
+
+  const rows = await prisma.adminDepartmentAccess.findMany({
+    where: { userId },
+    select: { departmentId: true },
+  });
+
+  return rows.map((row) => row.departmentId);
+}
+
+export async function getDepartmentAccess(req: Request, departmentId: number) {
+  if (isSuperAdmin(req)) {
+    return {
+      accessLevel: AdminAccessLevel.FULL,
+      canAddShift: true,
+      canDeleteShift: true,
+    };
+  }
+
+  const userId = getAdminUserId(req);
+
+  if (!userId || !departmentId) {
+    return null;
+  }
+
+  return prisma.adminDepartmentAccess.findFirst({
+    where: { userId, departmentId },
+    select: {
+      accessLevel: true,
+      canAddShift: true,
+      canDeleteShift: true,
+    },
+  });
+}
+
+export async function canViewDepartment(req: Request, departmentId: number) {
+  if (isSuperAdmin(req)) {
+    return true;
+  }
+
+  return Boolean(await getDepartmentAccess(req, departmentId));
+}
+
+export async function canEditDepartmentData(req: Request, departmentId: number) {
+  if (isSuperAdmin(req)) {
+    return true;
+  }
+
+  if (!isAdmin(req)) {
+    return false;
+  }
+
+  const access = await getDepartmentAccess(req, departmentId);
+  const accessLevel = String(access?.accessLevel ?? "");
+
+  return accessLevel === "EDIT" || accessLevel === "FULL";
+}
+
+export function buildDepartmentAccessWhere(allowedDepartmentIds: number[] | null) {
+  if (allowedDepartmentIds === null) {
+    return {};
+  }
+
+  return {
+    departmentId: {
+      in: allowedDepartmentIds,
+    },
+  };
+}

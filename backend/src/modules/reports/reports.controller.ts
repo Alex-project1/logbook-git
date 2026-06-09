@@ -1,5 +1,11 @@
 import { Request, Response } from "express";
 import { prisma } from "../../config/prisma";
+import {
+  buildCityAccessWhere,
+  buildDepartmentAccessWhere,
+  getAllowedCityIds,
+  getAllowedDepartmentIds,
+} from "../../utils/admin-access";
 
 function toNumber(value: unknown) {
   return Number(value ?? 0);
@@ -25,17 +31,44 @@ function parseDate(value: unknown) {
   return date;
 }
 
+function buildReportAccessWhere(allowedCityIds: number[] | null, allowedDepartmentIds: number[] | null) {
+  return {
+    ...buildCityAccessWhere(allowedCityIds),
+    ...buildDepartmentAccessWhere(allowedDepartmentIds),
+  };
+}
+
+async function getReportScope(req: Request) {
+  return {
+    allowedCityIds: await getAllowedCityIds(req),
+    allowedDepartmentIds: await getAllowedDepartmentIds(req),
+  };
+}
+
+function departmentSelect() {
+  return {
+    id: true,
+    name: true,
+    type: true,
+  } as const;
+}
+
 type ShiftWithData = Awaited<ReturnType<typeof loadShiftsForReports>>[number];
 
 async function loadShiftsForReports(params: {
   cityId?: number;
+  departmentId?: number;
   dateFrom?: Date;
   dateTo?: Date;
+  allowedCityIds?: number[] | null;
+  allowedDepartmentIds?: number[] | null;
 }) {
   return prisma.shift.findMany({
     where: {
       deletedAt: null,
+      ...buildReportAccessWhere(params.allowedCityIds ?? null, params.allowedDepartmentIds ?? null),
       ...(params.cityId ? { cityId: params.cityId } : {}),
+      ...(params.departmentId ? { departmentId: params.departmentId } : {}),
       ...(params.dateFrom || params.dateTo
         ? {
             shiftDate: {
@@ -51,6 +84,9 @@ async function loadShiftsForReports(params: {
           id: true,
           name: true,
         },
+      },
+      department: {
+        select: departmentSelect(),
       },
       crew: {
         select: {
@@ -343,13 +379,18 @@ function finalizeTotals(totals: ReturnType<typeof createEmptyTotals>) {
 export async function getGeneralReport(req: Request, res: Response) {
   try {
     const cityId = req.query.cityId ? Number(req.query.cityId) : undefined;
+    const departmentId = req.query.departmentId ? Number(req.query.departmentId) : undefined;
+    const { allowedCityIds, allowedDepartmentIds } = await getReportScope(req);
     const dateFrom = parseDate(req.query.dateFrom);
     const dateTo = parseDate(req.query.dateTo);
 
     const shifts = await loadShiftsForReports({
       cityId,
+      departmentId,
       dateFrom,
       dateTo,
+      allowedCityIds,
+      allowedDepartmentIds,
     });
 
     const totals = createEmptyTotals();
@@ -383,6 +424,7 @@ export async function getGeneralReport(req: Request, res: Response) {
     return res.json({
       filters: {
         cityId: cityId ?? null,
+        departmentId: departmentId ?? null,
         dateFrom: dateFrom ?? null,
         dateTo: dateTo ?? null,
       },
@@ -512,13 +554,18 @@ function finalizeEmployeeRow(row: EmployeeReportRow) {
 export async function getEmployeesReport(req: Request, res: Response) {
   try {
     const cityId = req.query.cityId ? Number(req.query.cityId) : undefined;
+    const departmentId = req.query.departmentId ? Number(req.query.departmentId) : undefined;
+    const { allowedCityIds, allowedDepartmentIds } = await getReportScope(req);
     const dateFrom = parseDate(req.query.dateFrom);
     const dateTo = parseDate(req.query.dateTo);
 
     const shifts = await loadShiftsForReports({
       cityId,
+      departmentId,
       dateFrom,
       dateTo,
+      allowedCityIds,
+      allowedDepartmentIds,
     });
 
     const employeeMap = new Map<number, EmployeeReportRow>();
@@ -565,6 +612,7 @@ export async function getEmployeesReport(req: Request, res: Response) {
     return res.json({
       filters: {
         cityId: cityId ?? null,
+        departmentId: departmentId ?? null,
         dateFrom: dateFrom ?? null,
         dateTo: dateTo ?? null,
       },
@@ -688,13 +736,18 @@ function finalizeCrewRow(row: CrewReportRow) {
 export async function getCrewsReport(req: Request, res: Response) {
   try {
     const cityId = req.query.cityId ? Number(req.query.cityId) : undefined;
+    const departmentId = req.query.departmentId ? Number(req.query.departmentId) : undefined;
+    const { allowedCityIds, allowedDepartmentIds } = await getReportScope(req);
     const dateFrom = parseDate(req.query.dateFrom);
     const dateTo = parseDate(req.query.dateTo);
 
     const shifts = await loadShiftsForReports({
       cityId,
+      departmentId,
       dateFrom,
       dateTo,
+      allowedCityIds,
+      allowedDepartmentIds,
     });
 
     const crewMap = new Map<number, CrewReportRow>();
@@ -718,6 +771,7 @@ export async function getCrewsReport(req: Request, res: Response) {
     return res.json({
       filters: {
         cityId: cityId ?? null,
+        departmentId: departmentId ?? null,
         dateFrom: dateFrom ?? null,
         dateTo: dateTo ?? null,
       },
@@ -862,13 +916,18 @@ function finalizeVehicleRow(row: VehicleReportRow) {
 export async function getVehiclesReport(req: Request, res: Response) {
   try {
     const cityId = req.query.cityId ? Number(req.query.cityId) : undefined;
+    const departmentId = req.query.departmentId ? Number(req.query.departmentId) : undefined;
+    const { allowedCityIds, allowedDepartmentIds } = await getReportScope(req);
     const dateFrom = parseDate(req.query.dateFrom);
     const dateTo = parseDate(req.query.dateTo);
 
     const shifts = await loadShiftsForReports({
       cityId,
+      departmentId,
       dateFrom,
       dateTo,
+      allowedCityIds,
+      allowedDepartmentIds,
     });
 
     const vehicleMap = new Map<number, VehicleReportRow>();
@@ -892,6 +951,7 @@ export async function getVehiclesReport(req: Request, res: Response) {
     return res.json({
       filters: {
         cityId: cityId ?? null,
+        departmentId: departmentId ?? null,
         dateFrom: dateFrom ?? null,
         dateTo: dateTo ?? null,
       },
@@ -1084,6 +1144,8 @@ export async function getTripsTableReport(req: Request, res: Response) {
       req.query.sortDir === "asc" ? "asc" : "desc";
 
     const cityId = parseNumberQuery(req.query.cityId);
+    const departmentId = parseNumberQuery(req.query.departmentId);
+    const { allowedCityIds, allowedDepartmentIds } = await getReportScope(req);
     const crewId = parseNumberQuery(req.query.crewId);
     const vehicleId = parseNumberQuery(req.query.vehicleId);
     const employeeId = parseNumberQuery(req.query.employeeId);
@@ -1111,6 +1173,8 @@ export async function getTripsTableReport(req: Request, res: Response) {
       deletedAt: null,
       shift: {
         deletedAt: null,
+        ...buildReportAccessWhere(allowedCityIds, allowedDepartmentIds),
+        ...(departmentId ? { departmentId } : {}),
         ...(dateFrom || dateTo
           ? {
               shiftDate: {
@@ -1243,6 +1307,9 @@ export async function getTripsTableReport(req: Request, res: Response) {
               odometerStart: true,
               odometerEndCalculated: true,
               totalDistanceKm: true,
+              department: {
+                select: departmentSelect(),
+              },
               crew: {
                 select: {
                   id: true,
@@ -1299,6 +1366,7 @@ export async function getTripsTableReport(req: Request, res: Response) {
         shiftId: trip.shiftId,
 
         city: trip.city,
+        department: trip.shift.department,
         shiftDate: trip.shift.shiftDate,
         submittedAt: trip.shift.submittedAt,
 
@@ -1362,6 +1430,7 @@ export async function getTripsTableReport(req: Request, res: Response) {
         sortBy,
         sortDir,
         cityId: cityId ?? null,
+        departmentId: departmentId ?? null,
         crewId: crewId ?? null,
         vehicleId: vehicleId ?? null,
         employeeId: employeeId ?? null,
@@ -1425,6 +1494,8 @@ export async function getShiftsTableReport(req: Request, res: Response) {
       req.query.sortDir === "asc" ? "asc" : "desc";
 
     const cityId = parseNumberQuery(req.query.cityId);
+    const departmentId = parseNumberQuery(req.query.departmentId);
+    const { allowedCityIds, allowedDepartmentIds } = await getReportScope(req);
     const crewId = parseNumberQuery(req.query.crewId);
     const vehicleId = parseNumberQuery(req.query.vehicleId);
     const employeeId = parseNumberQuery(req.query.employeeId);
@@ -1436,7 +1507,9 @@ export async function getShiftsTableReport(req: Request, res: Response) {
 
     const where: any = {
       deletedAt: null,
+      ...buildReportAccessWhere(allowedCityIds, allowedDepartmentIds),
       ...(cityId ? { cityId } : {}),
+      ...(departmentId ? { departmentId } : {}),
       ...(crewId ? { crewId } : {}),
       ...(vehicleId ? { vehicleId } : {}),
       ...(employeeId
@@ -1522,6 +1595,9 @@ export async function getShiftsTableReport(req: Request, res: Response) {
               name: true,
             },
           },
+          department: {
+            select: departmentSelect(),
+          },
           crew: {
             select: {
               id: true,
@@ -1585,6 +1661,7 @@ export async function getShiftsTableReport(req: Request, res: Response) {
         id: shift.id,
 
         city: shift.city,
+        department: shift.department,
         shiftDate: shift.shiftDate,
         submittedAt: shift.submittedAt,
 
@@ -1664,6 +1741,7 @@ export async function getShiftsTableReport(req: Request, res: Response) {
         sortBy,
         sortDir,
         cityId: cityId ?? null,
+        departmentId: departmentId ?? null,
         crewId: crewId ?? null,
         vehicleId: vehicleId ?? null,
         employeeId: employeeId ?? null,
@@ -1915,6 +1993,8 @@ export async function getEmployeesTableReport(req: Request, res: Response) {
       req.query.sortDir === "asc" ? "asc" : "desc";
 
     const cityId = parseNumberQuery(req.query.cityId);
+    const departmentId = parseNumberQuery(req.query.departmentId);
+    const { allowedCityIds, allowedDepartmentIds } = await getReportScope(req);
     const crewId = parseNumberQuery(req.query.crewId);
     const vehicleId = parseNumberQuery(req.query.vehicleId);
     const employeeId = parseNumberQuery(req.query.employeeId);
@@ -1926,7 +2006,9 @@ export async function getEmployeesTableReport(req: Request, res: Response) {
 
     const where: any = {
       deletedAt: null,
+      ...buildReportAccessWhere(allowedCityIds, allowedDepartmentIds),
       ...(cityId ? { cityId } : {}),
+      ...(departmentId ? { departmentId } : {}),
       ...(crewId ? { crewId } : {}),
       ...(vehicleId ? { vehicleId } : {}),
       ...(employeeId
@@ -2354,6 +2436,7 @@ export async function getEmployeesTableReport(req: Request, res: Response) {
         sortBy,
         sortDir,
         cityId: cityId ?? null,
+        departmentId: departmentId ?? null,
         crewId: crewId ?? null,
         vehicleId: vehicleId ?? null,
         employeeId: employeeId ?? null,
@@ -2562,6 +2645,8 @@ export async function getCrewsTableReport(req: Request, res: Response) {
       req.query.sortDir === "asc" ? "asc" : "desc";
 
     const cityId = parseNumberQuery(req.query.cityId);
+    const departmentId = parseNumberQuery(req.query.departmentId);
+    const { allowedCityIds, allowedDepartmentIds } = await getReportScope(req);
     const crewId = parseNumberQuery(req.query.crewId);
     const vehicleId = parseNumberQuery(req.query.vehicleId);
     const employeeId = parseNumberQuery(req.query.employeeId);
@@ -2573,7 +2658,9 @@ export async function getCrewsTableReport(req: Request, res: Response) {
 
     const where: any = {
       deletedAt: null,
+      ...buildReportAccessWhere(allowedCityIds, allowedDepartmentIds),
       ...(cityId ? { cityId } : {}),
+      ...(departmentId ? { departmentId } : {}),
       ...(crewId ? { crewId } : {}),
       ...(vehicleId ? { vehicleId } : {}),
       ...(employeeId
@@ -2792,6 +2879,7 @@ export async function getCrewsTableReport(req: Request, res: Response) {
         sortBy,
         sortDir,
         cityId: cityId ?? null,
+        departmentId: departmentId ?? null,
         crewId: crewId ?? null,
         vehicleId: vehicleId ?? null,
         employeeId: employeeId ?? null,
@@ -3012,6 +3100,8 @@ export async function getVehiclesTableReport(req: Request, res: Response) {
       req.query.sortDir === "asc" ? "asc" : "desc";
 
     const cityId = parseNumberQuery(req.query.cityId);
+    const departmentId = parseNumberQuery(req.query.departmentId);
+    const { allowedCityIds, allowedDepartmentIds } = await getReportScope(req);
     const crewId = parseNumberQuery(req.query.crewId);
     const vehicleId = parseNumberQuery(req.query.vehicleId);
     const employeeId = parseNumberQuery(req.query.employeeId);
@@ -3023,7 +3113,9 @@ export async function getVehiclesTableReport(req: Request, res: Response) {
 
     const where: any = {
       deletedAt: null,
+      ...buildReportAccessWhere(allowedCityIds, allowedDepartmentIds),
       ...(cityId ? { cityId } : {}),
+      ...(departmentId ? { departmentId } : {}),
       ...(crewId ? { crewId } : {}),
       ...(vehicleId ? { vehicleId } : {}),
       ...(employeeId
@@ -3300,6 +3392,7 @@ export async function getVehiclesTableReport(req: Request, res: Response) {
         sortBy,
         sortDir,
         cityId: cityId ?? null,
+        departmentId: departmentId ?? null,
         crewId: crewId ?? null,
         vehicleId: vehicleId ?? null,
         employeeId: employeeId ?? null,
@@ -3470,6 +3563,8 @@ function getMonthName(date: Date) {
 export async function getAlarmsReport(req: Request, res: Response) {
   try {
     const cityId = parseNumberQuery(req.query.cityId);
+    const departmentId = parseNumberQuery(req.query.departmentId);
+    const { allowedCityIds, allowedDepartmentIds } = await getReportScope(req);
     const crewId = parseNumberQuery(req.query.crewId);
     const vehicleId = parseNumberQuery(req.query.vehicleId);
     const employeeId = parseNumberQuery(req.query.employeeId);
@@ -3481,7 +3576,9 @@ export async function getAlarmsReport(req: Request, res: Response) {
 
     const where: any = {
       deletedAt: null,
+      ...buildReportAccessWhere(allowedCityIds, allowedDepartmentIds),
       ...(cityId ? { cityId } : {}),
+      ...(departmentId ? { departmentId } : {}),
       ...(crewId ? { crewId } : {}),
       ...(vehicleId ? { vehicleId } : {}),
       ...(employeeId
@@ -3674,6 +3771,7 @@ export async function getAlarmsReport(req: Request, res: Response) {
     return res.json({
       filters: {
         cityId: cityId ?? null,
+        departmentId: departmentId ?? null,
         crewId: crewId ?? null,
         vehicleId: vehicleId ?? null,
         employeeId: employeeId ?? null,

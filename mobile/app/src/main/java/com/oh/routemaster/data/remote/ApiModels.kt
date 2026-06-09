@@ -7,7 +7,7 @@ data class MobileLoginRequest(
 
 data class MobileLoginResponse(
     val accessToken: String,
-    val user: MobileUserDto
+    val user: BootstrapMobileUserDto?
 )
 
 data class MobileUserDto(
@@ -76,19 +76,41 @@ data class ReplyNotificationRequest(
 data class MobileBootstrapDto(
     val city: CityDto,
     val mobileUser: BootstrapMobileUserDto?,
+    val permissions: MobilePermissionsDto? = null,
     val employees: List<EmployeeDto>,
     val vehicles: List<VehicleDto>,
-  val crews: List<CrewDto>,
-val dutyPosts: List<DutyPostDto>,
-val tripGoals: List<TripGoalDto>,
+    val crews: List<CrewDto>,
+    val dutyPosts: List<DutyPostDto>,
+    val tripGoals: List<TripGoalDto>,
     val additionalAlarmReasons: List<AdditionalAlarmReasonDto>,
     val streets: List<StreetDto>,
     val settings: MobileSettingsDto?,
     val notifications: BootstrapNotificationsDto?
 )
+
 data class BootstrapMobileUserDto(
     val id: Int,
-    val login: String
+    val login: String,
+    val userKind: String? = null,
+    val cityId: Int? = null,
+    val departmentId: Int? = null,
+    val crewId: Int? = null,
+    val dutyPostId: Int? = null,
+    val displayName: String? = null,
+    val city: CityDto? = null,
+    val department: MobileDepartmentDto? = null,
+    val crew: CrewDto? = null,
+    val dutyPost: DutyPostDto? = null
+)
+
+data class MobileDepartmentDto(
+    val id: Int,
+    val name: String,
+    val type: String
+)
+
+data class MobilePermissionsDto(
+    val canUseObjects: Boolean = false
 )
 data class EmployeeDto(
     val id: Int,

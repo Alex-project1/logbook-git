@@ -1,355 +1,199 @@
 import { useEffect, useMemo, useState } from "react";
-import type { SyntheticEvent } from "react";
 import { getAccessibleCities } from "../api/cities.api";
 import type { City } from "../api/cities.api";
-import { getAdminMe } from "../api/auth.api";
-import type { AdminUser } from "../api/auth.api";
-import {
-  createMobileUser,
-  deleteMobileUser,
-  getMobileUsers,
-  restoreMobileUser,
-  updateMobileUser,
-} from "../api/mobile-users.api";
-import type { MobileUser } from "../api/mobile-users.api";
-import { RowActionMenu } from "../components/RowActionMenu";
+import { getDepartments } from "../api/departments.api";
+import type { Department } from "../api/departments.api";
+import { dedupeDepartments, formatDepartmentOption } from "../utils/department-options";
+import { getMobileUsers } from "../api/mobile-users.api";
+import type { MobileUser, MobileUserKind } from "../api/mobile-users.api";
 import { AccordionSection } from "../components/AccordionSection";
 
-type FormState = {
-  cityId: number;
-  login: string;
-  password: string;
-  isActive: boolean;
-};
+function getKindLabel(kind: MobileUserKind) {
+  return kind === "CREW" ? "Наряд ГБР" : "Пост";
+}
 
-const initialForm: FormState = {
-  cityId: 0,
-  login: "",
-  password: "",
-  isActive: true,
-};
+function getBoundEntityLabel(user: MobileUser) {
+  if (user.userKind === "CREW") {
+    return user.crew?.name ?? user.displayName ?? "Наряд не знайдено";
+  }
+
+  return user.dutyPost?.name ?? user.displayName ?? "Пост не знайдено";
+}
 
 export function MobileUsersPage() {
   const [cities, setCities] = useState<City[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [mobileUsers, setMobileUsers] = useState<MobileUser[]>([]);
-  const [selectedCityId, setSelectedCityId] = useState<number>(0);
-  const [showArchive, setShowArchive] = useState(false);
 
-  const [form, setForm] = useState<FormState>(initialForm);
-  const [editingUser, setEditingUser] = useState<MobileUser | null>(null);
+  const [selectedCityId, setSelectedCityId] = useState(0);
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState(0);
+  const [selectedKind, setSelectedKind] = useState<MobileUserKind | "">("");
+  const [showArchive, setShowArchive] = useState(false);
+  const [search, setSearch] = useState("");
 
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [currentUser, setCurrentUser] = useState<AdminUser | null>(null);
-  type MobileUsersSectionId = "form" | "list";
-
-  const [openedSections, setOpenedSections] = useState<
-    Record<MobileUsersSectionId, boolean>
-  >({
-    form: false,
-    list: true,
-  });
-
+  const [openedSections, setOpenedSections] = useState({ filters: true, list: true });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
-  function toggleSection(sectionId: MobileUsersSectionId) {
-    setOpenedSections((prev) => ({
-      ...prev,
-      [sectionId]: !prev[sectionId],
-    }));
-  }
-  const activeCities = useMemo(
-    () => cities.filter((city) => city.isActive),
-    [cities],
-  );
-  const roleCode = currentUser?.role?.code;
-  const canEditMobileUsers = roleCode === "super_admin" || roleCode === "admin";
-  const totalPages = Math.max(Math.ceil(mobileUsers.length / pageSize), 1);
+  const visibleDepartments = useMemo(() => {
+    return dedupeDepartments(
+      departments.filter((department) => {
+        if (selectedCityId && department.cityId !== selectedCityId) return false;
+        return !department.deletedAt;
+      }),
+    );
+  }, [departments, selectedCityId]);
 
-  const paginatedMobileUsers = useMemo(() => {
+  const filteredUsers = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    if (!query) return mobileUsers;
+
+    return mobileUsers.filter((user) => {
+      const haystack = [
+        user.login,
+        user.displayName ?? "",
+        user.city?.name ?? "",
+        user.department?.name ?? "",
+        user.crew?.name ?? "",
+        user.dutyPost?.name ?? "",
+        user.comment ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(query);
+    });
+  }, [mobileUsers, search]);
+
+  const totalPages = Math.max(Math.ceil(filteredUsers.length / pageSize), 1);
+  const paginatedUsers = useMemo(() => {
     const start = (page - 1) * pageSize;
-    return mobileUsers.slice(start, start + pageSize);
-  }, [mobileUsers, page, pageSize]);
+    return filteredUsers.slice(start, start + pageSize);
+  }, [filteredUsers, page, pageSize]);
 
-  async function loadInitialData() {
+  async function loadReferences() {
+    const [citiesData, departmentsData] = await Promise.all([
+      getAccessibleCities(),
+      getDepartments({ includeInactive: true }),
+    ]);
+
+    setCities(citiesData);
+    setDepartments(departmentsData);
+  }
+
+  async function loadUsers(next?: {
+    cityId?: number;
+    departmentId?: number;
+    userKind?: MobileUserKind | "";
+    archive?: boolean;
+  }) {
     setLoading(true);
     setError("");
 
+    const cityId = next?.cityId ?? selectedCityId;
+    const departmentId = next?.departmentId ?? selectedDepartmentId;
+    const userKind = next?.userKind ?? selectedKind;
+    const archive = next?.archive ?? showArchive;
+
     try {
-      const citiesData = await getAccessibleCities();
-      setCities(citiesData);
+      const data = await getMobileUsers({
+        cityId: cityId || undefined,
+        departmentId: departmentId || undefined,
+        userKind: userKind || undefined,
+        archive,
+        includeInactive: true,
+      });
 
-      const firstCityId = citiesData[0]?.id ?? 0;
-
-      setSelectedCityId(0);
-
-      setForm((prev) => ({
-        ...prev,
-        cityId: prev.cityId || firstCityId,
-      }));
-
-      const usersData = await getMobileUsers(undefined, showArchive);
-      setMobileUsers(usersData);
+      setMobileUsers(data);
       setPage(1);
     } catch {
-      setError("Не удалось загрузить данные");
+      setError("Не вдалося завантажити користувачів застосунку");
     } finally {
       setLoading(false);
     }
   }
 
-  async function loadMobileUsers(
-    cityId = selectedCityId,
-    archive = showArchive,
-  ) {
-    setError("");
-
-    try {
-      const data = await getMobileUsers(cityId || undefined, archive);
-      setMobileUsers(data);
-      setPage(1);
-    } catch {
-      setError("Не удалось загрузить пользователей приложения");
-    }
-  }
-
   useEffect(() => {
-    async function loadCurrentUser() {
+    async function init() {
       try {
-        const response = await getAdminMe();
-        setCurrentUser(response.user);
+        await loadReferences();
+        await loadUsers({ cityId: 0, departmentId: 0, userKind: "", archive: false });
       } catch {
-        setCurrentUser(null);
+        setError("Не вдалося завантажити довідники");
+        setLoading(false);
       }
     }
 
-    loadCurrentUser();
-    loadInitialData();
+    init();
   }, []);
 
-  async function handleCityFilterChange(cityId: number) {
+  function toggleSection(section: "filters" | "list") {
+    setOpenedSections((prev) => ({ ...prev, [section]: !prev[section] }));
+  }
+
+  async function handleCityChange(cityId: number) {
     setSelectedCityId(cityId);
-
-    setForm((prev) => ({
-      ...prev,
-      cityId: cityId || activeCities[0]?.id || 0,
-    }));
-
-    await loadMobileUsers(cityId, showArchive);
+    setSelectedDepartmentId(0);
+    await loadUsers({ cityId, departmentId: 0 });
   }
-  async function handleArchiveFilterChange(value: string) {
+
+  async function handleDepartmentChange(departmentId: number) {
+    setSelectedDepartmentId(departmentId);
+    await loadUsers({ departmentId });
+  }
+
+  async function handleKindChange(kind: MobileUserKind | "") {
+    setSelectedKind(kind);
+    await loadUsers({ userKind: kind });
+  }
+
+  async function handleArchiveChange(value: string) {
     const archive = value === "archive";
-
     setShowArchive(archive);
-    setEditingUser(null);
-
-    setForm({
-      ...initialForm,
-      cityId: selectedCityId || activeCities[0]?.id || 0,
-    });
-
-    setError("");
-    setSuccess("");
-
-    await loadMobileUsers(selectedCityId, archive);
-  }
-  function startEdit(user: MobileUser) {
-    setEditingUser(user);
-
-    setForm({
-      cityId: user.cityId,
-      login: user.login,
-      password: "",
-      isActive: user.isActive,
-    });
-
-    setError("");
-    setSuccess("");
-    setOpenedSections((prev) => ({
-      ...prev,
-      form: true,
-    }));
+    await loadUsers({ archive });
   }
 
-  function resetForm() {
-    setEditingUser(null);
-
-    setForm({
-      ...initialForm,
-      cityId: selectedCityId || activeCities[0]?.id || 0,
-    });
-
-    setError("");
-  }
-  function openFormWithError(message: string) {
-    setError(message);
-    setSuccess("");
-
-    setOpenedSections((prev) => ({
-      ...prev,
-      form: true,
-    }));
-  }
-  async function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!form.cityId) {
-      openFormWithError("Выберите город");
-      return;
-    }
-
-    if (!form.login.trim()) {
-      openFormWithError("Введите логин");
-      return;
-    }
-
-    if (!editingUser && form.password.trim().length < 6) {
-      openFormWithError("Пароль должен быть минимум 6 символов");
-      return;
-    }
-
-    if (
-      editingUser &&
-      form.password.trim() &&
-      form.password.trim().length < 6
-    ) {
-      openFormWithError("Новый пароль должен быть минимум 6 символов");
-      return;
-    }
-
-    setSaving(true);
-    setError("");
-    setSuccess("");
-
-    try {
-      if (editingUser) {
-        await updateMobileUser(editingUser.id, {
-          cityId: form.cityId,
-          login: form.login.trim(),
-          password: form.password.trim() || undefined,
-          isActive: form.isActive,
-        });
-
-        setSuccess("Пользователь обновлен");
-      } else {
-        await createMobileUser({
-          cityId: form.cityId,
-          login: form.login.trim(),
-          password: form.password.trim(),
-          isActive: form.isActive,
-        });
-
-        setSuccess("Пользователь добавлен");
-      }
-
-      resetForm();
-
-      setOpenedSections((prev) => ({
-        ...prev,
-        form: false,
-        list: true,
-      }));
-
-      await loadMobileUsers(selectedCityId, showArchive);
-    } catch (err: any) {
-      if (err.response?.status === 409) {
-        setError("Пользователь с таким логином уже существует");
-      } else {
-        setError("Не удалось сохранить пользователя");
-      }
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleToggleActive(user: MobileUser) {
-    setError("");
-    setSuccess("");
-
-    try {
-      await updateMobileUser(user.id, {
-        isActive: !user.isActive,
-      });
-
-      setSuccess(
-        user.isActive ? "Пользователь отключен" : "Пользователь включен",
-      );
-      await loadMobileUsers(selectedCityId);
-    } catch {
-      setError("Не удалось изменить статус пользователя");
-    }
-  }
-  async function handleRestore(user: MobileUser) {
-    setError("");
-    setSuccess("");
-
-    try {
-      await restoreMobileUser(user.id);
-      setSuccess("Пользователь восстановлен");
-      await loadMobileUsers(selectedCityId, showArchive);
-    } catch {
-      setError("Не удалось восстановить пользователя");
-    }
-  }
-  async function handleDelete(user: MobileUser) {
-    const confirmed = window.confirm(
-      `Удалить пользователя "${user.login}"? Он будет скрыт из системы.`,
-    );
-
-    if (!confirmed) return;
-
-    setError("");
-    setSuccess("");
-
-    try {
-      await deleteMobileUser(user.id);
-      setSuccess("Пользователь удален");
-      await loadMobileUsers(selectedCityId);
-    } catch {
-      setError("Не удалось удалить пользователя");
-    }
+  async function handleReset() {
+    setSelectedCityId(0);
+    setSelectedDepartmentId(0);
+    setSelectedKind("");
+    setShowArchive(false);
+    setSearch("");
+    await loadUsers({ cityId: 0, departmentId: 0, userKind: "", archive: false });
   }
 
   return (
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Пользователи приложения</h1>
-          <p>Логины для входа нарядов в Android-приложение</p>
+          <h1>Користувачі застосунку</h1>
+          <p>
+            Перегляд логінів, які створюються через “Наряди ГБР” та “Доп. пости”.
+            Нових користувачів тут не додаємо — вони привʼязані до наряду або поста.
+          </p>
         </div>
       </div>
 
-      <div className="content-grid">
-        {canEditMobileUsers && (
-          <form className="panel-card" onSubmit={handleSubmit}>
-            <AccordionSection
-              title={
-                editingUser
-                  ? "Редактировать пользователя"
-                  : "Добавить пользователя"
-              }
-              subtitle="Город, логин, пароль и статус пользователя приложения"
-              open={openedSections.form}
-              onToggle={() => toggleSection("form")}
-            >
+      <div className="content-grid single-column">
+        <div className="panel-card">
+          <AccordionSection
+            title="Фільтри"
+            subtitle="Місто, підрозділ, тип користувача та архів"
+            open={openedSections.filters}
+            onToggle={() => toggleSection("filters")}
+          >
+            <div className="filters-row">
               <label className="field">
-                <span>Город</span>
+                <span>Місто</span>
                 <select
-                  value={form.cityId}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      cityId: Number(event.target.value),
-                    }))
-                  }
+                  value={selectedCityId}
+                  onChange={(event) => handleCityChange(Number(event.target.value))}
                 >
-                  <option value={0}>Выберите город</option>
-
-                  {activeCities.map((city) => (
+                  <option value={0}>Усі міста</option>
+                  {cities.map((city) => (
                     <option key={city.id} value={city.id}>
                       {city.name}
                     </option>
@@ -358,98 +202,81 @@ export function MobileUsersPage() {
               </label>
 
               <label className="field">
-                <span>Логин</span>
-                <input
-                  value={form.login}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      login: event.target.value,
-                    }))
-                  }
-                  placeholder="Например: crew1"
-                  autoComplete="username"
-                />
+                <span>Підрозділ</span>
+                <select
+                  value={selectedDepartmentId}
+                  onChange={(event) => handleDepartmentChange(Number(event.target.value))}
+                >
+                  <option value={0}>Усі підрозділи</option>
+                  {visibleDepartments.map((department) => (
+                    <option key={department.id} value={department.id}>
+                      {formatDepartmentOption(department, { showCity: !selectedCityId })}
+                    </option>
+                  ))}
+                </select>
               </label>
 
               <label className="field">
-                <span>
-                  {editingUser ? "Новый пароль, необязательно" : "Пароль"}
-                </span>
-                <input
-                  value={form.password}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      password: event.target.value,
-                    }))
-                  }
-                  placeholder={
-                    editingUser
-                      ? "Оставьте пустым, чтобы не менять"
-                      : "Минимум 6 символов"
-                  }
-                  type="password"
-                  autoComplete="new-password"
-                />
+                <span>Тип</span>
+                <select
+                  value={selectedKind}
+                  onChange={(event) => handleKindChange(event.target.value as MobileUserKind | "")}
+                >
+                  <option value="">Усі типи</option>
+                  <option value="CREW">Наряди ГБР</option>
+                  <option value="POST">Пости</option>
+                </select>
               </label>
 
-              <label className="checkbox-field">
-                <input
-                  type="checkbox"
-                  checked={form.isActive}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      isActive: event.target.checked,
-                    }))
-                  }
-                />
-                <span>Пользователь активен</span>
+              <label className="field">
+                <span>Стан</span>
+                <select
+                  value={showArchive ? "archive" : "active"}
+                  onChange={(event) => handleArchiveChange(event.target.value)}
+                >
+                  <option value="active">Робочі</option>
+                  <option value="archive">Архів</option>
+                </select>
               </label>
 
-              {error && <div className="form-error">{error}</div>}
-              {success && <div className="form-success">{success}</div>}
+              <label className="field">
+                <span>Пошук</span>
+                <input
+                  value={search}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    setPage(1);
+                  }}
+                  placeholder="Логін, позивний, пост, підрозділ..."
+                />
+              </label>
+            </div>
 
-              <div className="form-actions">
-                <button className="primary-button" disabled={saving}>
-                  {saving
-                    ? "Сохранение..."
-                    : editingUser
-                      ? "Сохранить"
-                      : "Добавить"}
-                </button>
+            <div className="form-actions">
+              <button className="primary-button" onClick={() => loadUsers()} disabled={loading}>
+                {loading ? "Оновлюємо..." : "Оновити"}
+              </button>
+              <button className="secondary-button" onClick={handleReset}>
+                Скинути
+              </button>
+            </div>
+          </AccordionSection>
+        </div>
 
-                {editingUser && (
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={resetForm}
-                  >
-                    Отмена
-                  </button>
-                )}
-              </div>
-            </AccordionSection>
-          </form>
-        )}
         <div className="panel-card table-card">
           <AccordionSection
-            title="Список пользователей"
-            subtitle={`Всего: ${mobileUsers.length} · Страница ${page} из ${totalPages} · ${
-              selectedCityId ? "Выбран город" : "Все доступные города"
-            }`}
+            title="Список користувачів"
+            subtitle={`Знайдено: ${filteredUsers.length} · Сторінка ${page} з ${totalPages}`}
             open={openedSections.list}
             onToggle={() => toggleSection("list")}
           >
+            {error && <div className="form-error">{error}</div>}
+
             <div className="table-header">
               <div>
-                <h2>Список пользователей</h2>
-                <p>
-                  Всего: {mobileUsers.length} · Страница {page} из {totalPages}
-                </p>
+                <h2>Користувачі застосунку</h2>
+                <p>Логін, місто, підрозділ і привʼязаний наряд/пост</p>
               </div>
-
               <div className="table-header-actions">
                 <select
                   className="compact-select"
@@ -459,154 +286,71 @@ export function MobileUsersPage() {
                     setPage(1);
                   }}
                 >
-                  <option value={20}>20 строк</option>
-                  <option value={50}>50 строк</option>
-                  <option value={100}>100 строк</option>
+                  <option value={20}>20 рядків</option>
+                  <option value={50}>50 рядків</option>
+                  <option value={100}>100 рядків</option>
                 </select>
-                <select
-                  className="compact-select"
-                  value={selectedCityId}
-                  onChange={(event) =>
-                    handleCityFilterChange(Number(event.target.value))
-                  }
-                >
-                  <option value={0}>Все города</option>
-
-                  {cities.map((city) => (
-                    <option key={city.id} value={city.id}>
-                      {city.name}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  className="compact-select"
-                  value={showArchive ? "archive" : "active"}
-                  onChange={(event) =>
-                    handleArchiveFilterChange(event.target.value)
-                  }
-                >
-                  <option value="active">Рабочие</option>
-                  <option value="archive">Архив</option>
-                </select>
-                <button
-                  className="secondary-button"
-                  onClick={() => loadMobileUsers(selectedCityId, showArchive)}
-                >
-                  Обновить
-                </button>
               </div>
             </div>
 
             {loading ? (
-              <div className="empty-state">Загрузка...</div>
-            ) : mobileUsers.length === 0 ? (
-              <div className="empty-state">
-                {showArchive
-                  ? "В архиве нет пользователей"
-                  : "Пользователи еще не добавлены"}
-              </div>
+              <div className="empty-state">Завантаження...</div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="empty-state">Користувачів не знайдено</div>
             ) : (
-                <>
-              <div className="table-wrap">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Логин</th>
-                      <th>Город</th>
-                      <th>Статус</th>
-                      {canEditMobileUsers && <th>Действия</th>}
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {paginatedMobileUsers.map((user) => (
-                      <tr key={user.id}>
-                        <td>{user.id}</td>
-                        <td>
-                          <strong>{user.login}</strong>
-                        </td>
-                        <td>{user.city?.name ?? user.cityId}</td>
-                        <td>
-                          {showArchive ? (
-                            <span className="status-badge status-inactive">
-                              В архиве
-                            </span>
-                          ) : (
-                            <span
-                              className={
-                                user.isActive
-                                  ? "status-badge status-active"
-                                  : "status-badge status-inactive"
-                              }
-                            >
-                              {user.isActive ? "Активен" : "Отключен"}
-                            </span>
-                          )}
-                        </td>
-                        {canEditMobileUsers && (
-                          <td className="actions-cell">
-                            {showArchive ? (
-                              <RowActionMenu
-                                items={[
-                                  {
-                                    label: "Восстановить",
-                                    onClick: () => handleRestore(user),
-                                  },
-                                ]}
-                              />
+              <>
+                <div className="table-wrap">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Логін</th>
+                        <th>Тип</th>
+                        <th>Позивний / пост</th>
+                        <th>Місто</th>
+                        <th>Підрозділ</th>
+                        <th>Статус</th>
+                        <th>Коментар</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedUsers.map((user) => (
+                        <tr key={user.id}>
+                          <td>{user.id}</td>
+                          <td><strong>{user.login}</strong></td>
+                          <td>{getKindLabel(user.userKind)}</td>
+                          <td>{getBoundEntityLabel(user)}</td>
+                          <td>{user.city?.name ?? user.cityId}</td>
+                          <td>
+                            {user.department
+                              ? formatDepartmentOption(user.department, { showCity: !selectedCityId })
+                              : user.departmentId}
+                          </td>
+                          <td>
+                            {showArchive || user.deletedAt ? (
+                              <span className="status-badge status-inactive">В архіві</span>
                             ) : (
-                              <RowActionMenu
-                                items={[
-                                  {
-                                    label: "Редактировать",
-                                    variant: "edit",
-                                    onClick: () => startEdit(user),
-                                  },
-                                  {
-                                    label: user.isActive
-                                      ? "Отключить"
-                                      : "Включить",
-                                    onClick: () => handleToggleActive(user),
-                                  },
-                                  {
-                                    label: "Удалить",
-                                    variant: "danger",
-                                    onClick: () => handleDelete(user),
-                                  },
-                                ]}
-                              />
+                              <span className={user.isActive ? "status-badge status-active" : "status-badge status-inactive"}>
+                                {user.isActive ? "Активний" : "Вимкнений"}
+                              </span>
                             )}
                           </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-                  <div className="pagination-bar">
-            <button
-                className="secondary-button"
-                disabled={page <= 1}
-                onClick={() => setPage((current) => Math.max(current - 1, 1))}
-            >
-                Назад
-            </button>
+                          <td>{user.comment || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
-            <span>
-                Страница {page} из {totalPages}
-            </span>
-
-            <button
-                className="secondary-button"
-                disabled={page >= totalPages}
-                onClick={() =>
-                    setPage((current) => Math.min(current + 1, totalPages))
-                }
-            >
-                Вперед
-            </button>
-        </div>
+                <div className="pagination-bar">
+                  <button className="secondary-button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(current - 1, 1))}>
+                    Назад
+                  </button>
+                  <span>Сторінка {page} з {totalPages}</span>
+                  <button className="secondary-button" disabled={page >= totalPages} onClick={() => setPage((current) => Math.min(current + 1, totalPages))}>
+                    Вперед
+                  </button>
+                </div>
               </>
             )}
           </AccordionSection>

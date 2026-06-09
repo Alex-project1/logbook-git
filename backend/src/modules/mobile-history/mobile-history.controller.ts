@@ -133,6 +133,23 @@ export async function getMobileHistory(req: Request, res: Response) {
     }
 
     const cityId = req.mobileUser.cityId;
+    const departmentId = req.mobileUser.departmentId;
+    const historyWhereShift: any = {
+      cityId,
+      departmentId,
+      deletedAt: null,
+      ...(req.mobileUser.userKind === "CREW" && req.mobileUser.crewId
+        ? { crewId: req.mobileUser.crewId }
+        : {}),
+    };
+    const historyWherePostDuty: any = {
+      cityId,
+      departmentId,
+      deletedAt: null,
+      ...(req.mobileUser.userKind === "POST" && req.mobileUser.dutyPostId
+        ? { postId: req.mobileUser.dutyPostId }
+        : {}),
+    };
     const page = parsePositiveInteger(req.query.page, 1);
     const pageSizeRaw = parsePositiveInteger(req.query.pageSize, 10);
     const pageSize = Math.min(Math.max(pageSizeRaw, 1), 50);
@@ -141,24 +158,15 @@ export async function getMobileHistory(req: Request, res: Response) {
 
     const [shiftTotal, postDutyTotal, shifts, postDuties] = await Promise.all([
       prisma.shift.count({
-        where: {
-          cityId,
-          deletedAt: null,
-        },
+        where: historyWhereShift,
       }),
 
       prisma.postDuty.count({
-        where: {
-          cityId,
-          deletedAt: null,
-        },
+        where: historyWherePostDuty,
       }),
 
       prisma.shift.findMany({
-        where: {
-          cityId,
-          deletedAt: null,
-        },
+        where: historyWhereShift,
         orderBy: {
           shiftDate: "desc",
         },
@@ -217,10 +225,7 @@ export async function getMobileHistory(req: Request, res: Response) {
       }),
 
       prisma.postDuty.findMany({
-        where: {
-          cityId,
-          deletedAt: null,
-        },
+        where: historyWherePostDuty,
         orderBy: {
           dutyDate: "desc",
         },

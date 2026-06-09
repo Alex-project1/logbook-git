@@ -78,6 +78,7 @@ export function AdminLayout() {
         items: [
           ...(isSuperAdmin ? [{ to: "/cities", label: "Города" }] : []),
           { to: "/mobile-users", label: "Пользователи приложения" },
+          { to: "/departments", label: "Подразделения" },
           { to: "/employees", label: "Сотрудники" },
           { to: "/crews", label: "Наряды ГБР" },
           { to: "/duty-posts", label: "Доп. посты" },

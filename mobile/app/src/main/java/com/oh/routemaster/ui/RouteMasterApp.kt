@@ -39,6 +39,8 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.oh.routemaster.data.local.TokenStore
 import com.oh.routemaster.data.remote.ApiClient
+import com.oh.routemaster.data.remote.BootstrapMobileUserDto
+import com.oh.routemaster.data.remote.MobileBootstrapDto
 import com.oh.routemaster.data.remote.MobileLoginRequest
 import com.oh.routemaster.services.PendingSubmissionWorkScheduler
 import com.oh.routemaster.services.registerFcmToken
@@ -86,6 +88,8 @@ fun RouteMasterApp() {
 
         var savedToken by remember { mutableStateOf<String?>(null) }
         var currentScreen by remember { mutableStateOf(AppScreen.HOME) }
+        var mobileUser by remember { mutableStateOf<BootstrapMobileUserDto?>(null) }
+        var canUseObjects by remember { mutableStateOf(false) }
 
         var login by remember { mutableStateOf("") }
         var password by remember { mutableStateOf("") }
@@ -95,6 +99,26 @@ fun RouteMasterApp() {
         var status by remember { mutableStateOf("") }
         var error by remember { mutableStateOf("") }
 
+        suspend fun refreshBootstrapContext(token: String): MobileBootstrapDto? {
+            return try {
+                val data = withContext(Dispatchers.IO) {
+                    ApiClient.api.getBootstrap(
+                        authorization = "Bearer $token"
+                    )
+                }
+
+                mobileUser = data.mobileUser
+                canUseObjects = data.permissions?.canUseObjects
+                    ?: (data.mobileUser?.userKind == "CREW" && data.mobileUser?.department?.type == "GBR")
+                unreadCount = data.notifications?.unreadCount ?: loadUnreadCount(token)
+                data
+            } catch (exception: Exception) {
+                exception.printStackTrace()
+                canUseObjects = false
+                null
+            }
+        }
+
         LaunchedEffect(Unit) {
             savedToken = tokenStore.accessTokenFlow.firstOrNull()
 
@@ -102,7 +126,16 @@ fun RouteMasterApp() {
                 PendingSubmissionWorkScheduler.schedulePeriodic(context.applicationContext)
                 PendingSubmissionWorkScheduler.enqueueNow(context.applicationContext)
 
-                unreadCount = loadUnreadCount(savedToken.orEmpty())
+                val data = refreshBootstrapContext(savedToken.orEmpty())
+                if (data == null) {
+                    unreadCount = loadUnreadCount(savedToken.orEmpty())
+                }
+            }
+        }
+
+        LaunchedEffect(canUseObjects, currentScreen) {
+            if (!canUseObjects && currentScreen == AppScreen.OBJECTS) {
+                currentScreen = AppScreen.HOME
             }
         }
 
@@ -144,6 +177,9 @@ fun RouteMasterApp() {
 
                                 tokenStore.saveAccessToken(response.accessToken)
                                 savedToken = response.accessToken
+                                mobileUser = response.user
+                                canUseObjects = response.user?.userKind == "CREW" &&
+                                    response.user?.department?.type == "GBR"
                                 status = "Вхід виконано"
 
                                 registerFcmToken(
@@ -155,7 +191,7 @@ fun RouteMasterApp() {
                                 PendingSubmissionWorkScheduler.schedulePeriodic(context.applicationContext)
                                 PendingSubmissionWorkScheduler.enqueueNow(context.applicationContext)
 
-                                unreadCount = loadUnreadCount(response.accessToken)
+                                refreshBootstrapContext(response.accessToken)
                             } catch (exception: Exception) {
                                 error =
                                     "Не вдалося увійти. Перевірте логін, пароль і доступ до сервера."
@@ -172,11 +208,15 @@ fun RouteMasterApp() {
                         RouteMasterBottomBar(
                             currentScreen = currentScreen,
                             unreadCount = unreadCount,
+                            canUseObjects = canUseObjects,
                             onSelectScreen = { screen ->
                                 currentScreen = screen
 
                                 scope.launch {
-                                    unreadCount = loadUnreadCount(savedToken.orEmpty())
+                                    val data = refreshBootstrapContext(savedToken.orEmpty())
+                                    if (data == null) {
+                                        unreadCount = loadUnreadCount(savedToken.orEmpty())
+                                    }
                                 }
                             }
                         )
@@ -192,6 +232,7 @@ fun RouteMasterApp() {
                                 HomeScreen(
                                     status = status.ifBlank { "Вхід виконано" },
                                     unreadCount = unreadCount,
+                                    mobileUser = mobileUser,
                                     darkTheme = darkTheme,
                                     onThemeChange = { enabled ->
                                         darkTheme = enabled
@@ -204,6 +245,8 @@ fun RouteMasterApp() {
                                             tokenStore.clear()
                                             savedToken = null
                                             currentScreen = AppScreen.HOME
+                                            mobileUser = null
+                                            canUseObjects = false
                                             status = ""
                                             error = ""
                                             unreadCount = 0
@@ -218,7 +261,10 @@ fun RouteMasterApp() {
                                     },
                                     onRefreshUnread = {
                                         scope.launch {
-                                            unreadCount = loadUnreadCount(savedToken.orEmpty())
+                                            val data = refreshBootstrapContext(savedToken.orEmpty())
+                                            if (data == null) {
+                                                unreadCount = loadUnreadCount(savedToken.orEmpty())
+                                            }
                                         }
                                     }
                                 )
@@ -231,9 +277,51 @@ fun RouteMasterApp() {
                             }
 
                             AppScreen.OBJECTS -> {
-                                ObjectsScreen(
-                                    accessToken = savedToken.orEmpty()
-                                )
+                                if (canUseObjects) {
+                                    ObjectsScreen(
+                                        accessToken = savedToken.orEmpty()
+                                    )
+                                } else {
+                                    HomeScreen(
+                                        status = "Об’єкти доступні тільки підрозділу ГШР",
+                                        unreadCount = unreadCount,
+                                        mobileUser = mobileUser,
+                                        darkTheme = darkTheme,
+                                        onThemeChange = { enabled ->
+                                            darkTheme = enabled
+                                            settings.edit()
+                                                .putBoolean(DARK_THEME_KEY, enabled)
+                                                .apply()
+                                        },
+                                        onLogout = {
+                                            scope.launch {
+                                                tokenStore.clear()
+                                                savedToken = null
+                                                currentScreen = AppScreen.HOME
+                                                mobileUser = null
+                                                canUseObjects = false
+                                                status = ""
+                                                error = ""
+                                                unreadCount = 0
+                                            }
+                                        },
+                                        onRegisterFcm = {
+                                            registerFcmToken(
+                                                accessToken = savedToken.orEmpty(),
+                                                onStatus = { status = it },
+                                                onError = { error = it }
+                                            )
+                                        },
+                                        onRefreshUnread = {
+                                            scope.launch {
+                                                val data = refreshBootstrapContext(savedToken.orEmpty())
+                                                if (data == null) {
+                                                    unreadCount = loadUnreadCount(savedToken.orEmpty())
+                                                }
+                                            }
+                                        }
+                                    )
+                                }
                             }
 
                             AppScreen.HISTORY -> {
@@ -248,7 +336,10 @@ fun RouteMasterApp() {
                                     onBack = {
                                         currentScreen = AppScreen.HOME
                                         scope.launch {
-                                            unreadCount = loadUnreadCount(savedToken.orEmpty())
+                                            val data = refreshBootstrapContext(savedToken.orEmpty())
+                                            if (data == null) {
+                                                unreadCount = loadUnreadCount(savedToken.orEmpty())
+                                            }
                                         }
                                     }
                                 )
@@ -265,6 +356,7 @@ fun RouteMasterApp() {
 private fun RouteMasterBottomBar(
     currentScreen: AppScreen,
     unreadCount: Int,
+    canUseObjects: Boolean,
     onSelectScreen: (AppScreen) -> Unit
 ) {
     val itemColors = NavigationBarItemDefaults.colors(
@@ -295,13 +387,15 @@ private fun RouteMasterBottomBar(
             label = { Text("Зміна") }
         )
 
-        NavigationBarItem(
-            selected = currentScreen == AppScreen.OBJECTS,
-            onClick = { onSelectScreen(AppScreen.OBJECTS) },
-            colors = itemColors,
-            icon = { Icon(Icons.Rounded.Map, contentDescription = null) },
-            label = { Text("Об’єкти") }
-        )
+        if (canUseObjects) {
+            NavigationBarItem(
+                selected = currentScreen == AppScreen.OBJECTS,
+                onClick = { onSelectScreen(AppScreen.OBJECTS) },
+                colors = itemColors,
+                icon = { Icon(Icons.Rounded.Map, contentDescription = null) },
+                label = { Text("Об’єкти") }
+            )
+        }
 
         NavigationBarItem(
             selected = currentScreen == AppScreen.HISTORY,

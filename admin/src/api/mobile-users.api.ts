@@ -1,77 +1,43 @@
 import { http } from "./http";
 
+export type MobileUserKind = "CREW" | "POST";
+
 export type MobileUser = {
   id: number;
   cityId: number;
+  departmentId: number;
+  userKind: MobileUserKind;
+  crewId: number | null;
+  dutyPostId: number | null;
   login: string;
+  displayName: string | null;
   comment: string | null;
   isActive: boolean;
   deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
-  city?: {
-    id: number;
-    name: string;
-  };
+  city?: { id: number; name: string };
+  department?: { id: number; name: string; type: "GBR" | "POST" | "OTHER" };
+  crew?: { id: number; name: string } | null;
+  dutyPost?: { id: number; name: string } | null;
 };
 
-export async function getMobileUsers(
-  cityId?: number,
-  archive = false
-): Promise<MobileUser[]> {
-  const response = await http.get<{ data: MobileUser[] }>(
-    "/api/admin/mobile-users",
-    {
-      params: {
-        includeInactive: true,
-        archive,
-        ...(cityId ? { cityId } : {}),
-      },
-    }
-  );
+export async function getMobileUsers(params?: {
+  cityId?: number;
+  departmentId?: number;
+  userKind?: MobileUserKind;
+  archive?: boolean;
+  includeInactive?: boolean;
+}): Promise<MobileUser[]> {
+  const response = await http.get<{ data: MobileUser[] }>("/api/admin/mobile-users", {
+    params: {
+      includeInactive: params?.includeInactive ?? true,
+      archive: params?.archive ?? false,
+      ...(params?.cityId ? { cityId: params.cityId } : {}),
+      ...(params?.departmentId ? { departmentId: params.departmentId } : {}),
+      ...(params?.userKind ? { userKind: params.userKind } : {}),
+    },
+  });
 
   return response.data.data;
-}
-
-export async function createMobileUser(data: {
-  cityId: number;
-  login: string;
-  password: string;
-  isActive?: boolean;
-}): Promise<MobileUser> {
-  const response = await http.post<{ data: MobileUser }>(
-    "/api/admin/mobile-users",
-    data
-  );
-
-  return response.data.data;
-}
-
-export async function updateMobileUser(
-  id: number,
-  data: {
-    cityId?: number;
-    login?: string;
-    password?: string;
-    isActive?: boolean;
-  }
-): Promise<MobileUser> {
-  const response = await http.put<{ data: MobileUser }>(
-    `/api/admin/mobile-users/${id}`,
-    data
-  );
-
-  return response.data.data;
-}
-
-export async function restoreMobileUser(id: number): Promise<MobileUser> {
-  const response = await http.patch<{ data: MobileUser }>(
-    `/api/admin/mobile-users/${id}/restore`
-  );
-
-  return response.data.data;
-}
-
-export async function deleteMobileUser(id: number): Promise<void> {
-  await http.delete(`/api/admin/mobile-users/${id}`);
 }

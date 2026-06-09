@@ -7,6 +7,7 @@ import { ProtectedRoute } from "./routes/ProtectedRoute";
 import { RequireRole } from "./routes/RequireRole";
 import { CitiesPage } from "./pages/CitiesPage";
 import { EmployeesPage } from "./pages/EmployeesPage";
+import { DepartmentsPage } from "./pages/DepartmentsPage";
 import { CrewsPage } from "./pages/CrewsPage";
 import { VehiclesPage } from "./pages/VehiclesPage";
 import { TripGoalsPage } from "./pages/TripGoalsPage";
@@ -71,6 +72,7 @@ export default function App() {
             }
           />
           <Route path="mobile-users" element={<MobileUsersPage />} />
+          <Route path="departments" element={<DepartmentsPage />} />
           <Route path="employees" element={<EmployeesPage />} />
           <Route path="crews" element={<CrewsPage />} />
           <Route path="vehicles" element={<VehiclesPage />} />

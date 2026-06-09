@@ -530,11 +530,24 @@ function createClusterResponse(objects: NormalizedObject[], zoom: number, bbox: 
   };
 }
 
+
+function ensureObjectsAccess(req: Request, res: Response) {
+  if (!req.mobileUser) {
+    res.status(401).json({ message: "Unauthorized" });
+    return false;
+  }
+
+  if (req.mobileUser.userKind !== "CREW" || req.mobileUser.departmentType !== "GBR") {
+    res.status(403).json({ message: "Об’єкти доступні тільки підрозділу ГШР" });
+    return false;
+  }
+
+  return true;
+}
+
 export async function getMobileObjectsOverview(req: Request, res: Response) {
   try {
-    if (!req.mobileUser) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
+    if (!ensureObjectsAccess(req, res)) return;
 
     const city = await getCurrentMobileCity(req);
 
@@ -575,9 +588,7 @@ export async function getMobileObjectsOverview(req: Request, res: Response) {
 
 export async function getMobileObjectClusters(req: Request, res: Response) {
   try {
-    if (!req.mobileUser) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
+    if (!ensureObjectsAccess(req, res)) return;
 
     const city = await getCurrentMobileCity(req);
 
@@ -625,11 +636,7 @@ export async function getMobileObjectClusters(req: Request, res: Response) {
 
 export async function getMobileObjects(req: Request, res: Response) {
   try {
-    if (!req.mobileUser) {
-      return res.status(401).json({
-        message: "Unauthorized",
-      });
-    }
+    if (!ensureObjectsAccess(req, res)) return;
 
     const city = await prisma.city.findFirst({
       where: {
@@ -687,11 +694,7 @@ export async function getMobileObjects(req: Request, res: Response) {
 
 export async function searchMobileObject(req: Request, res: Response) {
   try {
-    if (!req.mobileUser) {
-      return res.status(401).json({
-        message: "Unauthorized",
-      });
-    }
+    if (!ensureObjectsAccess(req, res)) return;
 
     const accountNumber = String(req.query.accountNumber || "")
       .trim()

@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
+import { MobileUserKind } from "@prisma/client";
 import { prisma } from "../../config/prisma";
 
 const mobilePostDutyMemberSchema = z.object({
@@ -62,6 +63,7 @@ function normalizeMobilePostDutyMembers(
 
 async function validateMobilePostDutyReferences(params: {
   cityId: number;
+  departmentId: number;
   postId: number;
   vehicleId?: number | null;
   employeeIds: number[];
@@ -70,6 +72,7 @@ async function validateMobilePostDutyReferences(params: {
     where: {
       id: params.postId,
       cityId: params.cityId,
+      departmentId: params.departmentId,
       deletedAt: null,
       isActive: true,
     },
@@ -84,6 +87,7 @@ async function validateMobilePostDutyReferences(params: {
       where: {
         id: params.vehicleId,
         cityId: params.cityId,
+        departmentId: params.departmentId,
         deletedAt: null,
         isActive: true,
       },
@@ -100,6 +104,7 @@ async function validateMobilePostDutyReferences(params: {
         in: params.employeeIds,
       },
       cityId: params.cityId,
+      departmentId: params.departmentId,
       deletedAt: null,
       isActive: true,
     },
@@ -128,6 +133,20 @@ export async function createMobilePostDuty(req: Request, res: Response) {
     }
 
     const cityId = req.mobileUser.cityId;
+    const departmentId = req.mobileUser.departmentId;
+
+    if (req.mobileUser.userKind !== MobileUserKind.POST || !req.mobileUser.dutyPostId) {
+      return res.status(403).json({
+        message: "Створення постового чергування доступне тільки користувачу-посту",
+      });
+    }
+
+    if (parsed.data.postId !== req.mobileUser.dutyPostId) {
+      return res.status(403).json({
+        message: "Не можна відправити чергування за інший пост",
+      });
+    }
+
     const dutyDate = parseDateValue(parsed.data.dutyDate);
 
     if (!dutyDate) {
@@ -145,6 +164,7 @@ export async function createMobilePostDuty(req: Request, res: Response) {
 
     await validateMobilePostDutyReferences({
       cityId,
+      departmentId,
       postId: parsed.data.postId,
       vehicleId,
       employeeIds: members.map((member) => member.employeeId),
@@ -153,6 +173,8 @@ export async function createMobilePostDuty(req: Request, res: Response) {
     const duty = await prisma.postDuty.create({
       data: {
         cityId,
+        departmentId,
+        mobileUserId: req.mobileUser.id,
         postId: parsed.data.postId,
         vehicleId,
         dutyDate,

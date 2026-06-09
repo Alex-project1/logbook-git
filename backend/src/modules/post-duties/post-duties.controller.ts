@@ -4,8 +4,11 @@ import { prisma } from "../../config/prisma";
 import { createAdminActionLog } from "../../utils/admin-action-log";
 import {
   buildCityAccessWhere,
+  buildDepartmentAccessWhere,
   canEditCityData,
+  canEditDepartmentData,
   getAllowedCityIds,
+  getAllowedDepartmentIds,
 } from "../../utils/admin-access";
 
 const memberSchema = z.object({
@@ -17,6 +20,7 @@ const memberSchema = z.object({
 
 const createPostDutySchema = z.object({
   cityId: z.number().int().positive(),
+  departmentId: z.number().int().positive(),
   postId: z.number().int().positive(),
   vehicleId: z.number().int().positive().optional().nullable(),
 
@@ -86,6 +90,7 @@ function normalizeMembers(
 
 async function validatePostDutyReferences(params: {
   cityId: number;
+  departmentId: number;
   postId: number;
   vehicleId?: number | null;
   employeeIds: number[];
@@ -102,10 +107,24 @@ async function validatePostDutyReferences(params: {
     throw new Error("Город не найден или неактивен");
   }
 
+  const department = await prisma.department.findFirst({
+    where: {
+      id: params.departmentId,
+      cityId: params.cityId,
+      deletedAt: null,
+      isActive: true,
+    },
+  });
+
+  if (!department) {
+    throw new Error("Подразделение не найдено в выбранном городе или неактивно");
+  }
+
   const post = await prisma.dutyPost.findFirst({
     where: {
       id: params.postId,
       cityId: params.cityId,
+      departmentId: params.departmentId,
       deletedAt: null,
       isActive: true,
     },
@@ -120,6 +139,7 @@ async function validatePostDutyReferences(params: {
       where: {
         id: params.vehicleId,
         cityId: params.cityId,
+        departmentId: params.departmentId,
         deletedAt: null,
         isActive: true,
       },
@@ -136,14 +156,17 @@ async function validatePostDutyReferences(params: {
         in: params.employeeIds,
       },
       cityId: params.cityId,
+      departmentId: params.departmentId,
       deletedAt: null,
       isActive: true,
     },
   });
 
   if (employeesCount !== params.employeeIds.length) {
-    throw new Error("Один или несколько сотрудников не найдены в выбранном городе или неактивны");
+    throw new Error("Один или несколько сотрудников не найдены в выбранном подразделении или неактивны");
   }
+
+  return { department, post };
 }
 
 export async function getPostDuties(req: Request, res: Response) {
@@ -153,6 +176,7 @@ export async function getPostDuties(req: Request, res: Response) {
     const pageSize = Math.min(Math.max(pageSizeRaw, 10), 100);
 
     const cityId = parseNumberQuery(req.query.cityId);
+    const departmentId = parseNumberQuery(req.query.departmentId);
     const postId = parseNumberQuery(req.query.postId);
     const vehicleId = parseNumberQuery(req.query.vehicleId);
     const employeeId = parseNumberQuery(req.query.employeeId);
@@ -164,6 +188,7 @@ export async function getPostDuties(req: Request, res: Response) {
     const search = req.query.search ? String(req.query.search).trim() : "";
 
     const allowedCityIds = await getAllowedCityIds(req);
+    const allowedDepartmentIds = await getAllowedDepartmentIds(req);
 
     if (
       allowedCityIds !== null &&
@@ -193,9 +218,39 @@ export async function getPostDuties(req: Request, res: Response) {
       });
     }
 
+    if (
+      allowedDepartmentIds !== null &&
+      departmentId &&
+      !allowedDepartmentIds.includes(departmentId)
+    ) {
+      return res.json({
+        filters: {
+          page,
+          pageSize,
+          cityId: cityId ?? null,
+          departmentId,
+          postId: postId ?? null,
+          vehicleId: vehicleId ?? null,
+          employeeId: employeeId ?? null,
+          dateFrom: dateFrom ?? null,
+          dateTo: dateTo ?? null,
+          archive,
+          search,
+        },
+        pagination: {
+          page,
+          pageSize,
+          total: 0,
+          totalPages: 0,
+        },
+        data: [],
+      });
+    }
+
     const where: any = {
       ...(archive ? { deletedAt: { not: null } } : { deletedAt: null }),
       ...(cityId ? { cityId } : buildCityAccessWhere(allowedCityIds)),
+      ...(departmentId ? { departmentId } : buildDepartmentAccessWhere(allowedDepartmentIds)),
       ...(postId ? { postId } : {}),
       ...(vehicleId ? { vehicleId } : {}),
       ...(employeeId
@@ -256,6 +311,13 @@ export async function getPostDuties(req: Request, res: Response) {
               name: true,
             },
           },
+          department: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+            },
+          },
           post: {
             select: {
               id: true,
@@ -293,6 +355,7 @@ export async function getPostDuties(req: Request, res: Response) {
         page,
         pageSize,
         cityId: cityId ?? null,
+        departmentId: departmentId ?? null,
         postId: postId ?? null,
         vehicleId: vehicleId ?? null,
         employeeId: employeeId ?? null,
@@ -333,15 +396,18 @@ export async function getPostDutyById(req: Request, res: Response) {
     }
 
     const allowedCityIds = await getAllowedCityIds(req);
+    const allowedDepartmentIds = await getAllowedDepartmentIds(req);
 
     const duty = await prisma.postDuty.findFirst({
       where: {
         id: dutyId,
         deletedAt: null,
         ...buildCityAccessWhere(allowedCityIds),
+        ...buildDepartmentAccessWhere(allowedDepartmentIds),
       },
       include: {
         city: true,
+        department: true,
         post: true,
         vehicle: true,
         members: {
@@ -394,18 +460,20 @@ export async function createPostDuty(req: Request, res: Response) {
     }
 
     const canEdit = await canEditCityData(req, parsed.data.cityId);
+    const canEditDepartment = await canEditDepartmentData(req, parsed.data.departmentId);
 
-    if (!canEdit) {
+    if (!canEdit || !canEditDepartment) {
       return res.status(403).json({
-        message: "Недостаточно прав для этого города",
+        message: "Недостаточно прав для этого города или подразделения",
       });
     }
 
     const vehicleId = parsed.data.vehicleId || null;
     const members = normalizeMembers(parsed.data.members, vehicleId);
 
-    await validatePostDutyReferences({
+    const refs = await validatePostDutyReferences({
       cityId: parsed.data.cityId,
+      departmentId: parsed.data.departmentId,
       postId: parsed.data.postId,
       vehicleId,
       employeeIds: members.map((member) => member.employeeId),
@@ -414,6 +482,7 @@ export async function createPostDuty(req: Request, res: Response) {
     const duty = await prisma.postDuty.create({
       data: {
         cityId: parsed.data.cityId,
+        departmentId: refs.department.id,
         postId: parsed.data.postId,
         vehicleId,
         dutyDate,
@@ -426,6 +495,7 @@ export async function createPostDuty(req: Request, res: Response) {
       },
       include: {
         city: true,
+        department: true,
         post: true,
         vehicle: true,
         members: {
@@ -444,6 +514,7 @@ export async function createPostDuty(req: Request, res: Response) {
       metadata: {
         dutyId: duty.id,
         cityId: duty.cityId,
+        departmentId: duty.departmentId,
         postId: duty.postId,
         postName: duty.post.name,
         vehicleId: duty.vehicleId,
@@ -499,10 +570,11 @@ export async function updatePostDuty(req: Request, res: Response) {
     }
 
     const canEditCurrentCity = await canEditCityData(req, existingDuty.cityId);
+    const canEditCurrentDepartment = await canEditDepartmentData(req, existingDuty.departmentId);
 
-    if (!canEditCurrentCity) {
+    if (!canEditCurrentCity || !canEditCurrentDepartment) {
       return res.status(403).json({
-        message: "Недостаточно прав для этого города",
+        message: "Недостаточно прав для текущего города или подразделения",
       });
     }
 
@@ -516,10 +588,11 @@ export async function updatePostDuty(req: Request, res: Response) {
     }
 
     const canEditNewCity = await canEditCityData(req, parsed.data.cityId);
+    const canEditNewDepartment = await canEditDepartmentData(req, parsed.data.departmentId);
 
-    if (!canEditNewCity) {
+    if (!canEditNewCity || !canEditNewDepartment) {
       return res.status(403).json({
-        message: "Недостаточно прав для нового города",
+        message: "Недостаточно прав для нового города или подразделения",
       });
     }
 
@@ -534,8 +607,9 @@ export async function updatePostDuty(req: Request, res: Response) {
     const vehicleId = parsed.data.vehicleId || null;
     const members = normalizeMembers(parsed.data.members, vehicleId);
 
-    await validatePostDutyReferences({
+    const refs = await validatePostDutyReferences({
       cityId: parsed.data.cityId,
+      departmentId: parsed.data.departmentId,
       postId: parsed.data.postId,
       vehicleId,
       employeeIds: members.map((member) => member.employeeId),
@@ -554,6 +628,7 @@ export async function updatePostDuty(req: Request, res: Response) {
         },
         data: {
           cityId: parsed.data.cityId,
+          departmentId: refs.department.id,
           postId: parsed.data.postId,
           vehicleId,
           dutyDate,
@@ -566,6 +641,7 @@ export async function updatePostDuty(req: Request, res: Response) {
         },
         include: {
           city: true,
+          department: true,
           post: true,
           vehicle: true,
           members: {
@@ -586,6 +662,8 @@ export async function updatePostDuty(req: Request, res: Response) {
         dutyId: updatedDuty.id,
         oldCityId: existingDuty.cityId,
         newCityId: updatedDuty.cityId,
+        oldDepartmentId: existingDuty.departmentId,
+        newDepartmentId: updatedDuty.departmentId,
         oldPostId: existingDuty.postId,
         newPostId: updatedDuty.postId,
         postName: updatedDuty.post.name,

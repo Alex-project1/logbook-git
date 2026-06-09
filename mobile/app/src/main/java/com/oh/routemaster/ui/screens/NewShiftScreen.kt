@@ -45,6 +45,7 @@ import com.oh.routemaster.data.local.PENDING_KIND_GBR_SHIFT
 import com.oh.routemaster.data.local.PENDING_KIND_POST_DUTY
 import com.oh.routemaster.data.remote.AdditionalAlarmReasonDto
 import com.oh.routemaster.data.remote.ApiClient
+import com.oh.routemaster.data.remote.BootstrapMobileUserDto
 import com.oh.routemaster.data.remote.CreateMobileShiftRequest
 import com.oh.routemaster.data.remote.CreateMobileShiftTripEventRequest
 import com.oh.routemaster.data.remote.CreateMobileShiftTripRequest
@@ -234,6 +235,26 @@ fun NewShiftScreen(
     var draftStatus by remember { mutableStateOf("") }
     var pendingStatus by remember { mutableStateOf("") }
 
+    fun applyMobileUserDefaults(data: MobileBootstrapDto) {
+        val mobileUser = data.mobileUser ?: return
+
+        when (mobileUser.userKind) {
+            "CREW" -> {
+                shiftKind = ShiftKind.GBR
+                selectedCrewId = mobileUser.crewId
+                    ?: data.crews.firstOrNull()?.id
+                    ?: 0
+            }
+
+            "POST" -> {
+                shiftKind = ShiftKind.POST
+                selectedPostId = mobileUser.dutyPostId
+                    ?: data.dutyPosts.firstOrNull()?.id
+                    ?: 0
+            }
+        }
+    }
+
     suspend fun loadBootstrap() {
         loading = true
         error = ""
@@ -246,9 +267,7 @@ fun NewShiftScreen(
             }
 
             bootstrap = data
-
-            // Справочники загружены. Основные поля специально не заполняем автоматически:
-            // сотрудник должен явно выбрать наряд, авто, водителя, старшего и пост.
+            applyMobileUserDefaults(data)
         } catch (exception: Exception) {
             error = "Не вдалося завантажити дані для зміни: ${getApiErrorMessage(exception)}"
             exception.printStackTrace()
@@ -380,6 +399,8 @@ fun NewShiftScreen(
         gbrSaveError = ""
         gbrFormErrors = GbrFormErrors()
 
+        applyMobileUserDefaults(data)
+
         mainSectionOpen = true
         detailsSectionOpen = false
         summarySectionOpen = false
@@ -469,11 +490,14 @@ fun NewShiftScreen(
         gbrSaveSuccess = ""
         gbrSaveError = ""
         gbrFormErrors = GbrFormErrors()
+
+        bootstrap?.let { applyMobileUserDefaults(it) }
     }
 
     fun hasDraftContent(): Boolean {
-        val hasGbrContent = selectedCrewId > 0 ||
-            selectedVehicleId > 0 ||
+        // Закріплені за логіном наряд/пост не вважаємо чернеткою самі по собі.
+        // Інакше після кожного входу застосунок буде пропонувати відновити порожню чернетку.
+        val hasGbrContent = selectedVehicleId > 0 ||
             selectedDriverId > 0 ||
             selectedSeniorId > 0 ||
             driverHasWeapon ||
@@ -481,8 +505,7 @@ fun NewShiftScreen(
             odometerStart.isNotBlank() ||
             trips.isNotEmpty()
 
-        val hasPostContent = selectedPostId > 0 ||
-            postVehicleId > 0 ||
+        val hasPostContent = postVehicleId > 0 ||
             postNote.isNotBlank() ||
             postMembers.any {
                 it.employeeId > 0 || it.hasWeapon || it.isDriver || it.comment.isNotBlank()
@@ -956,17 +979,23 @@ fun validateGbrForm(data: MobileBootstrapDto): GbrFormErrors {
                     Column(
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        ShiftKindSelector(
-                            selected = shiftKind,
-                            onSelect = { selected ->
-                                shiftKind = selected
-                                postSaveError = ""
-                                postSaveSuccess = ""
-                                gbrSaveError = ""
-                                gbrSaveSuccess = ""
-                                gbrFormErrors = GbrFormErrors()
-                            }
-                        )
+                        if (data.mobileUser?.userKind == "CREW" || data.mobileUser?.userKind == "POST") {
+                            FixedShiftKindCard(
+                                mobileUser = data.mobileUser
+                            )
+                        } else {
+                            ShiftKindSelector(
+                                selected = shiftKind,
+                                onSelect = { selected ->
+                                    shiftKind = selected
+                                    postSaveError = ""
+                                    postSaveSuccess = ""
+                                    gbrSaveError = ""
+                                    gbrSaveSuccess = ""
+                                    gbrFormErrors = GbrFormErrors()
+                                }
+                            )
+                        }
 
                         if (shiftKind == ShiftKind.GBR) {
                             GbrMainFields(
@@ -976,6 +1005,7 @@ fun validateGbrForm(data: MobileBootstrapDto): GbrFormErrors {
                                 selectedVehicleId = selectedVehicleId,
                                 selectedDriverId = selectedDriverId,
                                 selectedSeniorId = selectedSeniorId,
+                                crewLocked = data.mobileUser?.userKind == "CREW",
                                 driverHasWeapon = driverHasWeapon,
                                 seniorHasWeapon = seniorHasWeapon,
                                 shiftDate = shiftDate,
@@ -1016,6 +1046,7 @@ fun validateGbrForm(data: MobileBootstrapDto): GbrFormErrors {
                             PostMainFields(
                                 data = data,
                                 selectedPostId = selectedPostId,
+                                postLocked = data.mobileUser?.userKind == "POST",
                                 postVehicleId = postVehicleId,
                                 postDutyType = postDutyType,
                                 postDate = postDate,
@@ -1290,6 +1321,75 @@ private fun ShiftKindSelector(
 }
 
 @Composable
+private fun FixedShiftKindCard(
+    mobileUser: BootstrapMobileUserDto
+) {
+    val title = when (mobileUser.userKind) {
+        "CREW" -> "Наряд ГШР"
+        "POST" -> "Пост"
+        else -> "Зміна"
+    }
+
+    val value = when (mobileUser.userKind) {
+        "CREW" -> mobileUser.crew?.name
+        "POST" -> mobileUser.dutyPost?.name
+        else -> null
+    }.orEmpty().ifBlank {
+        mobileUser.displayName.orEmpty().ifBlank { mobileUser.login }
+    }
+
+    LockedInfoField(
+        label = title,
+        value = value,
+        helper = "Тип зміни визначено вашим логіном. Змінити наряд або пост у застосунку не можна."
+    )
+}
+
+@Composable
+private fun LockedInfoField(
+    label: String,
+    value: String,
+    helper: String? = null
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Text(
+                text = value.ifBlank { "Не вибрано" },
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            if (!helper.isNullOrBlank()) {
+                Text(
+                    text = helper,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun GbrMainFields(
     data: MobileBootstrapDto,
     errors: GbrFormErrors,
@@ -1297,6 +1397,7 @@ private fun GbrMainFields(
     selectedVehicleId: Int,
     selectedDriverId: Int,
     selectedSeniorId: Int,
+    crewLocked: Boolean,
     driverHasWeapon: Boolean,
     seniorHasWeapon: Boolean,
     shiftDate: String,
@@ -1312,18 +1413,26 @@ private fun GbrMainFields(
     onShiftTimeChange: (String) -> Unit,
     onOdometerStartChange: (String) -> Unit
 ) {
-    SelectField(
-        label = "Наряд",
-        selectedLabel = findCrewLabel(data.crews, selectedCrewId),
-        options = data.crews.map {
-            SelectOption(
-                id = it.id,
-                label = it.name
-            )
-        },
-        error = errors.crew,
-        onSelect = onCrewChange
-    )
+    if (crewLocked) {
+        LockedInfoField(
+            label = "Наряд",
+            value = findCrewLabel(data.crews, selectedCrewId).ifBlank { "Закріплений наряд" },
+            helper = "Наряд закріплено за вашим логіном"
+        )
+    } else {
+        SelectField(
+            label = "Наряд",
+            selectedLabel = findCrewLabel(data.crews, selectedCrewId),
+            options = data.crews.map {
+                SelectOption(
+                    id = it.id,
+                    label = it.name
+                )
+            },
+            error = errors.crew,
+            onSelect = onCrewChange
+        )
+    }
 
     SelectField(
         label = "Автомобіль",
@@ -1429,6 +1538,7 @@ private fun GbrMainFields(
 private fun PostMainFields(
     data: MobileBootstrapDto,
     selectedPostId: Int,
+    postLocked: Boolean,
     postVehicleId: Int,
     postDutyType: PostDutyType,
     postDate: String,
@@ -1443,17 +1553,25 @@ private fun PostMainFields(
     onDurationChange: (String) -> Unit,
     onNoteChange: (String) -> Unit
 ) {
-    SelectField(
-        label = "Пост",
-        selectedLabel = findDutyPostLabel(data.dutyPosts, selectedPostId),
-        options = data.dutyPosts.map {
-            SelectOption(
-                id = it.id,
-                label = it.name
-            )
-        },
-        onSelect = onPostChange
-    )
+    if (postLocked) {
+        LockedInfoField(
+            label = "Пост",
+            value = findDutyPostLabel(data.dutyPosts, selectedPostId).ifBlank { "Закріплений пост" },
+            helper = "Пост закріплено за вашим логіном"
+        )
+    } else {
+        SelectField(
+            label = "Пост",
+            selectedLabel = findDutyPostLabel(data.dutyPosts, selectedPostId),
+            options = data.dutyPosts.map {
+                SelectOption(
+                    id = it.id,
+                    label = it.name
+                )
+            },
+            onSelect = onPostChange
+        )
+    }
 
     SelectField(
         label = "Тип поста",
@@ -2728,7 +2846,7 @@ private fun TimeSelectField(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                text = "🕒 ${value.ifBlank { "Обрати" }}",
+                text = "🕒 ${value.ifBlank { "Обрати час" }}",
                 fontWeight = FontWeight.SemiBold
             )
         }

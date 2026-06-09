@@ -10,6 +10,10 @@ type MobileTokenPayload = {
   mobileUserId: number;
   login: string;
   cityId: number;
+  departmentId?: number;
+  userKind?: "CREW" | "POST";
+  crewId?: number | null;
+  dutyPostId?: number | null;
 };
 
 function getJwtSecret() {

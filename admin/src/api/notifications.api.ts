@@ -6,6 +6,13 @@ export type NotificationMobileUser = {
   id: number;
   login: string;
   cityId: number;
+  departmentId?: number;
+  userKind?: "CREW" | "POST";
+  department?: {
+    id: number;
+    name: string;
+    type: "GBR" | "POST" | "OTHER";
+  };
   city?: {
     id: number;
     name: string;
@@ -35,6 +42,12 @@ export type AdminNotification = {
     id: number;
     name: string;
   };
+  department?: {
+    id: number;
+    name: string;
+    type: "GBR" | "POST" | "OTHER";
+  } | null;
+  targetUserKind?: "CREW" | "POST" | null;
   senderUser: NotificationSenderUser;
   title: string;
   message: string;
@@ -61,6 +74,7 @@ export type NotificationsFilters = {
   page?: number;
   pageSize?: number;
   cityId?: number;
+  departmentId?: number;
   mobileUserId?: number;
   dateFrom?: string;
   dateTo?: string;
@@ -82,6 +96,7 @@ function buildNotificationParams(filters: NotificationsFilters) {
   if (filters.page) params.page = filters.page;
   if (filters.pageSize) params.pageSize = filters.pageSize;
   if (filters.cityId) params.cityId = filters.cityId;
+  if (filters.departmentId) params.departmentId = filters.departmentId;
   if (filters.mobileUserId) params.mobileUserId = filters.mobileUserId;
 
   if (filters.dateFrom) {
@@ -97,6 +112,8 @@ function buildNotificationParams(filters: NotificationsFilters) {
 
 export async function createNotification(data: {
   cityId: number;
+  departmentId?: number | null;
+  targetUserKind?: "CREW" | "POST" | null;
   mobileUserIds: number[];
   title: string;
   message: string;

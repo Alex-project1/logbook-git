@@ -4,527 +4,222 @@ import { getAdminMe } from "../api/auth.api";
 import type { AdminUser } from "../api/auth.api";
 import { getAccessibleCities } from "../api/cities.api";
 import type { City } from "../api/cities.api";
-import {
-  createVehicle,
-  deleteVehicle,
-  getVehicles,
-  restoreVehicle,
-  updateVehicle,
-} from "../api/vehicles.api";
+import { getDepartments } from "../api/departments.api";
+import type { Department } from "../api/departments.api";
+import { createVehicle, deleteVehicle, getVehicles, restoreVehicle, updateVehicle } from "../api/vehicles.api";
 import type { Vehicle } from "../api/vehicles.api";
 import { RowActionMenu } from "../components/RowActionMenu";
-import { AccordionSection } from "../components/AccordionSection";
 
 type FormState = {
   cityId: number;
+  departmentId: number;
   title: string;
   licensePlate: string;
+  startOdometer: string;
+  comment: string;
   isActive: boolean;
 };
 
 const initialForm: FormState = {
   cityId: 0,
+  departmentId: 0,
   title: "",
   licensePlate: "",
+  startOdometer: "",
+  comment: "",
   isActive: true,
 };
 
+const departmentTypeLabels: Record<string, string> = { GBR: "ГШР", POST: "Пост", OTHER: "Інше" };
+
+function getErrorMessage(error: unknown, fallback: string) {
+  const maybe = error as { response?: { data?: { message?: string } } };
+  return maybe.response?.data?.message || fallback;
+}
+
 export function VehiclesPage() {
   const [cities, setCities] = useState<City[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [selectedCityId, setSelectedCityId] = useState<number>(0);
+  const [selectedCityId, setSelectedCityId] = useState(0);
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState(0);
   const [showArchive, setShowArchive] = useState(false);
-
   const [form, setForm] = useState<FormState>(initialForm);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
-
+  const [currentUser, setCurrentUser] = useState<AdminUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [currentUser, setCurrentUser] = useState<AdminUser | null>(null);
 
-  const activeCities = useMemo(
-    () => cities.filter((city) => city.isActive),
-    [cities],
-  );
+  const activeCities = useMemo(() => cities.filter((city) => city.isActive), [cities]);
+  const formDepartments = useMemo(() => departments.filter((department) => department.isActive && department.cityId === form.cityId), [departments, form.cityId]);
+  const filterDepartments = useMemo(() => departments.filter((department) => !selectedCityId || department.cityId === selectedCityId), [departments, selectedCityId]);
   const roleCode = currentUser?.role?.code;
-  const canEditVehicles = roleCode === "super_admin" || roleCode === "admin";
+  const canEdit = roleCode === "super_admin" || roleCode === "admin";
 
-  type SectionId = "form" | "list";
-
-  const [openedSections, setOpenedSections] = useState<
-    Record<SectionId, boolean>
-  >({
-    form: false,
-    list: true,
-  });
-  function toggleSection(section: SectionId) {
-    setOpenedSections((prev) => ({
-      ...prev,
-      [section]: !prev[section],
-    }));
+  async function loadVehicles(cityId = selectedCityId, departmentId = selectedDepartmentId, archive = showArchive) {
+    const data = await getVehicles({ cityId: cityId || undefined, departmentId: departmentId || undefined, archive, includeInactive: true });
+    setVehicles(data);
   }
 
-  async function loadInitialData() {
-    setLoading(true);
-    setError("");
-
-    try {
-      const citiesData = await getAccessibleCities();
-      setCities(citiesData);
-
-      const firstCityId = citiesData[0]?.id ?? 0;
-
-      setSelectedCityId((current) => current || firstCityId);
-      setForm((prev) => ({
-        ...prev,
-        cityId: prev.cityId || firstCityId,
-      }));
-
-      const vehiclesData = await getVehicles(
-        firstCityId || undefined,
-        showArchive,
-      );
-      setVehicles(vehiclesData);
-    } catch {
-      setError("Не удалось загрузить данные");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function loadVehicles(cityId = selectedCityId, archive = showArchive) {
-    setError("");
-
-    try {
-      const data = await getVehicles(cityId || undefined, archive);
-      setVehicles(data);
-    } catch {
-      setError("Не удалось загрузить автомобили");
-    }
-  }
   useEffect(() => {
-    async function loadCurrentUser() {
+    async function load() {
       try {
-        const response = await getAdminMe();
-        setCurrentUser(response.user);
-      } catch {
-        setCurrentUser(null);
+        setLoading(true);
+        const [me, citiesData, departmentsData] = await Promise.all([
+          getAdminMe().catch(() => null),
+          getAccessibleCities(),
+          getDepartments({ includeInactive: true }),
+        ]);
+        setCurrentUser(me?.user ?? null);
+        setCities(citiesData);
+        setDepartments(departmentsData);
+        const firstCityId = citiesData[0]?.id ?? 0;
+        const firstDepartmentId = departmentsData.find((department) => department.cityId === firstCityId)?.id ?? 0;
+        setForm((prev) => ({ ...prev, cityId: prev.cityId || firstCityId, departmentId: prev.departmentId || firstDepartmentId }));
+        const vehiclesData = await getVehicles({ includeInactive: true });
+        setVehicles(vehiclesData);
+      } catch (caught) {
+        setError(getErrorMessage(caught, "Не удалось загрузить автомобили"));
+      } finally {
+        setLoading(false);
       }
     }
-
-    loadCurrentUser();
-    loadInitialData();
+    load();
   }, []);
 
-  async function handleCityFilterChange(cityId: number) {
-    setSelectedCityId(cityId);
-
-    setForm((prev) => ({
-      ...prev,
-      cityId: cityId || activeCities[0]?.id || 0,
-    }));
-
-    await loadVehicles(cityId, showArchive);
-  }
-  async function handleArchiveFilterChange(value: string) {
-    const archive = value === "archive";
-
-    setShowArchive(archive);
+  function resetForm() {
+    const cityId = selectedCityId || activeCities[0]?.id || 0;
+    const departmentId = departments.find((department) => department.cityId === cityId && department.isActive)?.id ?? 0;
     setEditingVehicle(null);
-
-    setForm({
-      ...initialForm,
-      cityId: selectedCityId || activeCities[0]?.id || 0,
-    });
-
+    setForm({ ...initialForm, cityId, departmentId });
     setError("");
-    setSuccess("");
-
-    await loadVehicles(selectedCityId, archive);
   }
+
+  function handleFormCityChange(cityId: number) {
+    const departmentId = departments.find((department) => department.cityId === cityId && department.isActive)?.id ?? 0;
+    setForm((prev) => ({ ...prev, cityId, departmentId }));
+  }
+
   function startEdit(vehicle: Vehicle) {
     setEditingVehicle(vehicle);
-
     setForm({
       cityId: vehicle.cityId,
+      departmentId: vehicle.departmentId,
       title: vehicle.title,
-      licensePlate: vehicle.licensePlate ?? "",
+      licensePlate: vehicle.licensePlate || "",
+      startOdometer: vehicle.startOdometer == null ? "" : String(vehicle.startOdometer),
+      comment: vehicle.comment || "",
       isActive: vehicle.isActive,
     });
-
     setError("");
     setSuccess("");
-  }
-
-  function resetForm() {
-    setEditingVehicle(null);
-
-    setForm({
-      ...initialForm,
-      cityId: selectedCityId || activeCities[0]?.id || 0,
-    });
-
-    setError("");
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    if (!form.cityId) {
-      setError("Выберите город");
-      return;
-    }
-
-    if (!form.title.trim()) {
-      setError("Введите название автомобиля");
-      return;
-    }
+    if (!form.cityId) return setError("Выберите город");
+    if (!form.departmentId) return setError("Выберите подразделение");
+    if (!form.title.trim()) return setError("Введите название автомобиля");
+    const startOdometer = form.startOdometer.trim() ? Number(form.startOdometer) : null;
+    if (startOdometer !== null && (!Number.isInteger(startOdometer) || startOdometer < 0)) return setError("Начальный пробег должен быть целым числом от 0");
 
     setSaving(true);
     setError("");
     setSuccess("");
-
     try {
+      const payload = {
+        cityId: form.cityId,
+        departmentId: form.departmentId,
+        title: form.title.trim(),
+        licensePlate: form.licensePlate.trim() || null,
+        startOdometer,
+        comment: form.comment.trim() || null,
+        isActive: form.isActive,
+      };
       if (editingVehicle) {
-        await updateVehicle(editingVehicle.id, {
-          cityId: form.cityId,
-          title: form.title.trim(),
-          licensePlate: form.licensePlate.trim() || null,
-          isActive: form.isActive,
-        });
-
+        await updateVehicle(editingVehicle.id, payload);
         setSuccess("Автомобиль обновлен");
       } else {
-        await createVehicle({
-          cityId: form.cityId,
-          title: form.title.trim(),
-          licensePlate: form.licensePlate.trim() || null,
-          isActive: form.isActive,
-        });
-
+        await createVehicle(payload);
         setSuccess("Автомобиль добавлен");
       }
-
       resetForm();
-      await loadVehicles(selectedCityId);
-    } catch (err: any) {
-      if (err.response?.status === 409) {
-        setError("Автомобиль с таким госномером уже существует в этом городе");
-      } else {
-        setError("Не удалось сохранить автомобиль");
-      }
+      await loadVehicles();
+    } catch (caught) {
+      setError(getErrorMessage(caught, "Не удалось сохранить автомобиль"));
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleToggleActive(vehicle: Vehicle) {
-    setError("");
-    setSuccess("");
-
-    try {
-      await updateVehicle(vehicle.id, {
-        isActive: !vehicle.isActive,
-      });
-
-      setSuccess(
-        vehicle.isActive ? "Автомобиль отключен" : "Автомобиль включен",
-      );
-
-      await loadVehicles(selectedCityId);
-    } catch {
-      setError("Не удалось изменить статус автомобиля");
-    }
-  }
-
-  async function handleDelete(vehicle: Vehicle) {
-    const confirmed = window.confirm(
-      `Удалить автомобиль "${vehicle.title}"? Он будет скрыт из системы.`,
-    );
-
-    if (!confirmed) return;
-
-    setError("");
-    setSuccess("");
-
+  async function handleArchive(vehicle: Vehicle) {
+    if (!window.confirm(`Отправить автомобиль "${vehicle.title}" в архив?`)) return;
     try {
       await deleteVehicle(vehicle.id);
-      setSuccess("Автомобиль удален");
-      await loadVehicles(selectedCityId);
-    } catch {
-      setError("Не удалось удалить автомобиль");
+      setSuccess("Автомобиль отправлен в архив");
+      await loadVehicles();
+    } catch (caught) {
+      setError(getErrorMessage(caught, "Не удалось отправить автомобиль в архив"));
     }
   }
-  async function handleRestore(vehicle: Vehicle) {
-    setError("");
-    setSuccess("");
 
+  async function handleRestore(vehicle: Vehicle) {
     try {
       await restoreVehicle(vehicle.id);
       setSuccess("Автомобиль восстановлен");
-      await loadVehicles(selectedCityId, showArchive);
-    } catch {
-      setError("Не удалось восстановить автомобиль");
+      await loadVehicles();
+    } catch (caught) {
+      setError(getErrorMessage(caught, "Не удалось восстановить автомобиль"));
     }
   }
+
+  async function handleCityFilterChange(cityId: number) {
+    setSelectedCityId(cityId);
+    setSelectedDepartmentId(0);
+    setForm((prev) => ({ ...prev, cityId: cityId || activeCities[0]?.id || 0, departmentId: departments.find((department) => department.cityId === (cityId || activeCities[0]?.id || 0) && department.isActive)?.id ?? 0 }));
+    await loadVehicles(cityId, 0, showArchive);
+  }
+
+  async function handleDepartmentFilterChange(departmentId: number) {
+    setSelectedDepartmentId(departmentId);
+    await loadVehicles(selectedCityId, departmentId, showArchive);
+  }
+
+  async function handleArchiveFilterChange(value: string) {
+    const archive = value === "archive";
+    setShowArchive(archive);
+    setEditingVehicle(null);
+    await loadVehicles(selectedCityId, selectedDepartmentId, archive);
+  }
+
   return (
-    <div className="page">
-      <div className="page-header">
-        <div>
-          <h1>Автомобили</h1>
-          <p>Управление автомобилями по городам</p>
-        </div>
+    <div className="page-card">
+      <div className="page-header"><div><h1>Автомобили</h1><p>Авто привязаны к городу и подразделению. Перенос авто не меняет историю отчетов.</p></div></div>
+      {error && <div className="alert alert-error">{error}</div>}
+      {success && <div className="alert alert-success">{success}</div>}
+
+      {canEdit && !showArchive && (
+        <form className="form-grid" onSubmit={handleSubmit}>
+          <label>Город<select value={form.cityId} onChange={(event) => handleFormCityChange(Number(event.target.value))}><option value={0}>Выберите город</option>{activeCities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></label>
+          <label>Подразделение<select value={form.departmentId} onChange={(event) => setForm((prev) => ({ ...prev, departmentId: Number(event.target.value) }))}><option value={0}>Выберите подразделение</option>{formDepartments.map((department) => <option key={department.id} value={department.id}>{department.name} · {departmentTypeLabels[department.type]}</option>)}</select></label>
+          <label>Название<input value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} /></label>
+          <label>Госномер<input value={form.licensePlate} onChange={(event) => setForm((prev) => ({ ...prev, licensePlate: event.target.value }))} /></label>
+          <label>Начальный пробег<input value={form.startOdometer} onChange={(event) => setForm((prev) => ({ ...prev, startOdometer: event.target.value.replace(/\D/g, "") }))} /></label>
+          <label>Комментарий<input value={form.comment} onChange={(event) => setForm((prev) => ({ ...prev, comment: event.target.value }))} /></label>
+          <label className="checkbox-row"><input type="checkbox" checked={form.isActive} onChange={(event) => setForm((prev) => ({ ...prev, isActive: event.target.checked }))} />Активный</label>
+          <div className="form-actions"><button type="submit" disabled={saving}>{saving ? "Сохранение..." : editingVehicle ? "Обновить" : "Добавить"}</button>{editingVehicle && <button type="button" className="secondary-button" onClick={resetForm}>Отменить</button>}</div>
+        </form>
+      )}
+
+      <div className="filters-row">
+        <label>Город<select value={selectedCityId} onChange={(event) => handleCityFilterChange(Number(event.target.value))}><option value={0}>Все города</option>{cities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></label>
+        <label>Подразделение<select value={selectedDepartmentId} onChange={(event) => handleDepartmentFilterChange(Number(event.target.value))}><option value={0}>Все подразделения</option>{filterDepartments.map((department) => <option key={department.id} value={department.id}>{department.name} · {departmentTypeLabels[department.type]}</option>)}</select></label>
+        <label>Состояние<select value={showArchive ? "archive" : "active"} onChange={(event) => handleArchiveFilterChange(event.target.value)}><option value="active">Активные</option><option value="archive">Архив</option></select></label>
       </div>
 
-      <div className="content-grid">
-        {canEditVehicles && (
-          <AccordionSection
-            title={
-              editingVehicle
-                ? "Редактировать автомобиль"
-                : "Добавить автомобиль"
-            }
-            subtitle=""
-            open={openedSections.form}
-            onToggle={() => {
-              toggleSection("form");
-            }}
-          >
-            <form className="panel-card" onSubmit={handleSubmit}>
-              <label className="field">
-                <span>Город</span>
-                <select
-                  value={form.cityId}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      cityId: Number(event.target.value),
-                    }))
-                  }
-                >
-                  <option value={0}>Выберите город</option>
-
-                  {activeCities.map((city) => (
-                    <option key={city.id} value={city.id}>
-                      {city.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="field">
-                <span>Название автомобиля</span>
-                <input
-                  value={form.title}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      title: event.target.value,
-                    }))
-                  }
-                  placeholder="Например: Renault Duster"
-                />
-              </label>
-
-              <label className="field">
-                <span>Госномер</span>
-                <input
-                  value={form.licensePlate}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      licensePlate: event.target.value,
-                    }))
-                  }
-                  placeholder="Например: AX0000AA"
-                />
-              </label>
-
-              <label className="checkbox-field">
-                <input
-                  type="checkbox"
-                  checked={form.isActive}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      isActive: event.target.checked,
-                    }))
-                  }
-                />
-                <span>Автомобиль активен</span>
-              </label>
-
-              {error && <div className="form-error">{error}</div>}
-              {success && <div className="form-success">{success}</div>}
-
-              <div className="form-actions">
-                <button className="primary-button" disabled={saving}>
-                  {saving
-                    ? "Сохранение..."
-                    : editingVehicle
-                      ? "Сохранить"
-                      : "Добавить"}
-                </button>
-
-                {editingVehicle && (
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={resetForm}
-                  >
-                    Отмена
-                  </button>
-                )}
-              </div>
-            </form>
-          </AccordionSection>
-        )}
-
-        <AccordionSection
-          title="Список автомобилей"
-          subtitle={`Всего: ${vehicles.length}`}
-          open={openedSections.list}
-          onToggle={() => {
-            toggleSection("list");
-          }}
-        >
-          <div className="panel-card table-card">
-            <div className="table-header">
-              <div>
-                <h2></h2>
-                <p></p>
-              </div>
-
-              <div className="table-header-actions">
-                <select
-                  className="compact-select"
-                  value={selectedCityId}
-                  onChange={(event) =>
-                    handleCityFilterChange(Number(event.target.value))
-                  }
-                >
-                  <option value={0}>Все города</option>
-
-                  {cities.map((city) => (
-                    <option key={city.id} value={city.id}>
-                      {city.name}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  className="compact-select"
-                  value={showArchive ? "archive" : "active"}
-                  onChange={(event) =>
-                    handleArchiveFilterChange(event.target.value)
-                  }
-                >
-                  <option value="active">Рабочие</option>
-                  <option value="archive">Архив</option>
-                </select>
-                <button
-                  className="secondary-button"
-                  onClick={() => loadVehicles(selectedCityId)}
-                >
-                  Обновить
-                </button>
-              </div>
-            </div>
-
-            {loading ? (
-              <div className="empty-state">Загрузка...</div>
-            ) : vehicles.length === 0 ? (
-              <div className="empty-state">
-                {showArchive
-                  ? "В архиве нет автомобилей"
-                  : "Автомобили еще не добавлены"}
-              </div>
-            ) : (
-              <div className="table-wrap">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Автомобиль</th>
-                      <th>Город</th>
-                      <th>Госномер</th>
-                      <th>Статус</th>
-                      {canEditVehicles && <th>Действия</th>}
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {vehicles.map((vehicle) => (
-                      <tr key={vehicle.id}>
-                        <td>{vehicle.id}</td>
-                        <td>
-                          <strong>{vehicle.title}</strong>
-                        </td>
-                        <td>{vehicle.city?.name ?? vehicle.cityId}</td>
-                        <td>{vehicle.licensePlate || "—"}</td>
-                        <td>
-                          {showArchive ? (
-                            <span className="status-badge status-inactive">
-                              В архиве
-                            </span>
-                          ) : (
-                            <span
-                              className={
-                                vehicle.isActive
-                                  ? "status-badge status-active"
-                                  : "status-badge status-inactive"
-                              }
-                            >
-                              {vehicle.isActive ? "Активен" : "Отключен"}
-                            </span>
-                          )}
-                        </td>
-                        {canEditVehicles && (
-                          <td className="actions-cell">
-                            {showArchive ? (
-                              <RowActionMenu
-                                items={[
-                                  {
-                                    label: "Восстановить",
-                                    onClick: () => handleRestore(vehicle),
-                                  },
-                                ]}
-                              />
-                            ) : (
-                              <RowActionMenu
-                                items={[
-                                  {
-                                    label: "Редактировать",
-                                    variant: "edit",
-                                    onClick: () => startEdit(vehicle),
-                                  },
-                                  {
-                                    label: vehicle.isActive
-                                      ? "Отключить"
-                                      : "Включить",
-                                    onClick: () => handleToggleActive(vehicle),
-                                  },
-                                  {
-                                    label: "Удалить",
-                                    variant: "danger",
-                                    onClick: () => handleDelete(vehicle),
-                                  },
-                                ]}
-                              />
-                            )}
-                          </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </AccordionSection>
-      </div>
+      {loading ? <p>Загрузка...</p> : <div className="table-wrapper"><table><thead><tr><th>Авто</th><th>Номер</th><th>Город</th><th>Подразделение</th><th>Пробег</th><th>Комментарий</th><th>Статус</th><th></th></tr></thead><tbody>{vehicles.map((vehicle) => <tr key={vehicle.id}><td>{vehicle.title}</td><td>{vehicle.licensePlate || "—"}</td><td>{vehicle.city?.name || vehicle.cityId}</td><td>{vehicle.department?.name || vehicle.departmentId}</td><td>{vehicle.startOdometer ?? "—"}</td><td>{vehicle.comment || "—"}</td><td>{vehicle.deletedAt ? "Архив" : vehicle.isActive ? "Активен" : "Отключен"}</td><td>{canEdit && <RowActionMenu items={showArchive ? [{ label: "Восстановить", onClick: () => handleRestore(vehicle), variant: "edit" }] : [{ label: "Редактировать", onClick: () => startEdit(vehicle), variant: "edit" }, { label: "В архив", onClick: () => handleArchive(vehicle), variant: "danger" }]} />}</td></tr>)}{vehicles.length === 0 && <tr><td colSpan={8}>Нет автомобилей</td></tr>}</tbody></table></div>}
     </div>
   );
 }
