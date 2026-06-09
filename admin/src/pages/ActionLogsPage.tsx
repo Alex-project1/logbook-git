@@ -13,10 +13,10 @@ const defaultFilters: AdminActionLogFilters = {
 };
 
 const actionLabels: Record<string, string> = {
-  CREATE_SHIFT: "Создание смены",
-  UPDATE_SHIFT: "Редактирование смены",
-  DELETE_SHIFT: "Удаление смены",
-  RESTORE_SHIFT: "Восстановление смены",
+  CREATE_SHIFT: "Создание зміни",
+  UPDATE_SHIFT: "Редактирование зміни",
+  DELETE_SHIFT: "Удаление зміни",
+  RESTORE_SHIFT: "Восстановление зміни",
 
   CREATE_DUTY_POST: "Создание поста",
   UPDATE_DUTY_POST: "Редактирование поста",
@@ -30,9 +30,9 @@ const actionLabels: Record<string, string> = {
 };
 
 const entityTypeLabels: Record<string, string> = {
-  SHIFT: "Смена",
+  SHIFT: "Зміна",
   DUTY_POST: "Пост",
-  POST_DUTY: "Постовое дежурство",
+  POST_DUTY: "Постовое чергування",
 };
 
 function formatDateTime(value: string) {
@@ -132,15 +132,15 @@ export function ActionLogsPage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Журнал действий</h1>
-          <p>История действий по сменам, постам и постовым дежурствам</p>
+          <h1>Журнал дій</h1>
+          <p>Історія действий по змінами, постам и постовым дежурствам</p>
         </div>
       </div>
 
       <div className="panel-card report-filters">
         <div className="action-logs-filters-grid">
           <label className="field">
-            <span>Дата от</span>
+            <span>Дата від</span>
             <input
               type="date"
               value={filters.dateFrom ?? ""}
@@ -171,10 +171,10 @@ export function ActionLogsPage() {
             >
               <option value="">Все действия</option>
 
-              <option value="CREATE_SHIFT">Создание смены</option>
-              <option value="UPDATE_SHIFT">Редактирование смены</option>
-              <option value="DELETE_SHIFT">Удаление смены</option>
-              <option value="RESTORE_SHIFT">Восстановление смены</option>
+              <option value="CREATE_SHIFT">Создание зміни</option>
+              <option value="UPDATE_SHIFT">Редактирование зміни</option>
+              <option value="DELETE_SHIFT">Удаление зміни</option>
+              <option value="RESTORE_SHIFT">Восстановление зміни</option>
 
               <option value="CREATE_DUTY_POST">Создание поста</option>
               <option value="UPDATE_DUTY_POST">Редактирование поста</option>
@@ -196,9 +196,9 @@ export function ActionLogsPage() {
               }
             >
               <option value="">Все объекты</option>
-              <option value="SHIFT">Смены</option>
+              <option value="SHIFT">Зміни</option>
               <option value="DUTY_POST">Посты</option>
-              <option value="POST_DUTY">Постовые дежурства</option>
+              <option value="POST_DUTY">Постові чергування</option>
             </select>
           </label>
           <label className="field">
@@ -214,7 +214,7 @@ export function ActionLogsPage() {
           </label>
 
           <label className="field">
-            <span>Поиск</span>
+            <span>Пошук</span>
             <input
               value={filters.search ?? ""}
               onChange={(event) => updateFilter("search", event.target.value)}
@@ -225,7 +225,7 @@ export function ActionLogsPage() {
 
         <div className="report-filter-actions">
           <button className="primary-button" onClick={handleApply} disabled={loading}>
-            {loading ? "Загрузка..." : "Сформировать"}
+            {loading ? "Завантаження..." : "Сформировать"}
           </button>
 
           <button className="secondary-button" onClick={handleReset}>
@@ -241,7 +241,7 @@ export function ActionLogsPage() {
           <div>
             <h2>События</h2>
             <p>
-              Всего строк: {(pagination?.total ?? 0).toLocaleString("ru-RU")} ·
+              Усього рядків: {(pagination?.total ?? 0).toLocaleString("ru-RU")} ·
               Страница {pagination?.page ?? 1} из {pagination?.totalPages ?? 1}
             </p>
           </div>
@@ -270,7 +270,7 @@ export function ActionLogsPage() {
                 <thead>
                   <tr>
                     <th>Дата/время</th>
-                    <th>Администратор</th>
+                    <th>Адміністратор</th>
                     <th>Действие</th>
                     <th>Объект</th>
                     <th>ID</th>

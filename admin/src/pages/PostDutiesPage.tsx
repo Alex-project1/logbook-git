@@ -253,7 +253,7 @@ export function PostDutiesPage() {
       setEmployees(employeesData);
       setVehicles(vehiclesData);
     } catch {
-      setError("Не удалось загрузить справочники по городу и подразделению");
+      setError("Не удалось загрузить справочники по міста и підрозділу");
     } finally {
       setReferencesLoading(false);
     }
@@ -471,21 +471,21 @@ export function PostDutiesPage() {
     const validMembers = form.members.filter((member) => member.employeeId);
 
     if (validMembers.length === 0) {
-      return "Добавьте хотя бы одного сотрудника";
+      return "Добавьте хотя бы одного співробітника";
     }
 
     const employeeIds = validMembers.map((member) => member.employeeId);
     const uniqueEmployeeIds = new Set(employeeIds);
 
     if (uniqueEmployeeIds.size !== employeeIds.length) {
-      return "Один сотрудник не может быть добавлен дважды";
+      return "Один співробітник не может быть додано дважды";
     }
 
     if (form.vehicleId) {
       const driversCount = validMembers.filter((member) => member.isDriver).length;
 
       if (driversCount !== 1) {
-        return "Если выбран автомобиль, должен быть ровно один водитель";
+        return "Если выбран автомобіль, должен быть ровно один водитель";
       }
     }
 
@@ -538,10 +538,10 @@ export function PostDutiesPage() {
     try {
       if (editingDuty) {
         await updatePostDuty(editingDuty.id, payload);
-        setSuccess("Постовое дежурство обновлено");
+        setSuccess("Постовое чергування оновленоо");
       } else {
         await createPostDuty(payload);
-        setSuccess("Постовое дежурство создано");
+        setSuccess("Постовое чергування создано");
       }
 
       setEditingDuty(null);
@@ -552,7 +552,7 @@ export function PostDutiesPage() {
 
       await loadPostDuties(filters);
     } catch (err: any) {
-      setError(err.response?.data?.message || "Не удалось сохранить дежурство");
+      setError(err.response?.data?.message || "Не удалось зберегти чергування");
     } finally {
       setSaving(false);
     }
@@ -610,7 +610,7 @@ export function PostDutiesPage() {
 
   async function handleDelete(duty: PostDuty) {
     const confirmed = window.confirm(
-      `Удалить постовое дежурство "${duty.post.name}" от ${formatDate(
+      `Удалить постовое чергування "${duty.post.name}" от ${formatDate(
         duty.dutyDate
       )}?`
     );
@@ -623,10 +623,10 @@ export function PostDutiesPage() {
 
     try {
       await deletePostDuty(duty.id);
-      setSuccess("Постовое дежурство удалено");
+      setSuccess("Постовое чергування удалено");
       await loadPostDuties(filters);
     } catch (err: any) {
-      setError(err.response?.data?.message || "Не удалось удалить дежурство");
+      setError(err.response?.data?.message || "Не удалось удалить чергування");
     } finally {
       setDeletingId(null);
     }
@@ -639,10 +639,10 @@ export function PostDutiesPage() {
 
     try {
       await restorePostDuty(duty.id);
-      setSuccess("Постовое дежурство восстановлено");
+      setSuccess("Постовое чергування відновленоо");
       await loadPostDuties(filters);
     } catch (err: any) {
-      setError(err.response?.data?.message || "Не удалось восстановить дежурство");
+      setError(err.response?.data?.message || "Не удалось восстановить чергування");
     } finally {
       setRestoringId(null);
     }
@@ -700,8 +700,8 @@ export function PostDutiesPage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Постовые дежурства</h1>
-          <p>Дополнительные и стационарные посты с учетом часов и сотрудников</p>
+          <h1>Постові чергування</h1>
+          <p>Додаткові и стационарные посты с учетом часов и співробітников</p>
         </div>
       </div>
 
@@ -711,21 +711,21 @@ export function PostDutiesPage() {
             <AccordionSection
               title={
                 editingDuty
-                  ? "Редактировать дежурство"
-                  : "Добавить дежурство"
+                  ? "Редагувати чергування"
+                  : "Додати чергування"
               }
-              subtitle="Основные данные, автомобиль, сотрудники и сохранение"
+              subtitle="Основные данные, автомобіль, співробітники и сохранение"
               open={openedSections.form}
               onToggle={() => toggleSection("form")}
             >
               <AccordionSection
-                title="Основное"
-                subtitle="Город, пост, дата и длительность"
+                title="Основне"
+                subtitle="Місто, пост, дата и длительность"
                 open={openedSections.main}
                 onToggle={() => toggleSection("main")}
               >
                 <label className="field">
-                  <span>Город</span>
+                  <span>Місто</span>
                   <select
                     value={form.cityId}
                     onChange={(event) => handleCityChange(Number(event.target.value))}
@@ -740,7 +740,7 @@ export function PostDutiesPage() {
                 </label>
 
                 <label className="field">
-                  <span>Подразделение</span>
+                  <span>Підрозділ</span>
                   <select
                     value={form.departmentId}
                     onChange={(event) => handleFormDepartmentChange(Number(event.target.value))}
@@ -795,22 +795,22 @@ export function PostDutiesPage() {
                 </label>
 
                 <div className="role-help-card">
-                  <strong>Эквивалент смены</strong>
+                  <strong>Эквивалент зміни</strong>
                   <span>
                     {formatNumber(Number(form.durationHours || 0) / 24)} от полной
-                    24-часовой смены
+                    24-часовой зміни
                   </span>
                 </div>
               </AccordionSection>
 
               <AccordionSection
-                title="Автомобиль и комментарий"
-                subtitle="Авто необязательно, но при выборе нужен водитель"
+                title="Автомобіль і коментар"
+                subtitle="Авто необов’язково, но при выборе нужен водитель"
                 open={openedSections.vehicle}
                 onToggle={() => toggleSection("vehicle")}
               >
                 <label className="field">
-                  <span>Автомобиль, необязательно</span>
+                  <span>Автомобіль, необов’язково</span>
                   <select
                     value={form.vehicleId}
                     onChange={(event) => {
@@ -840,7 +840,7 @@ export function PostDutiesPage() {
                 </label>
 
                 <label className="field">
-                  <span>Комментарий</span>
+                  <span>Коментар</span>
                   <textarea
                     rows={3}
                     value={form.note}
@@ -851,8 +851,8 @@ export function PostDutiesPage() {
               </AccordionSection>
 
               <AccordionSection
-                title="Сотрудники"
-                subtitle="Минимум 1 сотрудник, оружие и водитель"
+                title="Співробітники"
+                subtitle="Минимум 1 співробітник, оружие и водитель"
                 open={openedSections.members}
                 onToggle={() => toggleSection("members")}
               >
@@ -860,7 +860,7 @@ export function PostDutiesPage() {
                   {form.members.map((member, index) => (
                     <div className="duty-member-card" key={index}>
                       <label className="field">
-                        <span>Сотрудник</span>
+                        <span>Співробітник</span>
                         <select
                           value={member.employeeId}
                           onChange={(event) =>
@@ -870,7 +870,7 @@ export function PostDutiesPage() {
                           }
                           disabled={referencesLoading}
                         >
-                          <option value={0}>Выберите сотрудника</option>
+                          <option value={0}>Выберите співробітника</option>
                           {activeEmployees.map((employee) => (
                             <option key={employee.id} value={employee.id}>
                               {employee.fullName}
@@ -905,7 +905,7 @@ export function PostDutiesPage() {
                       </div>
 
                       <label className="field">
-                        <span>Комментарий сотрудника</span>
+                        <span>Коментар співробітника</span>
                         <input
                           value={member.comment}
                           onChange={(event) =>
@@ -922,14 +922,14 @@ export function PostDutiesPage() {
                         className="small-button danger-button"
                         onClick={() => removeMember(index)}
                       >
-                        Убрать сотрудника
+                        Убрать співробітника
                       </button>
                     </div>
                   ))}
                 </div>
 
                 <button type="button" className="secondary-button" onClick={addMember}>
-                  Добавить сотрудника
+                  Додати співробітника
                 </button>
               </AccordionSection>
 
@@ -939,10 +939,10 @@ export function PostDutiesPage() {
               <div className="form-actions">
                 <button className="primary-button" disabled={saving}>
                   {saving
-                    ? "Сохранение..."
+                    ? "Збереження..."
                     : editingDuty
-                      ? "Сохранить"
-                      : "Сохранить дежурство"}
+                      ? "Зберегти"
+                      : "Зберегти чергування"}
                 </button>
 
                 {editingDuty && (
@@ -951,7 +951,7 @@ export function PostDutiesPage() {
                     className="secondary-button"
                     onClick={resetForm}
                   >
-                    Отмена
+                    Скасувати
                   </button>
                 )}
               </div>
@@ -962,7 +962,7 @@ export function PostDutiesPage() {
         <div className="panel-card table-card">
           <AccordionSection
             title="Список дежурств"
-            subtitle={` Всего: ${(pagination?.total ?? 0).toLocaleString("ru-RU")}`}
+            subtitle={` Усього: ${(pagination?.total ?? 0).toLocaleString("ru-RU")}`}
             open={openedSections.list}
             onToggle={() => toggleSection("list")}
           >
@@ -993,13 +993,13 @@ export function PostDutiesPage() {
 
             <AccordionSection
               title="Фильтры списка"
-              subtitle="Город, пост, авто, сотрудник, даты, поиск и архив"
+              subtitle="Місто, пост, авто, співробітник, даты, поиск и архив"
               open={openedSections.filters}
               onToggle={() => toggleSection("filters")}
             >
               <div className="report-filters-grid">
                 <label className="field">
-                  <span>Город</span>
+                  <span>Місто</span>
                   <select
                     value={filters.cityId ?? 0}
                     onChange={(event) => handleFilterCityChange(Number(event.target.value))}
@@ -1014,12 +1014,12 @@ export function PostDutiesPage() {
                 </label>
 
                 <label className="field">
-                  <span>Подразделение</span>
+                  <span>Підрозділ</span>
                   <select
                     value={filters.departmentId ?? 0}
                     onChange={(event) => handleFilterDepartmentChange(Number(event.target.value))}
                   >
-                    <option value={0}>Все подразделения</option>
+                    <option value={0}>Усі підрозділи</option>
                     {filterDepartments.map((department) => (
                       <option key={department.id} value={department.id}>
                         {formatDepartmentOption(department, { showCity: !filters.cityId })}
@@ -1070,7 +1070,7 @@ export function PostDutiesPage() {
                 </label>
 
                 <label className="field">
-                  <span>Сотрудник</span>
+                  <span>Співробітник</span>
                   <select
                     value={filters.employeeId ?? 0}
                     onChange={(event) =>
@@ -1080,7 +1080,7 @@ export function PostDutiesPage() {
                       }))
                     }
                   >
-                    <option value={0}>Все сотрудники</option>
+                    <option value={0}>Все співробітники</option>
                     {employees.map((employee) => (
                       <option key={employee.id} value={employee.id}>
                         {employee.fullName}
@@ -1090,7 +1090,7 @@ export function PostDutiesPage() {
                 </label>
 
                 <label className="field">
-                  <span>Дата от</span>
+                  <span>Дата від</span>
                   <input
                     type="date"
                     value={filters.dateFrom ?? ""}
@@ -1118,7 +1118,7 @@ export function PostDutiesPage() {
                 </label>
 
                 <label className="field">
-                  <span>Поиск</span>
+                  <span>Пошук</span>
                   <input
                     value={filters.search ?? ""}
                     onChange={(event) =>
@@ -1127,7 +1127,7 @@ export function PostDutiesPage() {
                         search: event.target.value,
                       }))
                     }
-                    placeholder="Пост, авто, сотрудник..."
+                    placeholder="Пост, авто, співробітник..."
                   />
                 </label>
 
@@ -1138,7 +1138,7 @@ export function PostDutiesPage() {
                     onChange={(event) => handleArchiveFilterChange(event.target.value)}
                   >
                     <option value="active">Рабочие</option>
-                    <option value="archive">Архив</option>
+                    <option value="archive">Архів</option>
                   </select>
                 </label>
               </div>
@@ -1152,12 +1152,12 @@ export function PostDutiesPage() {
 
 
             {loading ? (
-              <div className="empty-state">Загрузка...</div>
+              <div className="empty-state">Завантаження...</div>
             ) : rows.length === 0 ? (
               <div className="empty-state">
                 {filters.archive
-                  ? "В архиве нет постовых дежурств"
-                  : "Постовые дежурства еще не добавлены"}
+                  ? "В архіве нет постовых дежурств"
+                  : "Постові чергування еще не доданоы"}
               </div>
             ) : (
               <>
@@ -1166,14 +1166,14 @@ export function PostDutiesPage() {
                     <thead>
                       <tr>
                         <th>Дата</th>
-                        <th>Город</th>
-                        <th>Подразделение</th>
+                        <th>Місто</th>
+                        <th>Підрозділ</th>
                         <th>Пост</th>
                         <th>Часы</th>
-                        <th>Смена</th>
+                        <th>Зміна</th>
                         <th>Авто</th>
-                        <th>Сотрудники</th>
-                        <th>Комментарий</th>
+                        <th>Співробітники</th>
+                        <th>Коментар</th>
                         {canEditPostDuties && <th>Действия</th>}
                       </tr>
                     </thead>
@@ -1217,7 +1217,7 @@ export function PostDutiesPage() {
                                   items={[
                                     {
                                       label:
-                                        restoringId === duty.id ? "Восстанавливаем..." : "Восстановить",
+                                        restoringId === duty.id ? "Восстанавливаем..." : "Відновити",
                                       disabled: restoringId === duty.id,
                                       onClick: () => handleRestore(duty),
                                     },
@@ -1227,7 +1227,7 @@ export function PostDutiesPage() {
                                 <RowActionMenu
                                   items={[
                                     {
-                                      label: "Редактировать",
+                                      label: "Редагувати",
                                       variant: "edit",
                                       onClick: () => startEdit(duty),
                                     },

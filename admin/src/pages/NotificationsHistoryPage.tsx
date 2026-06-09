@@ -249,7 +249,7 @@ export function NotificationsHistoryPage() {
       setFilters(nextFilters);
     } catch (err: any) {
       setError(
-        err.response?.data?.message || "Не удалось загрузить уведомления",
+        err.response?.data?.message || "Не удалось загрузить сповіщення",
       );
     } finally {
       setLoading(false);
@@ -302,8 +302,8 @@ export function NotificationsHistoryPage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>История уведомлений</h1>
-          <p>Список отправленных уведомлений и реакций пользователей</p>
+          <h1>Історія сповіщень</h1>
+          <p>Список відправленоных сповіщень и реакций користувачів</p>
         </div>
       </div>
 
@@ -312,13 +312,13 @@ export function NotificationsHistoryPage() {
       <div className="panel-card">
         <AccordionSection
           title="Фильтры"
-          subtitle="Город, получатель и период отправки"
+          subtitle="Місто, получатель и период отправки"
           open={openedSections.filters}
           onToggle={() => toggleSection("filters")}
         >
           <div className="notifications-filters-grid">
             <label className="field">
-              <span>Город</span>
+              <span>Місто</span>
               <select
                 value={filters.cityId}
                 onChange={(event) =>
@@ -336,14 +336,14 @@ export function NotificationsHistoryPage() {
             </label>
 
             <label className="field">
-              <span>Подразделение</span>
+              <span>Підрозділ</span>
               <select
                 value={filters.departmentId}
                 onChange={(event) =>
                   updateFilter("departmentId", Number(event.target.value))
                 }
               >
-                <option value={0}>Все подразделения</option>
+                <option value={0}>Усі підрозділи</option>
 
                 {visibleDepartments.map((department) => (
                   <option key={department.id} value={department.id}>
@@ -354,7 +354,7 @@ export function NotificationsHistoryPage() {
             </label>
 
             <label className="field">
-              <span>Пользователь</span>
+              <span>Користувач</span>
               <select
                 value={filters.mobileUserId}
                 onChange={(event) =>
@@ -372,7 +372,7 @@ export function NotificationsHistoryPage() {
             </label>
 
             <label className="field">
-              <span>Дата от</span>
+              <span>Дата від</span>
               <input
                 type="date"
                 value={filters.dateFrom}
@@ -420,15 +420,15 @@ export function NotificationsHistoryPage() {
 
       <div className="panel-card table-card">
         <AccordionSection
-          title="Список уведомлений"
-          subtitle={`Всего: ${pagination.total} · Страница ${pagination.page} из ${pagination.totalPages}`}
+          title="Список сповіщень"
+          subtitle={`Усього: ${pagination.total} · Страница ${pagination.page} из ${pagination.totalPages}`}
           open={openedSections.list}
           onToggle={() => toggleSection("list")}
         >
           {loading ? (
-            <div className="empty-state">Загрузка...</div>
+            <div className="empty-state">Завантаження...</div>
           ) : notifications.length === 0 ? (
-            <div className="empty-state">Уведомлений пока нет</div>
+            <div className="empty-state">Сповіщень поки немає</div>
           ) : (
             <>
               <div className="table-wrap">
@@ -437,8 +437,8 @@ export function NotificationsHistoryPage() {
                     <tr>
                       <th>№</th>
                       <th>Дата</th>
-                      <th>Город</th>
-                      <th>Подразделение</th>
+                      <th>Місто</th>
+                      <th>Підрозділ</th>
                       <th>Кто отправил</th>
                       <th>Получатели</th>
                       <th>Доставлено</th>
@@ -531,7 +531,7 @@ export function NotificationsHistoryPage() {
           >
             <div className="table-header">
               <div>
-                <h2>Карточка уведомления</h2>
+                <h2>Карточка сповіщення</h2>
                 <p>#{selectedNotification.id}</p>
               </div>
 
@@ -544,7 +544,7 @@ export function NotificationsHistoryPage() {
             </div>
 
             {detailsLoading ? (
-              <div className="empty-state">Загрузка...</div>
+              <div className="empty-state">Завантаження...</div>
             ) : (
               <>
                <div className="notification-detail-message">
@@ -553,11 +553,11 @@ export function NotificationsHistoryPage() {
 </div>
 
                 <div className="notification-detail-grid">
-                  <span>Город</span>
+                  <span>Місто</span>
                   <strong>{selectedNotification.city.name}</strong>
 
-                  <span>Подразделение</span>
-                  <strong>{selectedNotification.department ? formatDepartmentOption(selectedNotification.department, { showCity: false }) : "Все подразделения"}</strong>
+                  <span>Підрозділ</span>
+                  <strong>{selectedNotification.department ? formatDepartmentOption(selectedNotification.department, { showCity: false }) : "Усі підрозділи"}</strong>
 
                   <span>Отправил</span>
                   <strong>
@@ -582,7 +582,7 @@ export function NotificationsHistoryPage() {
                   <span>Push токенов</span>
                   <strong>{selectedNotification.push.tokensCount}</strong>
 
-                  <span>Успешно отправлено</span>
+                  <span>Успешно відправленоо</span>
                   <strong>{selectedNotification.push.successCount}</strong>
 
                   <span>Ошибок отправки</span>

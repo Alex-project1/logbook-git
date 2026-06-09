@@ -375,33 +375,33 @@ export function ManualShiftCreatePage() {
   function validateForm() {
     if (!form.cityId) return "Выберите город";
     if (!form.crewId) return "Выберите наряд";
-    if (!form.vehicleId) return "Выберите автомобиль";
+    if (!form.vehicleId) return "Выберите автомобіль";
     if (!form.driverEmployeeId) return "Выберите водителя";
     if (!form.seniorEmployeeId) return "Выберите старшего";
 
     if (form.driverEmployeeId === form.seniorEmployeeId) {
-      return "Водитель и старший не могут быть одним сотрудником";
+      return "Водитель и старший не могут быть одним співробітником";
     }
 
-    if (!form.shiftDate) return "Укажите дату и время начала смены";
+    if (!form.shiftDate) return "Укажите дату и время начала зміни";
 
     if (!form.odometerStart || toNumber(form.odometerStart) < 0) {
-      return "Укажите корректный спидометр на начало смены";
+      return "Укажите корректный спидометр на начало зміни";
     }
 
     for (let index = 0; index < trips.length; index += 1) {
       const trip = trips[index];
       const number = index + 1;
 
-      if (!trip.fromLocation.trim()) return `Поездка ${number}: заполните Откуда`;
-      if (!trip.toLocation.trim()) return `Поездка ${number}: заполните Куда`;
-      if (!trip.departureTime) return `Поездка ${number}: укажите время выезда`;
-      if (!trip.arrivalTime) return `Поездка ${number}: укажите время прибытия`;
+      if (!trip.fromLocation.trim()) return `Поїздка ${number}: заполните Откуда`;
+      if (!trip.toLocation.trim()) return `Поїздка ${number}: заполните Куда`;
+      if (!trip.departureTime) return `Поїздка ${number}: укажите время выезда`;
+      if (!trip.arrivalTime) return `Поїздка ${number}: укажите время прибытия`;
       if (!trip.arrivalMinutes) {
-        return `Поездка ${number}: время прибытия должно быть позже времени выезда`;
+        return `Поїздка ${number}: время прибытия должно быть позже времени выезда`;
       }
-      if (!trip.distanceKm) return `Поездка ${number}: укажите расстояние`;
-      if (!trip.goalId) return `Поездка ${number}: выберите цель поездки`;
+      if (!trip.distanceKm) return `Поїздка ${number}: укажите расстояние`;
+      if (!trip.goalId) return `Поїздка ${number}: выберите цель поїздки`;
 
       const goal = getGoal(trip.goalId);
       const systemCode = formatGoalCode(goal);
@@ -410,11 +410,11 @@ export function ManualShiftCreatePage() {
         const totalAdditional = toNumber(trip.ohCount) + toNumber(trip.partnerCount);
 
         if (totalAdditional <= 0) {
-          return `Поездка ${number}: укажите количество доп. сработок`;
+          return `Поїздка ${number}: укажите количество дод. спрацювань`;
         }
 
         if (!trip.reasonId && !trip.customReasonText.trim()) {
-          return `Поездка ${number}: выберите причину доп. сработок`;
+          return `Поїздка ${number}: выберите причину дод. спрацювань`;
         }
       }
     }
@@ -466,11 +466,11 @@ export function ManualShiftCreatePage() {
         })),
       });
 
-      setSuccess("Смена успешно добавлена");
+      setSuccess("Зміна успешно доданоа");
       setForm(initialShiftForm);
       setTrips([createEmptyTrip()]);
     } catch (err: any) {
-      setError(err.response?.data?.message || "Не удалось добавить смену");
+      setError(err.response?.data?.message || "Не удалось додати зміну");
     } finally {
       setSaving(false);
     }
@@ -480,8 +480,8 @@ export function ManualShiftCreatePage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Добавить смену вручную</h1>
-          <p>Ручное создание смены администратором с поездками и сработками</p>
+          <h1>Додати зміну вручную</h1>
+          <p>Ручное создание зміни администратором с поездками и спрацюваннями</p>
         </div>
       </div>
 
@@ -491,16 +491,16 @@ export function ManualShiftCreatePage() {
         <form className="manual-shift-form" onSubmit={handleSubmit}>
           <div className="panel-card manual-accordion-card">
             <AccordionSection
-              title="Основные данные смены"
-              subtitle="Город, наряд, автомобиль, экипаж, время и пробег"
+              title="Основные данные зміни"
+              subtitle="Місто, наряд, автомобіль, экипаж, время и пробег"
               open={openedSections.main}
               onToggle={() => toggleSection("main")}
             >
-              <h2>Основные данные смены</h2>
+              <h2>Основные данные зміни</h2>
 
               <div className="manual-form-grid">
                 <label className="field">
-                  <span>Город</span>
+                  <span>Місто</span>
                   <select
                     value={form.cityId}
                     onChange={(event) =>
@@ -536,14 +536,14 @@ export function ManualShiftCreatePage() {
                 </label>
 
                 <label className="field">
-                  <span>Автомобиль</span>
+                  <span>Автомобіль</span>
                   <select
                     value={form.vehicleId}
                     onChange={(event) =>
                       updateForm("vehicleId", Number(event.target.value))
                     }
                   >
-                    <option value={0}>Выберите автомобиль</option>
+                    <option value={0}>Выберите автомобіль</option>
 
                     {filteredVehicles.map((vehicle) => (
                       <option key={vehicle.id} value={vehicle.id}>
@@ -555,7 +555,7 @@ export function ManualShiftCreatePage() {
                 </label>
 
                 <label className="field">
-                  <span>Дата и время начала смены</span>
+                  <span>Дата и время начала зміни</span>
                   <input
                     type="datetime-local"
                     value={form.shiftDate}
@@ -564,7 +564,7 @@ export function ManualShiftCreatePage() {
                 </label>
 
                 <label className="field">
-                  <span>Время отправки отчета</span>
+                  <span>Время отправки звіта</span>
                   <input
                     type="datetime-local"
                     value={form.submittedAt}
@@ -667,8 +667,8 @@ export function ManualShiftCreatePage() {
 
           <div className="panel-card manual-accordion-card">
             <AccordionSection
-              title="Поездки"
-              subtitle={`Всего поездок: ${trips.length} · Общий пробег: ${totalDistanceKm.toFixed(
+              title="Поїздки"
+              subtitle={`Усього поїздок: ${trips.length} · Общий пробег: ${totalDistanceKm.toFixed(
                 1
               )} км`}
               open={openedSections.trips}
@@ -676,8 +676,8 @@ export function ManualShiftCreatePage() {
             >
               <div className="manual-trips-toolbar">
                 <div>
-                  <strong>Поездки смены: </strong>
-                  <span>Добавляй маршруты, цели поездок и сработки</span>
+                  <strong>Поїздки зміни: </strong>
+                  <span>Добавляй маршруты, цели поїздок и спрацювання</span>
                 </div>
 
             
@@ -694,7 +694,7 @@ export function ManualShiftCreatePage() {
                   return (
                     <div className="manual-trip-card" key={index}>
                     <AccordionSection
-                      title={`Поездка ${index + 1}`}
+                      title={`Поїздка ${index + 1}`}
                       subtitle={`${trip.fromLocation || "Откуда не указано"} → ${
                         trip.toLocation || "Куда не указано"
                       } · ${trip.distanceKm || "0"} км`}
@@ -702,7 +702,7 @@ export function ManualShiftCreatePage() {
                       onToggle={() => toggleTrip(index)}
                     >
                       <div className="manual-trip-card-header">
-                        <h3>Поездка {index + 1}</h3>
+                        <h3>Поїздка {index + 1}</h3>
 
                         {trips.length > 1 && (
                           <button
@@ -783,7 +783,7 @@ export function ManualShiftCreatePage() {
                         </label>
 
                         <label className="field">
-                          <span>Цель поездки</span>
+                          <span>Ціль поїздки</span>
                           <select
                             value={trip.goalId}
                             onChange={(event) =>
@@ -816,8 +816,8 @@ export function ManualShiftCreatePage() {
                         <div className="manual-event-box">
                           <h4>
                             {systemCode === "alarm_oh"
-                              ? "Сработка ОХ"
-                              : "Сработка Партнеры"}
+                              ? "Спрацювання ОХ"
+                              : "Спрацювання Партнери"}
                           </h4>
 
                           <div className="manual-form-grid">
@@ -833,7 +833,7 @@ export function ManualShiftCreatePage() {
                                   )
                                 }
                               >
-                                <option value="false">Ложная</option>
+                                <option value="false">Хибна</option>
                                 <option value="true">Боевая</option>
                               </select>
                             </label>
@@ -875,7 +875,7 @@ export function ManualShiftCreatePage() {
 
                       {isAdditionalAlarm && (
                         <div className="manual-event-box">
-                          <h4>Список сработок</h4>
+                          <h4>Список спрацювань</h4>
 
                           <div className="manual-form-grid">
                             <label className="field">
@@ -978,7 +978,7 @@ export function ManualShiftCreatePage() {
                   className="secondary-button"
                   onClick={addTrip}
                 >
-                  Добавить поездку
+                  Додати поездку
                 </button>
               </div>
             </AccordionSection>
@@ -989,7 +989,7 @@ export function ManualShiftCreatePage() {
 
           <div className="manual-submit-bar center">
             <button className="primary-button" disabled={saving}>
-              {saving ? "Сохраняем..." : "Добавить смену"}
+              {saving ? "Зберігаємо..." : "Додати зміну"}
             </button>
           </div>
         </form>

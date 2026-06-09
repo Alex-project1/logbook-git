@@ -115,7 +115,7 @@ export function EmployeesPage() {
       const employeesData = await getEmployees({ includeInactive: true });
       setEmployees(employeesData);
     } catch (caught) {
-      setError(getErrorMessage(caught, "Не удалось загрузить сотрудников"));
+      setError(getErrorMessage(caught, "Не удалось загрузить співробітников"));
     } finally {
       setLoading(false);
     }
@@ -157,7 +157,7 @@ export function EmployeesPage() {
 
     if (!form.cityId) return setError("Выберите город");
     if (!form.departmentId) return setError("Выберите подразделение");
-    if (!form.fullName.trim()) return setError("Введите ФИО сотрудника");
+    if (!form.fullName.trim()) return setError("Введите ФИО співробітника");
 
     setSaving(true);
     setError("");
@@ -175,39 +175,39 @@ export function EmployeesPage() {
 
       if (editingEmployee) {
         await updateEmployee(editingEmployee.id, payload);
-        setSuccess("Сотрудник обновлен");
+        setSuccess("Співробітник оновлено");
       } else {
         await createEmployee(payload);
-        setSuccess("Сотрудник добавлен");
+        setSuccess("Співробітник додано");
       }
 
       resetForm();
       await loadEmployees();
     } catch (caught) {
-      setError(getErrorMessage(caught, "Не удалось сохранить сотрудника"));
+      setError(getErrorMessage(caught, "Не удалось зберегти співробітника"));
     } finally {
       setSaving(false);
     }
   }
 
   async function handleArchive(employee: Employee) {
-    if (!window.confirm(`Отправить сотрудника "${employee.fullName}" в архив?`)) return;
+    if (!window.confirm(`Отправить співробітника "${employee.fullName}" в архив?`)) return;
     try {
       await deleteEmployee(employee.id);
-      setSuccess("Сотрудник отправлен в архив");
+      setSuccess("Співробітник відправлено в архив");
       await loadEmployees();
     } catch (caught) {
-      setError(getErrorMessage(caught, "Не удалось отправить сотрудника в архив"));
+      setError(getErrorMessage(caught, "Не удалось отправить співробітника в архив"));
     }
   }
 
   async function handleRestore(employee: Employee) {
     try {
       await restoreEmployee(employee.id);
-      setSuccess("Сотрудник восстановлен");
+      setSuccess("Співробітник відновлено");
       await loadEmployees();
     } catch (caught) {
-      setError(getErrorMessage(caught, "Не удалось восстановить сотрудника"));
+      setError(getErrorMessage(caught, "Не удалось восстановить співробітника"));
     }
   }
 
@@ -238,8 +238,8 @@ export function EmployeesPage() {
     <div className="page-card">
       <div className="page-header">
         <div>
-          <h1>Сотрудники</h1>
-          <p>Сотрудники теперь привязаны к городу и подразделению.</p>
+          <h1>Співробітники</h1>
+          <p>Співробітники теперь прив’язані к міста и підрозділу.</p>
         </div>
       </div>
 
@@ -249,7 +249,7 @@ export function EmployeesPage() {
       {canEdit && !showArchive && (
         <form className="form-grid" onSubmit={handleSubmit}>
           <label>
-            Город
+            Місто
             <select value={form.cityId} onChange={(event) => handleFormCityChange(Number(event.target.value))}>
               <option value={0}>Выберите город</option>
               {activeCities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}
@@ -257,7 +257,7 @@ export function EmployeesPage() {
           </label>
 
           <label>
-            Подразделение
+            Підрозділ
             <select value={form.departmentId} onChange={(event) => setForm((prev) => ({ ...prev, departmentId: Number(event.target.value) }))}>
               <option value={0}>Выберите подразделение</option>
               {formDepartments.map((department) => (
@@ -277,7 +277,7 @@ export function EmployeesPage() {
           </label>
 
           <label>
-            Комментарий
+            Коментар
             <input value={form.comment} onChange={(event) => setForm((prev) => ({ ...prev, comment: event.target.value }))} />
           </label>
 
@@ -287,44 +287,44 @@ export function EmployeesPage() {
           </label>
 
           <div className="form-actions">
-            <button type="submit" disabled={saving}>{saving ? "Сохранение..." : editingEmployee ? "Обновить" : "Добавить"}</button>
-            {editingEmployee && <button type="button" className="secondary-button" onClick={resetForm}>Отменить</button>}
+            <button type="submit" disabled={saving}>{saving ? "Збереження..." : editingEmployee ? "Оновити" : "Додати"}</button>
+            {editingEmployee && <button type="button" className="secondary-button" onClick={resetForm}>Скасувати</button>}
           </div>
         </form>
       )}
 
       <div className="filters-row">
         <label>
-          Город
+          Місто
           <select value={selectedCityId} onChange={(event) => handleCityFilterChange(Number(event.target.value))}>
-            <option value={0}>Все города</option>
+            <option value={0}>Усі міста</option>
             {cities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}
           </select>
         </label>
 
         <label>
-          Подразделение
+          Підрозділ
           <select value={selectedDepartmentId} onChange={(event) => handleDepartmentFilterChange(Number(event.target.value))}>
-            <option value={0}>Все подразделения</option>
+            <option value={0}>Усі підрозділи</option>
             {filterDepartments.map((department) => <option key={department.id} value={department.id}>{department.name} · {departmentTypeLabels[department.type]}</option>)}
           </select>
         </label>
 
         <label>
-          Состояние
+          Стан
           <select value={showArchive ? "archive" : "active"} onChange={(event) => handleArchiveFilterChange(event.target.value)}>
-            <option value="active">Активные</option>
-            <option value="archive">Архив</option>
+            <option value="active">Активні</option>
+            <option value="archive">Архів</option>
           </select>
         </label>
       </div>
 
-      {loading ? <p>Загрузка...</p> : (
+      {loading ? <p>Завантаження...</p> : (
         <div className="table-wrapper">
           <table>
             <thead>
               <tr>
-                <th>ФИО</th><th>Город</th><th>Подразделение</th><th>Должность</th><th>Комментарий</th><th>Статус</th><th></th>
+                <th>ФИО</th><th>Місто</th><th>Підрозділ</th><th>Должность</th><th>Коментар</th><th>Статус</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -335,16 +335,16 @@ export function EmployeesPage() {
                   <td>{employee.department?.name || employee.departmentId}</td>
                   <td>{employee.position || "—"}</td>
                   <td>{employee.comment || "—"}</td>
-                  <td>{employee.deletedAt ? "Архив" : employee.isActive ? "Активен" : "Отключен"}</td>
+                  <td>{employee.deletedAt ? "Архів" : employee.isActive ? "Активний" : "Вимкнений"}</td>
                   <td>
-                    {canEdit && <RowActionMenu items={showArchive ? [{ label: "Восстановить", onClick: () => handleRestore(employee), variant: "edit" }] : [
-                      { label: "Редактировать", onClick: () => startEdit(employee), variant: "edit" },
-                      { label: "В архив", onClick: () => handleArchive(employee), variant: "danger" },
+                    {canEdit && <RowActionMenu items={showArchive ? [{ label: "Відновити", onClick: () => handleRestore(employee), variant: "edit" }] : [
+                      { label: "Редагувати", onClick: () => startEdit(employee), variant: "edit" },
+                      { label: "В архів", onClick: () => handleArchive(employee), variant: "danger" },
                     ]} />}
                   </td>
                 </tr>
               ))}
-              {employees.length === 0 && <tr><td colSpan={7}>Нет сотрудников</td></tr>}
+              {employees.length === 0 && <tr><td colSpan={7}>Немає співробітников</td></tr>}
             </tbody>
           </table>
         </div>

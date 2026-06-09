@@ -138,7 +138,7 @@ export function ReportsAlarmsPage() {
       const data = await getAlarmsReport(nextFilters);
       setReport(data);
     } catch {
-      setError("Не удалось загрузить отчет по сработкам");
+      setError("Не удалось загрузить звіт по спрацюваннями");
     } finally {
       setLoading(false);
     }
@@ -178,7 +178,7 @@ export function ReportsAlarmsPage() {
       <>
         <tr className="summary-row">
           <td>
-            <strong>Всего сработок</strong>
+            <strong>Усього спрацювань</strong>
           </td>
           <td>{formatNumber(totals?.totalAlarms)}</td>
           <td>{formatNumber(totals?.totalOh)}</td>
@@ -186,14 +186,14 @@ export function ReportsAlarmsPage() {
         </tr>
 
         <tr>
-          <td>Ложные</td>
+          <td>Хибні</td>
           <td>{formatNumber(totals?.falseTotal)}</td>
           <td>{formatNumber(totals?.falseOh)}</td>
           <td>{formatNumber(totals?.falsePartner)}</td>
         </tr>
 
         <tr>
-          <td>Боевые</td>
+          <td>Бойові</td>
           <td>{formatNumber(totals?.combatTotal)}</td>
           <td>{formatNumber(totals?.combatOh)}</td>
           <td>{formatNumber(totals?.combatPartner)}</td>
@@ -249,15 +249,15 @@ export function ReportsAlarmsPage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>По сработкам</h1>
-          <p>Аналитика ОХ / Партнеры, боевые / ложные и дополнительные причины</p>
+          <h1>За спрацюваннями</h1>
+          <p>Аналитика ОХ / Партнеры, бойові / хибні и додаткові причины</p>
         </div>
       </div>
 
       <div className="panel-card report-filters">
         <div className="trips-filters-grid">
           <label className="field">
-            <span>Дата от</span>
+            <span>Дата від</span>
             <input
               type="date"
               value={filters.dateFrom ?? ""}
@@ -279,7 +279,7 @@ export function ReportsAlarmsPage() {
           </label>
 
           <label className="field">
-            <span>Город</span>
+            <span>Місто</span>
             <select
               value={filters.cityId ?? 0}
               onChange={(event) =>
@@ -287,7 +287,7 @@ export function ReportsAlarmsPage() {
               }
               disabled={referencesLoading}
             >
-              <option value={0}>Все города</option>
+              <option value={0}>Усі міста</option>
 
               {activeCities.map((city) => (
                 <option key={city.id} value={city.id}>
@@ -298,7 +298,7 @@ export function ReportsAlarmsPage() {
           </label>
 
           <label className="field">
-            <span>Подразделение</span>
+            <span>Підрозділ</span>
             <select
               value={filters.departmentId ?? 0}
               onChange={(event) =>
@@ -306,7 +306,7 @@ export function ReportsAlarmsPage() {
               }
               disabled={referencesLoading}
             >
-              <option value={0}>Все подразделения</option>
+              <option value={0}>Усі підрозділи</option>
 
               {activeDepartments.map((department) => (
                 <option key={department.id} value={department.id}>
@@ -324,7 +324,7 @@ export function ReportsAlarmsPage() {
                 updateFilter("crewId", Number(event.target.value) || undefined)
               }
             >
-              <option value={0}>Все наряды</option>
+              <option value={0}>Все наряди</option>
 
               {visibleCrews.map((crew) => (
                 <option key={crew.id} value={crew.id}>
@@ -335,14 +335,14 @@ export function ReportsAlarmsPage() {
           </label>
 
           <label className="field">
-            <span>Автомобиль</span>
+            <span>Автомобіль</span>
             <select
               value={filters.vehicleId ?? 0}
               onChange={(event) =>
                 updateFilter("vehicleId", Number(event.target.value) || undefined)
               }
             >
-              <option value={0}>Все автомобили</option>
+              <option value={0}>Все автомобілі</option>
 
               {visibleVehicles.map((vehicle) => (
                 <option key={vehicle.id} value={vehicle.id}>
@@ -354,14 +354,14 @@ export function ReportsAlarmsPage() {
           </label>
 
           <label className="field">
-            <span>Сотрудник</span>
+            <span>Співробітник</span>
             <select
               value={filters.employeeId ?? 0}
               onChange={(event) =>
                 updateFilter("employeeId", Number(event.target.value) || undefined)
               }
             >
-              <option value={0}>Все сотрудники</option>
+              <option value={0}>Все співробітники</option>
 
               {visibleEmployees.map((employee) => (
                 <option key={employee.id} value={employee.id}>
@@ -372,18 +372,18 @@ export function ReportsAlarmsPage() {
           </label>
 
           <label className="field">
-            <span>Поиск</span>
+            <span>Пошук</span>
             <input
               value={filters.search ?? ""}
               onChange={(event) => updateFilter("search", event.target.value)}
-              placeholder="Город, наряд, авто, сотрудник..."
+              placeholder="Місто, наряд, авто, співробітник..."
             />
           </label>
         </div>
 
         <div className="report-filter-actions">
   <button className="primary-button" onClick={handleApply} disabled={loading}>
-    {loading ? "Загрузка..." : "Сформировать"}
+    {loading ? "Завантаження..." : "Сформировать"}
   </button>
 
   <button className="secondary-button" onClick={handleReset}>
@@ -403,7 +403,7 @@ export function ReportsAlarmsPage() {
       {error && <div className="form-error report-error">{error}</div>}
 
       {loading ? (
-        <div className="empty-state">Загрузка отчета...</div>
+        <div className="empty-state">Загрузка звіта...</div>
       ) : (
         <>
           <div className="stats-grid report-stats-grid">
@@ -421,7 +421,7 @@ export function ReportsAlarmsPage() {
             </div>
 
             <div className="stat-card">
-              <span>Боевые / Ложные</span>
+              <span>Бойові / Хибні</span>
               <strong>
                 {formatNumber(totals?.combatTotal)} /{" "}
                 {formatNumber(totals?.falseTotal)}
@@ -446,7 +446,7 @@ export function ReportsAlarmsPage() {
             </div>
 
             <div className="stat-card">
-              <span>Смен / Поездок</span>
+              <span>Змін / Поїздок</span>
               <strong>
                 {formatNumber(totals?.totalShifts)} /{" "}
                 {formatNumber(totals?.totalTrips)}
@@ -464,7 +464,7 @@ export function ReportsAlarmsPage() {
               <div className="table-header">
                 <div>
                   <h2>Основная разбивка</h2>
-                  <p>Всего / ОХ / Партнеры</p>
+                  <p>Усього / ОХ / Партнеры</p>
                 </div>
               </div>
 
@@ -473,7 +473,7 @@ export function ReportsAlarmsPage() {
                   <thead>
                     <tr>
                       <th>Показатель</th>
-                      <th>Всего</th>
+                      <th>Усього</th>
                       <th>ОХ</th>
                       <th>Партнеры</th>
                     </tr>
@@ -488,12 +488,12 @@ export function ReportsAlarmsPage() {
               <div className="table-header">
                 <div>
                   <h2>График по городам</h2>
-                  <p>Сработки всего</p>
+                  <p>Спрацювання всего</p>
                 </div>
               </div>
 
               {byCity.length === 0 ? (
-                <div className="empty-state">Нет данных</div>
+                <div className="empty-state">Немає данных</div>
               ) : (
                 <div className="bar-list">
                   {byCity.map((row) => (
@@ -522,24 +522,24 @@ export function ReportsAlarmsPage() {
               <div className="table-header">
                 <div>
                   <h2>По городам</h2>
-                  <p>Сравнение городов по сработкам</p>
+                  <p>Сравнение городов по спрацюваннями</p>
                 </div>
               </div>
 
               {byCity.length === 0 ? (
-                <div className="empty-state">Нет данных по городам</div>
+                <div className="empty-state">Немає данных по городам</div>
               ) : (
                 <div className="table-wrap">
                   <table className="data-table alarms-table">
                     <thead>
                       <tr>
-                        <th>Город</th>
+                        <th>Місто</th>
                         <th>Сработок</th>
                         <th>ОХ</th>
                         <th>Партнеры</th>
-                        <th>Боевые</th>
-                        <th>Ложные</th>
-                        <th>Доп.</th>
+                        <th>Бойові</th>
+                        <th>Хибні</th>
+                        <th>Дод.</th>
                         <th>Задержано</th>
                         <th>Передано</th>
                       </tr>
@@ -571,12 +571,12 @@ export function ReportsAlarmsPage() {
               <div className="table-header">
                 <div>
                   <h2>По месяцам</h2>
-                  <p>Динамика сработок</p>
+                  <p>Динамика спрацювань</p>
                 </div>
               </div>
 
               {byMonth.length === 0 ? (
-                <div className="empty-state">Нет данных по месяцам</div>
+                <div className="empty-state">Немає данных по месяцам</div>
               ) : (
                 <div className="table-wrap">
                   <table className="data-table alarms-table">
@@ -586,9 +586,9 @@ export function ReportsAlarmsPage() {
                         <th>Сработок</th>
                         <th>ОХ</th>
                         <th>Партнеры</th>
-                        <th>Боевые</th>
-                        <th>Ложные</th>
-                        <th>Доп.</th>
+                        <th>Бойові</th>
+                        <th>Хибні</th>
+                        <th>Дод.</th>
                         <th>Задержано</th>
                         <th>Передано</th>
                       </tr>
@@ -621,12 +621,12 @@ export function ReportsAlarmsPage() {
             <div className="table-header">
               <div>
                 <h2>Динамика по месяцам</h2>
-                <p>Сработки всего</p>
+                <p>Спрацювання всего</p>
               </div>
             </div>
 
             {byMonth.length === 0 ? (
-              <div className="empty-state">Нет данных</div>
+              <div className="empty-state">Немає данных</div>
             ) : (
               <div className="bar-list">
                 {byMonth.map((row) => (

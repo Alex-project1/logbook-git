@@ -15,12 +15,40 @@ function getKindLabel(kind?: MobileUserKind | "") {
   return "Усі типи";
 }
 
+function getUserKindLabel(kind?: MobileUserKind | "") {
+  if (kind === "CREW") return "Наряд ГБР";
+  if (kind === "POST") return "Пост";
+  return "Користувач";
+}
+
 function getUserTargetLabel(user: MobileUser) {
   if (user.userKind === "CREW") {
     return user.crew?.name ?? user.displayName ?? "Наряд";
   }
 
   return user.dutyPost?.name ?? user.displayName ?? "Пост";
+}
+
+function getRecipientsSummary(
+  city: City | null,
+  department: Department | null,
+  kind: MobileUserKind | "",
+) {
+  const parts = [city?.name ?? "Місто не вибрано"];
+
+  if (department) {
+    parts.push(department.name);
+  } else {
+    parts.push("усі підрозділи");
+  }
+
+  if (kind) {
+    parts.push(getKindLabel(kind));
+  } else {
+    parts.push("усі типи користувачів");
+  }
+
+  return parts.join(" · ");
 }
 
 export function NotificationsCreatePage() {
@@ -38,6 +66,7 @@ export function NotificationsCreatePage() {
   const [loading, setLoading] = useState(true);
   const [usersLoading, setUsersLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -61,6 +90,18 @@ export function NotificationsCreatePage() {
     [visibleDepartments, departmentId],
   );
 
+  const selectedUsers = useMemo(() => {
+    const selected = new Set(selectedUserIds);
+    return mobileUsers.filter((user) => selected.has(user.id));
+  }, [mobileUsers, selectedUserIds]);
+
+  const recipientsSummary = useMemo(
+    () => getRecipientsSummary(selectedCity, selectedDepartment, targetUserKind),
+    [selectedCity, selectedDepartment, targetUserKind],
+  );
+
+  const isMassSend = selectedUsers.length > 5;
+
   useEffect(() => {
     async function loadReferences() {
       setLoading(true);
@@ -79,7 +120,7 @@ export function NotificationsCreatePage() {
           setCityId(citiesData[0].id);
         }
       } catch {
-        setError("Не удалось загрузить справочники");
+        setError("Не вдалося завантажити довідники");
       } finally {
         setLoading(false);
       }
@@ -110,8 +151,9 @@ export function NotificationsCreatePage() {
 
         setMobileUsers(data.filter((user) => user.isActive && !user.deletedAt));
         setSelectedUserIds([]);
+        setPreviewOpen(false);
       } catch {
-        setError("Не удалось загрузить пользователей приложения");
+        setError("Не вдалося завантажити користувачів застосунку");
       } finally {
         setUsersLoading(false);
       }
@@ -124,6 +166,19 @@ export function NotificationsCreatePage() {
     setCityId(nextCityId);
     setDepartmentId(0);
     setSelectedUserIds([]);
+    setPreviewOpen(false);
+  }
+
+  function handleDepartmentChange(nextDepartmentId: number) {
+    setDepartmentId(nextDepartmentId);
+    setSelectedUserIds([]);
+    setPreviewOpen(false);
+  }
+
+  function handleKindChange(nextKind: MobileUserKind | "") {
+    setTargetUserKind(nextKind);
+    setSelectedUserIds([]);
+    setPreviewOpen(false);
   }
 
   function toggleUser(userId: number) {
@@ -132,23 +187,49 @@ export function NotificationsCreatePage() {
         ? prev.filter((id) => id !== userId)
         : [...prev, userId],
     );
+    setPreviewOpen(false);
   }
 
   function selectAllUsers() {
     setSelectedUserIds(mobileUsers.map((user) => user.id));
+    setPreviewOpen(false);
   }
 
   function clearUsers() {
     setSelectedUserIds([]);
+    setPreviewOpen(false);
   }
 
-  async function handleSubmit(event: FormEvent) {
+  function validateNotification() {
+    if (!cityId) return "Виберіть місто";
+    if (selectedUserIds.length === 0) return "Виберіть хоча б одного отримувача";
+    if (!title.trim()) return "Введіть заголовок сповіщення";
+    if (!message.trim()) return "Введіть текст сповіщення";
+    return "";
+  }
+
+  function handleSubmit(event: FormEvent) {
     event.preventDefault();
 
-    if (!cityId) return setError("Выберите город");
-    if (selectedUserIds.length === 0) return setError("Выберите хотя бы одного пользователя");
-    if (!title.trim()) return setError("Введите заголовок уведомления");
-    if (!message.trim()) return setError("Введите текст уведомления");
+    const validationError = validateNotification();
+    if (validationError) {
+      setError(validationError);
+      setSuccess("");
+      return;
+    }
+
+    setError("");
+    setSuccess("");
+    setPreviewOpen(true);
+  }
+
+  async function confirmSend() {
+    const validationError = validateNotification();
+    if (validationError) {
+      setError(validationError);
+      setPreviewOpen(false);
+      return;
+    }
 
     setSending(true);
     setError("");
@@ -164,27 +245,28 @@ export function NotificationsCreatePage() {
         message: message.trim(),
       });
 
-      setSuccess("Уведомление создано и добавлено в историю");
+      setSuccess("Сповіщення створено та додано в історію");
       setTitle("");
       setMessage("");
       setSelectedUserIds([]);
+      setPreviewOpen(false);
     } catch (err: any) {
-      setError(err.response?.data?.message || "Не удалось создать уведомление");
+      setError(err.response?.data?.message || "Не вдалося створити сповіщення");
     } finally {
       setSending(false);
     }
   }
 
   if (loading) {
-    return <div className="page">Загрузка...</div>;
+    return <div className="page">Завантаження...</div>;
   }
 
   return (
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Новое уведомление</h1>
-          <p>Отправка сообщения по городу, подразделению, типу пользователя или конкретным получателям</p>
+          <h1>Нове сповіщення</h1>
+          <p>Перед відправленням перевірте місто, підрозділ, тип отримувачів і точний список користувачів.</p>
         </div>
       </div>
 
@@ -194,7 +276,7 @@ export function NotificationsCreatePage() {
       <form className="panel-card notification-create-card" onSubmit={handleSubmit}>
         <div className="notification-form-grid">
           <label className="field">
-            <span>Город</span>
+            <span>Місто</span>
             <select value={cityId} onChange={(event) => handleCityChange(Number(event.target.value))}>
               {cities.map((city) => (
                 <option key={city.id} value={city.id}>{city.name}</option>
@@ -203,9 +285,9 @@ export function NotificationsCreatePage() {
           </label>
 
           <label className="field">
-            <span>Подразделение</span>
-            <select value={departmentId} onChange={(event) => setDepartmentId(Number(event.target.value))}>
-              <option value={0}>Все подразделения города</option>
+            <span>Підрозділ</span>
+            <select value={departmentId} onChange={(event) => handleDepartmentChange(Number(event.target.value))}>
+              <option value={0}>Усі підрозділи міста</option>
               {visibleDepartments.map((department) => (
                 <option key={department.id} value={department.id}>
                   {formatDepartmentOption(department, { showCity: false })}
@@ -215,65 +297,73 @@ export function NotificationsCreatePage() {
           </label>
 
           <label className="field">
-            <span>Тип получателей</span>
-            <select value={targetUserKind} onChange={(event) => setTargetUserKind(event.target.value as MobileUserKind | "")}>
-              <option value="">Все типы</option>
-              <option value="CREW">Только наряды ГБР</option>
-              <option value="POST">Только посты</option>
+            <span>Тип отримувачів</span>
+            <select value={targetUserKind} onChange={(event) => handleKindChange(event.target.value as MobileUserKind | "")}>
+              <option value="">Усі типи</option>
+              <option value="CREW">Тільки наряди ГБР</option>
+              <option value="POST">Тільки пости</option>
             </select>
           </label>
 
           <div className="notification-selected-card">
-            <span>Выбрано пользователей</span>
+            <span>Вибрано отримувачів</span>
             <strong>{selectedUserIds.length}</strong>
-            <small>
-              {selectedCity?.name ?? "Город не выбран"}
-              {selectedDepartment ? ` · ${selectedDepartment.name}` : ""}
-              {targetUserKind ? ` · ${getKindLabel(targetUserKind)}` : ""}
-            </small>
+            <small>{recipientsSummary}</small>
           </div>
         </div>
 
+        {isMassSend && (
+          <div className="alert alert-warning">
+            Масова відправка: вибрано {selectedUsers.length} отримувачів. Перед відправленням уважно перевірте список у попередньому перегляді.
+          </div>
+        )}
+
         <label className="field">
-          <span>Заголовок уведомления</span>
+          <span>Заголовок сповіщення</span>
           <input
             value={title}
             maxLength={255}
-            placeholder="Например: Срочное сообщение"
-            onChange={(event) => setTitle(event.target.value)}
+            placeholder="Наприклад: Термінове повідомлення"
+            onChange={(event) => {
+              setTitle(event.target.value);
+              setPreviewOpen(false);
+            }}
           />
         </label>
 
         <label className="field">
-          <span>Текст уведомления</span>
+          <span>Текст сповіщення</span>
           <textarea
             rows={6}
             value={message}
             maxLength={5000}
-            placeholder="Введите текст уведомления..."
-            onChange={(event) => setMessage(event.target.value)}
+            placeholder="Введіть текст сповіщення..."
+            onChange={(event) => {
+              setMessage(event.target.value);
+              setPreviewOpen(false);
+            }}
           />
         </label>
 
         <div className="notification-users-panel">
           <div className="table-header">
             <div>
-              <h2>Получатели</h2>
-              <p>{usersLoading ? "Загружаем пользователей..." : `Доступно: ${mobileUsers.length}`}</p>
+              <h2>Отримувачі</h2>
+              <p>{usersLoading ? "Завантажуємо користувачів..." : `Доступно: ${mobileUsers.length}`}</p>
             </div>
 
             <div className="table-header-actions">
               <button type="button" className="secondary-button" onClick={selectAllUsers} disabled={mobileUsers.length === 0}>
-                Выбрать всех
+                Вибрати всіх
               </button>
               <button type="button" className="secondary-button" onClick={clearUsers} disabled={selectedUserIds.length === 0}>
-                Снять выбор
+                Зняти вибір
               </button>
             </div>
           </div>
 
           {mobileUsers.length === 0 ? (
-            <div className="empty-state">По выбранным фильтрам нет активных пользователей приложения</div>
+            <div className="empty-state">За вибраними фільтрами немає активних користувачів застосунку</div>
           ) : (
             <div className="notification-user-grid">
               {mobileUsers.map((user) => (
@@ -282,7 +372,7 @@ export function NotificationsCreatePage() {
 
                   <span>
                     <strong>{user.login}</strong>
-                    <small>{getUserTargetLabel(user)}</small>
+                    <small>{getUserKindLabel(user.userKind)} · {getUserTargetLabel(user)}</small>
                     <small>
                       {user.department
                         ? formatDepartmentOption(user.department, { showCity: false })
@@ -296,11 +386,83 @@ export function NotificationsCreatePage() {
         </div>
 
         <div className="form-actions notification-submit-bar">
-          <button className="primary-button" disabled={sending}>
-            {sending ? "Создаем..." : "Создать уведомление"}
+          <button className="primary-button" disabled={sending || usersLoading}>
+            {sending ? "Відправляємо..." : "Перевірити та відправити"}
           </button>
         </div>
       </form>
+
+      {previewOpen && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="modal-card notification-preview-modal" role="dialog" aria-modal="true" aria-labelledby="notification-preview-title">
+            <div className="modal-heading-row">
+              <div>
+                <h2 id="notification-preview-title">Підтвердження відправлення</h2>
+                <p className="modal-text">Перевірте отримувачів і текст. Після підтвердження сповіщення буде створено та відправлено.</p>
+              </div>
+            </div>
+
+            <div className="notification-preview-summary">
+              <div>
+                <span>Напрямок</span>
+                <strong>{recipientsSummary}</strong>
+              </div>
+              <div>
+                <span>Отримувачів</span>
+                <strong>{selectedUsers.length}</strong>
+              </div>
+              <div>
+                <span>Тип</span>
+                <strong>{getKindLabel(targetUserKind)}</strong>
+              </div>
+            </div>
+
+            {isMassSend && (
+              <div className="alert alert-warning">
+                Увага: це масова відправка на {selectedUsers.length} отримувачів.
+              </div>
+            )}
+
+            <div className="notification-preview-message">
+              <span>Заголовок</span>
+              <strong>{title.trim()}</strong>
+              <span>Текст</span>
+              <p>{message.trim()}</p>
+            </div>
+
+            <div className="notification-preview-users">
+              <div className="table-header compact-table-header">
+                <div>
+                  <h3>Список отримувачів</h3>
+                  <p>Показано перші {Math.min(selectedUsers.length, 20)} з {selectedUsers.length}</p>
+                </div>
+              </div>
+
+              <div className="notification-preview-user-list">
+                {selectedUsers.slice(0, 20).map((user) => (
+                  <div className="notification-preview-user" key={user.id}>
+                    <strong>{getUserTargetLabel(user)}</strong>
+                    <span>{user.login} · {getUserKindLabel(user.userKind)}</span>
+                  </div>
+                ))}
+              </div>
+
+              {selectedUsers.length > 20 && (
+                <p className="modal-text">І ще {selectedUsers.length - 20} отримувачів.</p>
+              )}
+            </div>
+
+            <div className="modal-actions">
+              <button type="button" className="secondary-button" onClick={() => setPreviewOpen(false)} disabled={sending}>
+                Повернутися до редагування
+              </button>
+              <button type="button" className="primary-button" onClick={confirmSend} disabled={sending}>
+                {sending ? "Відправляємо..." : "Підтвердити відправлення"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

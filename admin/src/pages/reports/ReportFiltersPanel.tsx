@@ -56,7 +56,7 @@ export function ReportFiltersPanel({
     <div className="report-filters panel-card">
       <div className="report-filters-grid">
         <label className="field">
-          <span>Дата от</span>
+          <span>Дата від</span>
           <input
             type="date"
             value={value.dateFrom ?? ""}
@@ -84,7 +84,7 @@ export function ReportFiltersPanel({
         </label>
 
         <label className="field">
-          <span>Город</span>
+          <span>Місто</span>
           <select
             value={value.cityId ?? 0}
             onChange={(event) =>
@@ -95,7 +95,7 @@ export function ReportFiltersPanel({
               })
             }
           >
-            <option value={0}>Все города</option>
+            <option value={0}>Усі міста</option>
 
             {cities.map((city) => (
               <option key={city.id} value={city.id}>
@@ -106,7 +106,7 @@ export function ReportFiltersPanel({
         </label>
 
         <label className="field">
-          <span>Подразделение</span>
+          <span>Підрозділ</span>
           <select
             value={value.departmentId ?? 0}
             onChange={(event) =>
@@ -116,7 +116,7 @@ export function ReportFiltersPanel({
               })
             }
           >
-            <option value={0}>Все подразделения</option>
+            <option value={0}>Усі підрозділи</option>
 
             {visibleDepartments.map((department) => (
               <option key={department.id} value={department.id}>

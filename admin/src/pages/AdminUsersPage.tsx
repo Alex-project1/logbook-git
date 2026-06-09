@@ -40,7 +40,7 @@ const initialForm: AdminUserForm = {
 };
 
 const roleLabels: Record<string, string> = {
-  admin: "Администратор",
+  admin: "Адміністратор",
   viewer: "Наблюдатель",
   super_admin: "Супер администратор",
 };
@@ -108,7 +108,7 @@ export function AdminUsersPage() {
       const data = await getAdminUsers(nextFilters);
       setReport(data);
     } catch {
-      setError("Не удалось загрузить пользователей");
+      setError("Не удалось загрузить користувачів");
     } finally {
       setLoading(false);
     }
@@ -158,12 +158,12 @@ export function AdminUsersPage() {
 
   function startEdit(user: AdminUserRow) {
     if (user.role.code === "super_admin") {
-      setError("Супер администратора нельзя редактировать через этот раздел");
+      setError("Супер администратора нельзя редагувати через этот раздел");
       return;
     }
 
     if (user.deletedAt) {
-      setError("Удаленного пользователя нельзя редактировать");
+      setError("Удаленного пользователя нельзя редагувати");
       return;
     }
 
@@ -195,7 +195,7 @@ export function AdminUsersPage() {
     }
 
     if (editingUserId && form.password && form.password.length < 6) {
-      return "Новый пароль должен быть минимум 6 символов";
+      return "Новий пароль должен быть минимум 6 символов";
     }
 
     if (selectedCityIds.length === 0) {
@@ -232,7 +232,7 @@ export function AdminUsersPage() {
           isActive: form.isActive,
         });
 
-        setSuccess("Пользователь обновлен");
+        setSuccess("Користувач оновлено");
       } else {
         await createAdminUser({
           name: form.name.trim(),
@@ -243,13 +243,13 @@ export function AdminUsersPage() {
           cityIds: selectedCityIds,
         });
 
-        setSuccess("Пользователь создан");
+        setSuccess("Користувач создан");
       }
 
       resetForm();
       await loadUsers(filters);
     } catch (err: any) {
-      setError(err.response?.data?.message || "Не удалось сохранить пользователя");
+      setError(err.response?.data?.message || "Не удалось зберегти пользователя");
     } finally {
       setSaving(false);
     }
@@ -270,7 +270,7 @@ export function AdminUsersPage() {
 
     try {
       await deleteAdminUser(user.id);
-      setSuccess("Пользователь удален");
+      setSuccess("Користувач удален");
       await loadUsers(filters);
     } catch (err: any) {
       setError(err.response?.data?.message || "Не удалось удалить пользователя");
@@ -319,7 +319,7 @@ export function AdminUsersPage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Администраторы</h1>
+          <h1>Адміністратори</h1>
           <p>
             Управление администраторами и наблюдателями, назначение городов
             доступа
@@ -331,7 +331,7 @@ export function AdminUsersPage() {
         <form className="panel-card" onSubmit={handleSubmit}>
           <div className="form-title-row">
             <h2>
-              {editingUserId ? "Редактировать пользователя" : "Новый пользователь"}
+              {editingUserId ? "Редагувати пользователя" : "Новий користувач"}
             </h2>
 
             {editingUserId && (
@@ -340,7 +340,7 @@ export function AdminUsersPage() {
                 className="small-button"
                 onClick={resetForm}
               >
-                Отмена
+                Скасувати
               </button>
             )}
           </div>
@@ -350,12 +350,12 @@ export function AdminUsersPage() {
             <input
               value={form.name}
               onChange={(event) => updateForm("name", event.target.value)}
-              placeholder="Например: Администратор Запорожье"
+              placeholder="Например: Адміністратор Запорожье"
             />
           </label>
 
           <label className="field">
-            <span>Логин</span>
+            <span>Логін</span>
             <input
               value={form.login}
               onChange={(event) => updateForm("login", event.target.value)}
@@ -380,7 +380,7 @@ export function AdminUsersPage() {
               type="password"
               value={form.password}
               onChange={(event) => updateForm("password", event.target.value)}
-              placeholder={editingUserId ? "Новый пароль" : "Минимум 6 символов"}
+              placeholder={editingUserId ? "Новий пароль" : "Минимум 6 символов"}
             />
           </label>
 
@@ -392,7 +392,7 @@ export function AdminUsersPage() {
                 updateForm("roleCode", event.target.value as AdminUserRoleCode)
               }
             >
-              <option value="admin">Администратор</option>
+              <option value="admin">Адміністратор</option>
               <option value="viewer">Наблюдатель</option>
             </select>
           </label>
@@ -406,17 +406,17 @@ export function AdminUsersPage() {
                   updateForm("isActive", event.target.checked)
                 }
               />
-              <span>Пользователь активен</span>
+              <span>Користувач активен</span>
             </label>
           )}
 
           <div className="field">
-            <span>Города доступа</span>
+            <span>Міста доступа</span>
 
             {referencesLoading ? (
               <div className="empty-state">Загрузка городов...</div>
             ) : activeCities.length === 0 ? (
-              <div className="empty-state">Нет активных городов</div>
+              <div className="empty-state">Немає активных городов</div>
             ) : (
               <div className="city-checkbox-list">
                 {activeCities.map((city) => (
@@ -435,17 +435,17 @@ export function AdminUsersPage() {
 
           {form.roleCode === "admin" ? (
             <div className="role-help-card">
-              <strong>Администратор</strong>
+              <strong>Адміністратор</strong>
               <span>
-                Может управлять сотрудниками, машинами, нарядами и сменами в
-                выбранных городах.
+                Может управлять співробітниками, машинами, нарядамии и змінамии в
+                вибраних городах.
               </span>
             </div>
           ) : (
             <div className="role-help-card">
               <strong>Наблюдатель</strong>
               <span>
-                Может только просматривать отчеты и справочники по выбранным
+                Может только просматривать звіти и справочники по вибраними
                 городам.
               </span>
             </div>
@@ -456,9 +456,9 @@ export function AdminUsersPage() {
 
           <button className="primary-button" disabled={saving}>
             {saving
-              ? "Сохраняем..."
+              ? "Зберігаємо..."
               : editingUserId
-                ? "Сохранить изменения"
+                ? "Зберегти изменения"
                 : "Создать пользователя"}
           </button>
         </form>
@@ -466,9 +466,9 @@ export function AdminUsersPage() {
         <div className="panel-card table-card">
           <div className="table-header">
             <div>
-              <h2>Список пользователей</h2>
+              <h2>Список користувачів</h2>
               <p>
-                Всего строк: {(pagination?.total ?? 0).toLocaleString("ru-RU")} ·
+                Усього рядків: {(pagination?.total ?? 0).toLocaleString("ru-RU")} ·
                 Страница {pagination?.page ?? 1} из{" "}
                 {pagination?.totalPages ?? 1}
               </p>
@@ -499,20 +499,20 @@ export function AdminUsersPage() {
                 }
               >
                 <option value="">Все роли</option>
-                <option value="admin">Администратор</option>
+                <option value="admin">Адміністратор</option>
                 <option value="viewer">Наблюдатель</option>
               </select>
             </label>
 
             <label className="field">
-              <span>Город</span>
+              <span>Місто</span>
               <select
                 value={filters.cityId ?? 0}
                 onChange={(event) =>
                   updateFilter("cityId", Number(event.target.value) || undefined)
                 }
               >
-                <option value={0}>Все города</option>
+                <option value={0}>Усі міста</option>
 
                 {activeCities.map((city) => (
                   <option key={city.id} value={city.id}>
@@ -523,7 +523,7 @@ export function AdminUsersPage() {
             </label>
 
             <label className="field">
-              <span>Поиск</span>
+              <span>Пошук</span>
               <input
                 value={filters.search ?? ""}
                 onChange={(event) => updateFilter("search", event.target.value)}
@@ -549,7 +549,7 @@ export function AdminUsersPage() {
               onClick={handleApply}
               disabled={loading}
             >
-              {loading ? "Загрузка..." : "Сформировать"}
+              {loading ? "Завантаження..." : "Сформировать"}
             </button>
 
             <button className="secondary-button" onClick={handleResetFilters}>
@@ -558,18 +558,18 @@ export function AdminUsersPage() {
           </div>
 
           {loading ? (
-            <div className="empty-state">Загрузка пользователей...</div>
+            <div className="empty-state">Загрузка користувачів...</div>
           ) : rows.length === 0 ? (
-            <div className="empty-state">Пользователи не найдены</div>
+            <div className="empty-state">Користувачі не знайдені</div>
           ) : (
             <>
               <div className="table-wrap">
                 <table className="data-table admin-users-table">
                   <thead>
                     <tr>
-                      <th>Пользователь</th>
+                      <th>Користувач</th>
                       <th>Роль</th>
-                      <th>Города</th>
+                      <th>Міста</th>
                       <th>Статус</th>
                       <th>Создан</th>
                       <th>Действия</th>
@@ -599,9 +599,9 @@ export function AdminUsersPage() {
 
                           <td>
                             {isSuperAdmin ? (
-                              <span className="muted-text">Все города</span>
+                              <span className="muted-text">Усі міста</span>
                             ) : user.cityAccesses.length === 0 ? (
-                              <span className="muted-text">Нет доступа</span>
+                              <span className="muted-text">Немає доступу</span>
                             ) : (
                               <div className="city-pill-list">
                                 {user.cityAccesses.map((access) => (
@@ -620,11 +620,11 @@ export function AdminUsersPage() {
                               </span>
                             ) : user.isActive ? (
                               <span className="status-badge status-active">
-                                Активен
+                                Активний
                               </span>
                             ) : (
                               <span className="status-badge status-inactive">
-                                Отключен
+                                Вимкнений
                               </span>
                             )}
                           </td>
@@ -642,7 +642,7 @@ export function AdminUsersPage() {
                                   className="small-button"
                                   onClick={() => startEdit(user)}
                                 >
-                                  Редактировать
+                                  Редагувати
                                 </button>
 
                                 <button

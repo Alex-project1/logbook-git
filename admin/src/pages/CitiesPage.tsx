@@ -112,23 +112,23 @@ export function CitiesPage() {
           isActive: form.isActive,
         });
 
-        setSuccess("Город обновлен");
+        setSuccess("Місто оновлено");
       } else {
         await createCity({
           name: form.name.trim(),
           isActive: form.isActive,
         });
 
-        setSuccess("Город добавлен");
+        setSuccess("Місто додано");
       }
 
       resetForm();
       await loadCities(showArchive);
     } catch (err: any) {
       if (err.response?.status === 409) {
-        setError("Город с таким названием уже существует");
+        setError("Місто с таким названием уже существует");
       } else {
-        setError("Не удалось сохранить город");
+        setError("Не удалось зберегти город");
       }
     } finally {
       setSaving(false);
@@ -144,7 +144,7 @@ export function CitiesPage() {
         isActive: !city.isActive,
       });
 
-      setSuccess(city.isActive ? "Город отключен" : "Город включен");
+      setSuccess(city.isActive ? "Місто отключен" : "Місто включен");
       await loadCities(showArchive);
     } catch {
       setError("Не удалось изменить статус города");
@@ -157,7 +157,7 @@ export function CitiesPage() {
 
     try {
       await restoreCity(city.id);
-      setSuccess("Город восстановлен");
+      setSuccess("Місто відновлено");
       await loadCities(showArchive);
     } catch (err: any) {
       if (err.response?.status === 409) {
@@ -182,7 +182,7 @@ export function CitiesPage() {
 
     try {
       await deleteCity(city.id);
-      setSuccess("Город перемещен в архив");
+      setSuccess("Місто перемещен в архив");
       await loadCities(showArchive);
     } catch {
       setError("Не удалось удалить город");
@@ -193,7 +193,7 @@ export function CitiesPage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Города</h1>
+          <h1>Міста</h1>
           <p>Управление городами системы</p>
         </div>
       </div>
@@ -201,14 +201,14 @@ export function CitiesPage() {
       <div className="content-grid">
         {!showArchive && (
           <AccordionSection
-            title={editingCity ? "Редактировать город" : "Добавить город"}
+            title={editingCity ? "Редагувати город" : "Додати город"}
             subtitle="Создание и редактирование городов"
             open={openedSections.form}
             onToggle={() => toggleSection("form")}
           >
             <form onSubmit={handleSubmit}>
               <label className="field">
-                <span>Название города</span>
+                <span>Назва города</span>
                 <input
                   value={form.name}
                   onChange={(event) =>
@@ -232,7 +232,7 @@ export function CitiesPage() {
                     }))
                   }
                 />
-                <span>Город активен</span>
+                <span>Місто активен</span>
               </label>
 
               {error && <div className="form-error">{error}</div>}
@@ -241,10 +241,10 @@ export function CitiesPage() {
               <div className="form-actions">
                 <button className="primary-button" disabled={saving}>
                   {saving
-                    ? "Сохранение..."
+                    ? "Збереження..."
                     : editingCity
-                      ? "Сохранить"
-                      : "Добавить"}
+                      ? "Зберегти"
+                      : "Додати"}
                 </button>
 
                 {editingCity && (
@@ -253,7 +253,7 @@ export function CitiesPage() {
                     className="secondary-button"
                     onClick={resetForm}
                   >
-                    Отмена
+                    Скасувати
                   </button>
                 )}
               </div>
@@ -263,7 +263,7 @@ export function CitiesPage() {
 
         {showArchive && (
           <div className="panel-card">
-            <h2>Архив городов</h2>
+            <h2>Архів городов</h2>
             <div className="info-box">
               Здесь отображаются удаленные города. Их можно восстановить, если
               нужно вернуть связанные справочники и доступы.
@@ -275,16 +275,16 @@ export function CitiesPage() {
         )}
 
         <AccordionSection
-          title={showArchive ? "Архив городов" : "Список городов"}
-          subtitle={`Всего: ${cities.length}`}
+          title={showArchive ? "Архів городов" : "Список городов"}
+          subtitle={`Усього: ${cities.length}`}
           open={openedSections.list}
           onToggle={() => toggleSection("list")}
         >
           <div className="table-card">
             <div className="table-header">
               <div>
-                <h2>{showArchive ? "Архив городов" : "Список городов"}</h2>
-                <p>Всего: {cities.length}</p>
+                <h2>{showArchive ? "Архів городов" : "Список городов"}</h2>
+                <p>Усього: {cities.length}</p>
               </div>
 
               <div className="table-header-actions">
@@ -296,25 +296,25 @@ export function CitiesPage() {
                   }
                 >
                   <option value="active">Рабочие</option>
-                  <option value="archive">Архив</option>
+                  <option value="archive">Архів</option>
                 </select>
 
                 <button
                   className="secondary-button"
                   onClick={() => loadCities(showArchive)}
                 >
-                  Обновить
+                  Оновити
                 </button>
               </div>
             </div>
 
             {loading ? (
-              <div className="empty-state">Загрузка...</div>
+              <div className="empty-state">Завантаження...</div>
             ) : cities.length === 0 ? (
               <div className="empty-state">
                 {showArchive
-                  ? "В архиве нет городов"
-                  : "Города еще не добавлены"}
+                  ? "В архіве нет городов"
+                  : "Міста еще не доданоы"}
               </div>
             ) : (
               <div className="table-wrap">
@@ -322,7 +322,7 @@ export function CitiesPage() {
                   <thead>
                     <tr>
                       <th>ID</th>
-                      <th>Название</th>
+                      <th>Назва</th>
                       <th>Статус</th>
                       <th>{showArchive ? "Удален" : "Создан"}</th>
                       <th></th>
@@ -339,7 +339,7 @@ export function CitiesPage() {
                         <td>
                           {showArchive ? (
                             <span className="status-badge status-inactive">
-                              В архиве
+                              В архіве
                             </span>
                           ) : (
                             <span
@@ -349,7 +349,7 @@ export function CitiesPage() {
                                   : "status-badge status-inactive"
                               }
                             >
-                              {city.isActive ? "Активен" : "Отключен"}
+                              {city.isActive ? "Активний" : "Вимкнений"}
                             </span>
                           )}
                         </td>
@@ -365,7 +365,7 @@ export function CitiesPage() {
                             <RowActionMenu
                               items={[
                                 {
-                                  label: "Восстановить",
+                                  label: "Відновити",
                                   onClick: () => handleRestore(city),
                                 },
                               ]}
@@ -374,7 +374,7 @@ export function CitiesPage() {
                             <RowActionMenu
                               items={[
                                 {
-                                  label: "Редактировать",
+                                  label: "Редагувати",
                                   variant: "edit",
                                   onClick: () => startEdit(city),
                                 },

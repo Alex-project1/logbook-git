@@ -59,7 +59,7 @@ export function AdditionalAlarmReasonsPage() {
       const data = await getAdditionalAlarmReasons(archive);
       setReasons(data);
     } catch {
-      setError("Не удалось загрузить причины доп. сработок");
+      setError("Не удалось загрузить причины дод. спрацювань");
     } finally {
       setLoading(false);
     }
@@ -135,7 +135,7 @@ export function AdditionalAlarmReasonsPage() {
           isActive: form.isActive,
         });
 
-        setSuccess("Причина обновлена");
+        setSuccess("Причина оновленоа");
       } else {
         await createAdditionalAlarmReason({
           name: form.name.trim(),
@@ -143,7 +143,7 @@ export function AdditionalAlarmReasonsPage() {
           isActive: form.isActive,
         });
 
-        setSuccess("Причина добавлена");
+        setSuccess("Причина доданоа");
       }
 
       resetForm();
@@ -152,7 +152,7 @@ export function AdditionalAlarmReasonsPage() {
       if (err.response?.status === 409) {
         setError("Причина с таким названием уже существует");
       } else {
-        setError("Не удалось сохранить причину");
+        setError("Не удалось зберегти причину");
       }
     } finally {
       setSaving(false);
@@ -180,7 +180,7 @@ export function AdditionalAlarmReasonsPage() {
 
     try {
       await restoreAdditionalAlarmReason(reason.id);
-      setSuccess("Причина восстановлена");
+      setSuccess("Причина відновленоа");
       await loadReasons(showArchive);
     } catch (err: any) {
       if (err.response?.status === 409) {
@@ -220,15 +220,15 @@ export function AdditionalAlarmReasonsPage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Причины доп. сработок</h1>
-          <p>Справочник причин для массовых и дополнительных сработок</p>
+          <h1>Причини дод. спрацювань</h1>
+          <p>Справочник причин для массовых и дополнительных спрацювань</p>
         </div>
       </div>
 
       <div className="content-grid">
         {!showArchive && (
           <AccordionSection
-          title={editingReason ? "Редактировать причину" : "Добавить причину"}
+          title={editingReason ? "Редагувати причину" : "Додати причину"}
           subtitle=""
           open={openedSections.form}
           onToggle={()=>{
@@ -247,7 +247,7 @@ export function AdditionalAlarmReasonsPage() {
               )}
 
               <label className="field">
-                <span>Название причины</span>
+                <span>Назва причины</span>
                 <input
                   value={form.name}
                   onChange={(event) =>
@@ -295,10 +295,10 @@ export function AdditionalAlarmReasonsPage() {
               <div className="form-actions">
                 <button className="primary-button" disabled={saving}>
                   {saving
-                    ? "Сохранение..."
+                    ? "Збереження..."
                     : editingReason
-                      ? "Сохранить"
-                      : "Добавить"}
+                      ? "Зберегти"
+                      : "Додати"}
                 </button>
 
                 {editingReason && (
@@ -307,7 +307,7 @@ export function AdditionalAlarmReasonsPage() {
                     className="secondary-button"
                     onClick={resetForm}
                   >
-                    Отмена
+                    Скасувати
                   </button>
                 )}
               </div>
@@ -317,9 +317,9 @@ export function AdditionalAlarmReasonsPage() {
 
         {showArchive && (
           <div className="panel-card">
-            <h2>Архив причин</h2>
+            <h2>Архів причин</h2>
             <div className="info-box">
-              Здесь отображаются удаленные обычные причины доп. сработок.
+              Здесь отображаются удаленные обычные причины дод. спрацювань.
               Системные причины в архив не попадают — их можно только включать
               или отключать.
             </div>
@@ -330,7 +330,7 @@ export function AdditionalAlarmReasonsPage() {
         )}
         <AccordionSection
         title="Список причин"
-        subtitle={`Всего: ${reasons.length}`}
+        subtitle={`Усього: ${reasons.length}`}
         open={openedSections.list}
         onToggle={()=>{
             toggleSection('list')
@@ -348,23 +348,23 @@ export function AdditionalAlarmReasonsPage() {
                 }
               >
                 <option value="active">Рабочие</option>
-                <option value="archive">Архив</option>
+                <option value="archive">Архів</option>
               </select>
 
               <button
                 className="secondary-button"
                 onClick={() => loadReasons(showArchive)}
               >
-                Обновить
+                Оновити
               </button>
             </div>
           </div>
 
           {loading ? (
-            <div className="empty-state">Загрузка...</div>
+            <div className="empty-state">Завантаження...</div>
           ) : reasons.length === 0 ? (
             <div className="empty-state">
-              {showArchive ? "В архиве нет причин" : "Причины еще не добавлены"}
+              {showArchive ? "В архіві немає причин" : "Причини ще не додані"}
             </div>
           ) : (
             <div className="table-wrap">
@@ -372,7 +372,7 @@ export function AdditionalAlarmReasonsPage() {
                 <thead>
                   <tr>
                     <th>ID</th>
-                    <th>Название</th>
+                    <th>Назва</th>
                     <th>Тип</th>
                     <th>Порядок</th>
                     <th>Статус</th>
@@ -402,7 +402,7 @@ export function AdditionalAlarmReasonsPage() {
                       <td>
                         {showArchive ? (
                           <span className="status-badge status-inactive">
-                            В архиве
+                            В архіве
                           </span>
                         ) : (
                           <span
@@ -412,7 +412,7 @@ export function AdditionalAlarmReasonsPage() {
                                 : "status-badge status-inactive"
                             }
                           >
-                            {reason.isActive ? "Активна" : "Отключена"}
+                            {reason.isActive ? "Активна" : "Вимкнена"}
                           </span>
                         )}
                       </td>
@@ -421,7 +421,7 @@ export function AdditionalAlarmReasonsPage() {
                           <RowActionMenu
                             items={[
                               {
-                                label: "Восстановить",
+                                label: "Відновити",
                                 onClick: () => handleRestore(reason),
                               },
                             ]}
@@ -430,7 +430,7 @@ export function AdditionalAlarmReasonsPage() {
                           <RowActionMenu
                             items={[
                               {
-                                label: "Редактировать",
+                                label: "Редагувати",
                                 variant: "edit",
                                 onClick: () => startEdit(reason),
                               },

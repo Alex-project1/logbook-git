@@ -81,7 +81,7 @@ export function VehiclesPage() {
         const vehiclesData = await getVehicles({ includeInactive: true });
         setVehicles(vehiclesData);
       } catch (caught) {
-        setError(getErrorMessage(caught, "Не удалось загрузить автомобили"));
+        setError(getErrorMessage(caught, "Не удалось загрузить автомобілі"));
       } finally {
         setLoading(false);
       }
@@ -140,38 +140,38 @@ export function VehiclesPage() {
       };
       if (editingVehicle) {
         await updateVehicle(editingVehicle.id, payload);
-        setSuccess("Автомобиль обновлен");
+        setSuccess("Автомобіль оновлено");
       } else {
         await createVehicle(payload);
-        setSuccess("Автомобиль добавлен");
+        setSuccess("Автомобіль додано");
       }
       resetForm();
       await loadVehicles();
     } catch (caught) {
-      setError(getErrorMessage(caught, "Не удалось сохранить автомобиль"));
+      setError(getErrorMessage(caught, "Не удалось зберегти автомобіль"));
     } finally {
       setSaving(false);
     }
   }
 
   async function handleArchive(vehicle: Vehicle) {
-    if (!window.confirm(`Отправить автомобиль "${vehicle.title}" в архив?`)) return;
+    if (!window.confirm(`Отправить автомобіль "${vehicle.title}" в архив?`)) return;
     try {
       await deleteVehicle(vehicle.id);
-      setSuccess("Автомобиль отправлен в архив");
+      setSuccess("Автомобіль відправлено в архів");
       await loadVehicles();
     } catch (caught) {
-      setError(getErrorMessage(caught, "Не удалось отправить автомобиль в архив"));
+      setError(getErrorMessage(caught, "Не удалось отправить автомобіль в архив"));
     }
   }
 
   async function handleRestore(vehicle: Vehicle) {
     try {
       await restoreVehicle(vehicle.id);
-      setSuccess("Автомобиль восстановлен");
+      setSuccess("Автомобіль відновлено");
       await loadVehicles();
     } catch (caught) {
-      setError(getErrorMessage(caught, "Не удалось восстановить автомобиль"));
+      setError(getErrorMessage(caught, "Не удалось восстановить автомобіль"));
     }
   }
 
@@ -196,30 +196,30 @@ export function VehiclesPage() {
 
   return (
     <div className="page-card">
-      <div className="page-header"><div><h1>Автомобили</h1><p>Авто привязаны к городу и подразделению. Перенос авто не меняет историю отчетов.</p></div></div>
+      <div className="page-header"><div><h1>Автомобілі</h1><p>Авто прив’язані до міста та підрозділу. Перенесення авто не змінює історію звітів.</p></div></div>
       {error && <div className="alert alert-error">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
 
       {canEdit && !showArchive && (
         <form className="form-grid" onSubmit={handleSubmit}>
-          <label>Город<select value={form.cityId} onChange={(event) => handleFormCityChange(Number(event.target.value))}><option value={0}>Выберите город</option>{activeCities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></label>
-          <label>Подразделение<select value={form.departmentId} onChange={(event) => setForm((prev) => ({ ...prev, departmentId: Number(event.target.value) }))}><option value={0}>Выберите подразделение</option>{formDepartments.map((department) => <option key={department.id} value={department.id}>{department.name} · {departmentTypeLabels[department.type]}</option>)}</select></label>
-          <label>Название<input value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} /></label>
+          <label>Місто<select value={form.cityId} onChange={(event) => handleFormCityChange(Number(event.target.value))}><option value={0}>Выберите город</option>{activeCities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></label>
+          <label>Підрозділ<select value={form.departmentId} onChange={(event) => setForm((prev) => ({ ...prev, departmentId: Number(event.target.value) }))}><option value={0}>Выберите подразделение</option>{formDepartments.map((department) => <option key={department.id} value={department.id}>{department.name} · {departmentTypeLabels[department.type]}</option>)}</select></label>
+          <label>Назва<input value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} /></label>
           <label>Госномер<input value={form.licensePlate} onChange={(event) => setForm((prev) => ({ ...prev, licensePlate: event.target.value }))} /></label>
           <label>Начальный пробег<input value={form.startOdometer} onChange={(event) => setForm((prev) => ({ ...prev, startOdometer: event.target.value.replace(/\D/g, "") }))} /></label>
-          <label>Комментарий<input value={form.comment} onChange={(event) => setForm((prev) => ({ ...prev, comment: event.target.value }))} /></label>
+          <label>Коментар<input value={form.comment} onChange={(event) => setForm((prev) => ({ ...prev, comment: event.target.value }))} /></label>
           <label className="checkbox-row"><input type="checkbox" checked={form.isActive} onChange={(event) => setForm((prev) => ({ ...prev, isActive: event.target.checked }))} />Активный</label>
-          <div className="form-actions"><button type="submit" disabled={saving}>{saving ? "Сохранение..." : editingVehicle ? "Обновить" : "Добавить"}</button>{editingVehicle && <button type="button" className="secondary-button" onClick={resetForm}>Отменить</button>}</div>
+          <div className="form-actions"><button type="submit" disabled={saving}>{saving ? "Збереження..." : editingVehicle ? "Оновити" : "Додати"}</button>{editingVehicle && <button type="button" className="secondary-button" onClick={resetForm}>Скасувати</button>}</div>
         </form>
       )}
 
       <div className="filters-row">
-        <label>Город<select value={selectedCityId} onChange={(event) => handleCityFilterChange(Number(event.target.value))}><option value={0}>Все города</option>{cities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></label>
-        <label>Подразделение<select value={selectedDepartmentId} onChange={(event) => handleDepartmentFilterChange(Number(event.target.value))}><option value={0}>Все подразделения</option>{filterDepartments.map((department) => <option key={department.id} value={department.id}>{department.name} · {departmentTypeLabels[department.type]}</option>)}</select></label>
-        <label>Состояние<select value={showArchive ? "archive" : "active"} onChange={(event) => handleArchiveFilterChange(event.target.value)}><option value="active">Активные</option><option value="archive">Архив</option></select></label>
+        <label>Місто<select value={selectedCityId} onChange={(event) => handleCityFilterChange(Number(event.target.value))}><option value={0}>Усі міста</option>{cities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></label>
+        <label>Підрозділ<select value={selectedDepartmentId} onChange={(event) => handleDepartmentFilterChange(Number(event.target.value))}><option value={0}>Усі підрозділи</option>{filterDepartments.map((department) => <option key={department.id} value={department.id}>{department.name} · {departmentTypeLabels[department.type]}</option>)}</select></label>
+        <label>Стан<select value={showArchive ? "archive" : "active"} onChange={(event) => handleArchiveFilterChange(event.target.value)}><option value="active">Активні</option><option value="archive">Архів</option></select></label>
       </div>
 
-      {loading ? <p>Загрузка...</p> : <div className="table-wrapper"><table><thead><tr><th>Авто</th><th>Номер</th><th>Город</th><th>Подразделение</th><th>Пробег</th><th>Комментарий</th><th>Статус</th><th></th></tr></thead><tbody>{vehicles.map((vehicle) => <tr key={vehicle.id}><td>{vehicle.title}</td><td>{vehicle.licensePlate || "—"}</td><td>{vehicle.city?.name || vehicle.cityId}</td><td>{vehicle.department?.name || vehicle.departmentId}</td><td>{vehicle.startOdometer ?? "—"}</td><td>{vehicle.comment || "—"}</td><td>{vehicle.deletedAt ? "Архив" : vehicle.isActive ? "Активен" : "Отключен"}</td><td>{canEdit && <RowActionMenu items={showArchive ? [{ label: "Восстановить", onClick: () => handleRestore(vehicle), variant: "edit" }] : [{ label: "Редактировать", onClick: () => startEdit(vehicle), variant: "edit" }, { label: "В архив", onClick: () => handleArchive(vehicle), variant: "danger" }]} />}</td></tr>)}{vehicles.length === 0 && <tr><td colSpan={8}>Нет автомобилей</td></tr>}</tbody></table></div>}
+      {loading ? <p>Завантаження...</p> : <div className="table-wrapper"><table><thead><tr><th>Авто</th><th>Номер</th><th>Місто</th><th>Підрозділ</th><th>Пробег</th><th>Коментар</th><th>Статус</th><th></th></tr></thead><tbody>{vehicles.map((vehicle) => <tr key={vehicle.id}><td>{vehicle.title}</td><td>{vehicle.licensePlate || "—"}</td><td>{vehicle.city?.name || vehicle.cityId}</td><td>{vehicle.department?.name || vehicle.departmentId}</td><td>{vehicle.startOdometer ?? "—"}</td><td>{vehicle.comment || "—"}</td><td>{vehicle.deletedAt ? "Архів" : vehicle.isActive ? "Активний" : "Вимкнений"}</td><td>{canEdit && <RowActionMenu items={showArchive ? [{ label: "Відновити", onClick: () => handleRestore(vehicle), variant: "edit" }] : [{ label: "Редагувати", onClick: () => startEdit(vehicle), variant: "edit" }, { label: "В архів", onClick: () => handleArchive(vehicle), variant: "danger" }]} />}</td></tr>)}{vehicles.length === 0 && <tr><td colSpan={8}>Немає автомобилей</td></tr>}</tbody></table></div>}
     </div>
   );
 }

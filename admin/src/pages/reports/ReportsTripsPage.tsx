@@ -51,7 +51,7 @@ function formatKm(value: number) {
 
 function getCombatLabel(row: TripTableRow) {
   if (row.eventTotals.combatTotal > 0 && row.eventTotals.falseTotal > 0) {
-    return "Есть боевые и ложные";
+    return "Есть бойові и хибні";
   }
 
   if (row.eventTotals.combatTotal > 0) {
@@ -59,7 +59,7 @@ function getCombatLabel(row: TripTableRow) {
   }
 
   if (row.eventTotals.falseTotal > 0) {
-    return "Ложная";
+    return "Хибна";
   }
 
   return "—";
@@ -156,7 +156,7 @@ export function ReportsTripsPage() {
       setReport(data);
       setExpandedRows({});
     } catch {
-      setError("Не удалось загрузить отчет по поездкам");
+      setError("Не удалось загрузить звіт по поездкам");
     } finally {
       setLoading(false);
     }
@@ -253,15 +253,15 @@ export function ReportsTripsPage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Все поездки</h1>
-          <p>Маршруты из отправленных смен с фильтрами, сортировкой и деталями сработок</p>
+          <h1>Усі поїздки</h1>
+          <p>Маршрути из відправленоных змін с фильтрами, сортировкой и деталями спрацювань</p>
         </div>
       </div>
 
       <div className="panel-card report-filters">
         <div className="trips-filters-grid">
           <label className="field">
-            <span>Дата от</span>
+            <span>Дата від</span>
             <input
               type="date"
               value={filters.dateFrom ?? ""}
@@ -283,7 +283,7 @@ export function ReportsTripsPage() {
           </label>
 
           <label className="field">
-            <span>Город</span>
+            <span>Місто</span>
             <select
               value={filters.cityId ?? 0}
               onChange={(event) =>
@@ -291,7 +291,7 @@ export function ReportsTripsPage() {
               }
               disabled={referencesLoading}
             >
-              <option value={0}>Все города</option>
+              <option value={0}>Усі міста</option>
 
               {activeCities.map((city) => (
                 <option key={city.id} value={city.id}>
@@ -302,7 +302,7 @@ export function ReportsTripsPage() {
           </label>
 
           <label className="field">
-            <span>Подразделение</span>
+            <span>Підрозділ</span>
             <select
               value={filters.departmentId ?? 0}
               onChange={(event) =>
@@ -310,7 +310,7 @@ export function ReportsTripsPage() {
               }
               disabled={referencesLoading}
             >
-              <option value={0}>Все подразделения</option>
+              <option value={0}>Усі підрозділи</option>
 
               {activeDepartments.map((department) => (
                 <option key={department.id} value={department.id}>
@@ -328,7 +328,7 @@ export function ReportsTripsPage() {
                 updateFilter("crewId", Number(event.target.value) || undefined)
               }
             >
-              <option value={0}>Все наряды</option>
+              <option value={0}>Все наряди</option>
 
               {visibleCrews.map((crew) => (
                 <option key={crew.id} value={crew.id}>
@@ -339,14 +339,14 @@ export function ReportsTripsPage() {
           </label>
 
           <label className="field">
-            <span>Автомобиль</span>
+            <span>Автомобіль</span>
             <select
               value={filters.vehicleId ?? 0}
               onChange={(event) =>
                 updateFilter("vehicleId", Number(event.target.value) || undefined)
               }
             >
-              <option value={0}>Все автомобили</option>
+              <option value={0}>Все автомобілі</option>
 
               {visibleVehicles.map((vehicle) => (
                 <option key={vehicle.id} value={vehicle.id}>
@@ -358,14 +358,14 @@ export function ReportsTripsPage() {
           </label>
 
           <label className="field">
-            <span>Сотрудник</span>
+            <span>Співробітник</span>
             <select
               value={filters.employeeId ?? 0}
               onChange={(event) =>
                 updateFilter("employeeId", Number(event.target.value) || undefined)
               }
             >
-              <option value={0}>Все сотрудники</option>
+              <option value={0}>Все співробітники</option>
 
               {visibleEmployees.map((employee) => (
                 <option key={employee.id} value={employee.id}>
@@ -376,7 +376,7 @@ export function ReportsTripsPage() {
           </label>
 
           <label className="field">
-            <span>Цель поездки</span>
+            <span>Ціль поїздки</span>
             <select
               value={filters.goalId ?? 0}
               onChange={(event) =>
@@ -394,7 +394,7 @@ export function ReportsTripsPage() {
           </label>
 
           <label className="field">
-            <span>Тип сработки</span>
+            <span>Тип спрацювання</span>
             <select
               value={filters.alarmSource ?? ""}
               onChange={(event) =>
@@ -413,7 +413,7 @@ export function ReportsTripsPage() {
           </label>
 
           <label className="field">
-            <span>Боевая / ложная</span>
+            <span>Боевая / хибна</span>
             <select
               value={
                 typeof filters.isCombat === "boolean"
@@ -430,24 +430,24 @@ export function ReportsTripsPage() {
               }
             >
               <option value="">Все</option>
-              <option value="true">Боевые</option>
-              <option value="false">Ложные</option>
+              <option value="true">Бойові</option>
+              <option value="false">Хибні</option>
             </select>
           </label>
 
           <label className="field">
-            <span>Поиск</span>
+            <span>Пошук</span>
             <input
               value={filters.search ?? ""}
               onChange={(event) => updateFilter("search", event.target.value)}
-              placeholder="Адрес, наряд, авто, сотрудник..."
+              placeholder="Адрес, наряд, авто, співробітник..."
             />
           </label>
         </div>
 
         <div className="report-filter-actions">
           <button className="primary-button" onClick={handleApply} disabled={loading}>
-            {loading ? "Загрузка..." : "Сформировать"}
+            {loading ? "Завантаження..." : "Сформировать"}
           </button>
 
           <button className="secondary-button" onClick={handleReset}>
@@ -494,9 +494,9 @@ export function ReportsTripsPage() {
       <div className="panel-card table-card">
         <div className="table-header">
           <div>
-            <h2>Маршруты</h2>
+            <h2>Маршрути</h2>
             <p>
-              Всего строк: {formatNumber(pagination?.total ?? 0)} · Страница{" "}
+              Усього рядків: {formatNumber(pagination?.total ?? 0)} · Страница{" "}
               {pagination?.page ?? 1} из {pagination?.totalPages ?? 1}
             </p>
           </div>
@@ -516,9 +516,9 @@ export function ReportsTripsPage() {
         </div>
 
         {loading ? (
-          <div className="empty-state">Загрузка поездок...</div>
+          <div className="empty-state">Загрузка поїздок...</div>
         ) : rows.length === 0 ? (
-          <div className="empty-state">Поездки по выбранным фильтрам не найдены</div>
+          <div className="empty-state">Поїздки за вибраними фільтрами не знайдені</div>
         ) : (
           <>
             <div className="table-wrap">
@@ -527,8 +527,8 @@ export function ReportsTripsPage() {
                   <tr>
                     <th></th>
                     <th onClick={() => handleSort("shiftDate")}>Дата</th>
-                    <th>Город</th>
-                    <th>Подразделение</th>
+                    <th>Місто</th>
+                    <th>Підрозділ</th>
                     <th>Наряд</th>
                     <th>Авто</th>
                     <th>Старший</th>
@@ -541,7 +541,7 @@ export function ReportsTripsPage() {
                     <th onClick={() => handleSort("arrivalMinutes")}>Мин.</th>
                     <th onClick={() => handleSort("distanceKm")}>Км</th>
                     <th>Цель</th>
-                    <th>Сработка</th>
+                    <th>Спрацювання</th>
                     <th>Боевая?</th>
                     <th>Задержано</th>
                     <th>Передано</th>
@@ -597,11 +597,11 @@ export function ReportsTripsPage() {
                           <tr className="expanded-row">
                             <td colSpan={20}>
                               <div className="expanded-content">
-                                <h3>События поездки</h3>
+                                <h3>События поїздки</h3>
 
                                 {row.events.length === 0 ? (
                                   <div className="empty-state">
-                                    У этой поездки нет событий сработок
+                                    У этой поїздки нет событий спрацювань
                                   </div>
                                 ) : (
                                   <div className="event-list">
@@ -610,7 +610,7 @@ export function ReportsTripsPage() {
                                         <strong>{event.title}</strong>
 
                                         <div className="event-grid">
-                                          <span>Всего: {event.countTotal}</span>
+                                          <span>Усього: {event.countTotal}</span>
                                           <span>ОХ: {event.ohCount}</span>
                                           <span>Партнеры: {event.partnerCount}</span>
                                           <span>
@@ -619,7 +619,7 @@ export function ReportsTripsPage() {
                                               ? "—"
                                               : event.isCombat
                                                 ? "Боевая"
-                                                : "Ложная"}
+                                                : "Хибна"}
                                           </span>
                                           <span>
                                             Причина: {event.reasonName || "—"}

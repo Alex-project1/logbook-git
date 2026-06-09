@@ -31,13 +31,13 @@ const metricOptions: {
 }[] = [
   {
     value: "totalShifts",
-    label: "Всего смен",
-    hint: "С учетом часов: 24ч = 1 смена",
+    label: "Усього змін",
+    hint: "С учетом часов: 24ч = 1 зміна",
   },
   {
     value: "totalTrips",
-    label: "Всего поездок",
-    hint: "Количество поездок",
+    label: "Усього поїздок",
+    hint: "Количество поїздок",
   },
   {
     value: "totalDistanceKm",
@@ -46,22 +46,22 @@ const metricOptions: {
   },
   {
     value: "totalAlarms",
-    label: "Всего сработок",
-    hint: "ОХ + партнеры + дополнительные",
+    label: "Усього спрацювань",
+    hint: "ОХ + партнеры + додаткові",
   },
   {
     value: "falseTotal",
-    label: "Ложные",
-    hint: "Ложные обычные сработки",
+    label: "Хибні",
+    hint: "Хибні обычные спрацювання",
   },
   {
     value: "combatTotal",
-    label: "Боевые",
-    hint: "Боевые обычные сработки",
+    label: "Бойові",
+    hint: "Бойові обычные спрацювання",
   },
   {
     value: "additionalTotal",
-    label: "Дополнительные",
+    label: "Додаткові",
     hint: "С подпунктами причин",
   },
   {
@@ -164,7 +164,7 @@ function CustomReportTableView({
     <div className="panel-card custom-report-table-card">
       <AccordionSection
         title={title}
-        subtitle={periodLabel || "Кастомная таблица по выбранным показателям"}
+        subtitle={periodLabel || "Кастомная таблица по вибраними показателям"}
         open={open}
         onToggle={onToggle}
       >
@@ -239,7 +239,7 @@ function SimpleBarChart({
 
       <div className="custom-bars">
         {rows.length === 0 ? (
-          <div className="empty-state">Нет данных для графика</div>
+          <div className="empty-state">Немає данных для графика</div>
         ) : (
           rows.map((row) => (
             <div className="custom-bar-row" key={row.label}>
@@ -291,15 +291,15 @@ function AlarmGroupComparisonChart({
         <div>
           <h2>{title}</h2>
           <p>
-            Всего сработок = обычные + дополнительные. Ложные и боевые относятся
-            только к обычным сработкам.
+            Усього спрацювань = обычные + додаткові. Хибні и бойові относятся
+            только к обычным спрацюваннями.
           </p>
         </div>
       </div>
 
       <div className="alarm-comparison-list">
         {rows.length === 0 ? (
-          <div className="empty-state">Нет данных для графика</div>
+          <div className="empty-state">Немає данных для графика</div>
         ) : (
           rows.map((row) => (
             <div className="alarm-comparison-card" key={row.name}>
@@ -307,7 +307,7 @@ function AlarmGroupComparisonChart({
 
               <div className="alarm-comparison-metrics">
                 <div className="alarm-metric-row">
-                  <span>Всего</span>
+                  <span>Усього</span>
 
                   <div className="alarm-metric-track">
                     <div
@@ -322,7 +322,7 @@ function AlarmGroupComparisonChart({
                 </div>
 
                 <div className="alarm-metric-row">
-                  <span>Ложные</span>
+                  <span>Хибні</span>
 
                   <div className="alarm-metric-track">
                     <div
@@ -337,7 +337,7 @@ function AlarmGroupComparisonChart({
                 </div>
 
                 <div className="alarm-metric-row">
-                  <span>Боевые</span>
+                  <span>Бойові</span>
 
                   <div className="alarm-metric-track">
                     <div
@@ -352,7 +352,7 @@ function AlarmGroupComparisonChart({
                 </div>
 
                 <div className="alarm-metric-row">
-                  <span>Доп.</span>
+                  <span>Дод.</span>
 
                   <div className="alarm-metric-track">
                     <div
@@ -394,13 +394,13 @@ function PeriodComparisonChart({
       <div className="table-header">
         <div>
           <h2>Сравнение периодов</h2>
-          <p>Основной период сравнивается с выбранным периодом сравнения</p>
+          <p>Основной период сравнивается с вибраними периодом сравнения</p>
         </div>
       </div>
 
       <div className="period-comparison-list">
         {rows.length === 0 ? (
-          <div className="empty-state">Нет данных для сравнения</div>
+          <div className="empty-state">Немає данных для сравнения</div>
         ) : (
           rows.map((row) => {
             const compare = row.compare ?? 0;
@@ -673,7 +673,7 @@ export function ReportsCustomPage() {
         charts: true,
       }));
     } catch (err: any) {
-      setError(err.response?.data?.message || "Не удалось сформировать отчет");
+      setError(err.response?.data?.message || "Не удалось сформировать звіт");
     } finally {
       setLoading(false);
     }
@@ -731,16 +731,16 @@ export function ReportsCustomPage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Кастомный отчет</h1>
+          <h1>Кастомный звіт</h1>
           <p>
-            Настраиваемая аналитика по периодам, городам, нарядам и показателям
+            Настраиваемая аналитика по периодам, городам, нарядами и показателям
           </p>
         </div>
       </div>
 
       <div className="panel-card report-filters">
         <AccordionSection
-          title="Настройки отчета"
+          title="Настройки звіта"
           subtitle="Период, город, детализация, показатели и сравнение"
           open={openedSections.settings}
           onToggle={() => toggleSection("settings")}
@@ -847,7 +847,7 @@ export function ReportsCustomPage() {
             {periodMode === "custom" && (
               <>
                 <label className="field">
-                  <span>Дата от</span>
+                  <span>Дата від</span>
                   <input
                     type="date"
                     value={customDateFrom}
@@ -867,7 +867,7 @@ export function ReportsCustomPage() {
             )}
 
             <label className="field">
-              <span>Город</span>
+              <span>Місто</span>
               <select
                 value={cityId}
                 onChange={(event) => {
@@ -900,7 +900,7 @@ export function ReportsCustomPage() {
                 disabled={!cityId}
               >
                 <option value="city">По городам</option>
-                <option value="crew">По нарядам выбранного города</option>
+                <option value="crew">За нарядами вибраного міста</option>
               </select>
             </label>
           </div>
@@ -915,7 +915,7 @@ export function ReportsCustomPage() {
               <div className="custom-report-section-header">
                 <div>
                   <strong>Показатели таблицы</strong>
-                  <span>Выберите строки, которые нужно показать в отчете</span>
+                  <span>Выберите строки, которые нужно показать в звіте</span>
                 </div>
 
                 <div className="table-header-actions">
@@ -958,21 +958,21 @@ export function ReportsCustomPage() {
 
           <div className="custom-report-section">
             <AccordionSection
-              title="Цели поездок"
+              title="Цілі поїздок"
               subtitle={
                 tripGoalIds.length
                   ? `Дополнительных строк: ${tripGoalIds.length}`
-                  : "Цели не выбраны — дополнительные строки не добавляются"
+                  : "Цели не выбраны — додаткові строки не добавляются"
               }
               open={openedSections.tripGoals}
               onToggle={() => toggleSection("tripGoals")}
             >
               <div className="custom-report-section-header">
                 <div>
-                  <strong>Дополнительные строки по целям</strong>
+                  <strong>Додаткові строки по целям</strong>
                   <span>
-                    Выбранные цели добавляются вложенными строками под “Всего
-                    поездок”
+                    Выбранные цели добавляются вложенными строками под “Усього
+                    поїздок”
                   </span>
                 </div>
 
@@ -1006,7 +1006,7 @@ export function ReportsCustomPage() {
 
                     <span>
                       <strong>{goal.name}</strong>
-                      <small>Добавить отдельную строку в отчет</small>
+                      <small>Додати отдельную строку в звіт</small>
                     </span>
                   </label>
                 ))}
@@ -1031,7 +1031,7 @@ export function ReportsCustomPage() {
                   checked={compareEnabled}
                   onChange={(event) => setCompareEnabled(event.target.checked)}
                 />
-                <span>Добавить сравнительный отчет</span>
+                <span>Додати сравнительный звіт</span>
               </label>
 
               {compareEnabled && (
@@ -1127,11 +1127,11 @@ export function ReportsCustomPage() {
       {error && <div className="form-error report-error">{error}</div>}
 
       {!report ? (
-        <div className="empty-state">Сформируйте отчет</div>
+        <div className="empty-state">Сформируйте звіт</div>
       ) : (
         <>
           <CustomReportTableView
-            title="Основной отчет"
+            title="Основной звіт"
             table={report.data.main.table}
             periodLabel={mainPeriodLabel}
             open={openedSections.mainTable}
@@ -1140,7 +1140,7 @@ export function ReportsCustomPage() {
 
           {report.data.compare && (
             <CustomReportTableView
-              title="Сравнительный отчет"
+              title="Сравнительный звіт"
               table={report.data.compare.table}
               periodLabel={comparePeriodLabel}
               open={openedSections.compareTable}
@@ -1159,8 +1159,8 @@ export function ReportsCustomPage() {
                 <AlarmGroupComparisonChart
                   title={
                     cityId && groupMode === "crew"
-                      ? "Сравнение нарядов по сработкам"
-                      : "Сравнение городов по сработкам"
+                      ? "Сравнение нарядів по спрацюваннями"
+                      : "Сравнение городов по спрацюваннями"
                   }
                   rows={report.data.charts.byGroups.map((group) => ({
                     name: group.name,
@@ -1176,7 +1176,7 @@ export function ReportsCustomPage() {
                 )}
 
                 <SimpleBarChart
-                  title="Причины дополнительных сработок"
+                  title="Причини додаткових спрацювань"
                   rows={report.data.charts.additionalReasons.map((reason) => ({
                     label: reason.reasonName,
                     value: reason.total,

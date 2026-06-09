@@ -60,7 +60,7 @@ export function ReportsGeneralPage() {
       const data = await getGeneralReport(nextFilters);
       setReport(data);
     } catch {
-      setError("Не удалось загрузить отчет");
+      setError("Не удалось загрузить звіт");
     } finally {
       setLoading(false);
     }
@@ -98,8 +98,8 @@ export function ReportsGeneralPage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Общая статистика</h1>
-          <p>Сводный отчет по городам, сработкам, пробегу и задержаниям</p>
+          <h1>Загальна статистика</h1>
+          <p>Сводный звіт по городам, спрацюваннями, пробегу и задержаниям</p>
         </div>
       </div>
 
@@ -116,17 +116,17 @@ export function ReportsGeneralPage() {
       {error && <div className="form-error report-error">{error}</div>}
 
       {loading ? (
-        <div className="empty-state">Загрузка отчета...</div>
+        <div className="empty-state">Загрузка звіта...</div>
       ) : (
         <>
           <div className="stats-grid report-stats-grid">
             <div className="stat-card">
-              <span>Смен</span>
+              <span>Змін</span>
               <strong>{formatNumber(totals?.totalShifts)}</strong>
             </div>
 
             <div className="stat-card">
-              <span>Поездок</span>
+              <span>Поїздок</span>
               <strong>{formatNumber(totals?.totalTrips)}</strong>
             </div>
 
@@ -149,7 +149,7 @@ export function ReportsGeneralPage() {
             </div>
 
             <div className="stat-card">
-              <span>Боевые / Ложные</span>
+              <span>Бойові / Хибні</span>
               <strong>
                 {formatNumber(totals?.combatTotal)} /{" "}
                 {formatNumber(totals?.falseTotal)}
@@ -185,27 +185,27 @@ export function ReportsGeneralPage() {
               <div className="table-header">
                 <div>
                   <h2>Статистика по городам</h2>
-                  <p>Сравнение городов за выбранный период</p>
+                  <p>Сравнение городов за вибраний период</p>
                 </div>
               </div>
 
               {byCity.length === 0 ? (
-                <div className="empty-state">Нет данных по городам</div>
+                <div className="empty-state">Немає данных по городам</div>
               ) : (
                 <div className="table-wrap">
                   <table className="data-table">
                     <thead>
                       <tr>
-                        <th>Город</th>
-                        <th>Смен</th>
-                        <th>Поездок</th>
+                        <th>Місто</th>
+                        <th>Змін</th>
+                        <th>Поїздок</th>
                         <th>Пробег</th>
                         <th>Сработок</th>
                         <th>ОХ</th>
                         <th>Партнеры</th>
-                        <th>Боевые</th>
-                        <th>Ложные</th>
-                        <th>Доп.</th>
+                        <th>Бойові</th>
+                        <th>Хибні</th>
+                        <th>Дод.</th>
                         <th>Задержано</th>
                         <th>Передано</th>
                         <th>Средняя</th>
@@ -241,20 +241,20 @@ export function ReportsGeneralPage() {
             <div className="panel-card table-card">
               <div className="table-header">
                 <div>
-                  <h2>Дополнительные сработки</h2>
+                  <h2>Додаткові спрацювання</h2>
                   <p>Разбивка по причинам: всего / ОХ / партнеры</p>
                 </div>
               </div>
 
               {additionalRows.length === 0 ? (
-                <div className="empty-state">Нет дополнительных сработок</div>
+                <div className="empty-state">Немає дополнительных спрацювань</div>
               ) : (
                 <div className="table-wrap">
                   <table className="data-table compact-data-table">
                     <thead>
                       <tr>
                         <th>Причина</th>
-                        <th>Всего</th>
+                        <th>Усього</th>
                         <th>ОХ</th>
                         <th>Партнеры</th>
                       </tr>

@@ -172,7 +172,7 @@ export function DashboardPage() {
   }
 
   if (loading && !generalReport) {
-    return <div className="page">Загрузка...</div>;
+    return <div className="page">Завантаження...</div>;
   }
 
   const generalTotals = generalReport?.data.totals;
@@ -191,7 +191,7 @@ export function DashboardPage() {
       <div className="page-header">
         <div>
           <h1>Dashboard</h1>
-          <p>Оперативная сводка по сменам, постам, сработкам и нагрузке</p>
+          <p>Оперативная сводка по змінами, постам, спрацюваннями и нагрузке</p>
         </div>
 
         {user && (
@@ -227,7 +227,7 @@ export function DashboardPage() {
 
         <div className="dashboard-custom-period">
           <label className="field">
-            <span>Дата от</span>
+            <span>Дата від</span>
             <input
               type="date"
               value={customDateFrom}
@@ -258,7 +258,7 @@ export function DashboardPage() {
 
       <div className="stats-grid dashboard-stats-grid">
         <div className="stat-card">
-          <span>Всего смен с постами</span>
+          <span>Усього змін с постами</span>
           <strong>{formatNumber(totalShiftsWithPosts)}</strong>
           <small>
             Машинные: {formatNumber(machineShifts)} · Посты:{" "}
@@ -267,13 +267,13 @@ export function DashboardPage() {
         </div>
 
         <div className="stat-card">
-          <span>Постовые дежурства</span>
+          <span>Постові чергування</span>
           <strong>{formatNumber(postDutyCount)}</strong>
           <small>{formatNumber(postDutyHours)} часов</small>
         </div>
 
         <div className="stat-card">
-          <span>Поездок</span>
+          <span>Поїздок</span>
           <strong>{formatNumber(generalTotals?.totalTrips ?? 0)}</strong>
         </div>
 
@@ -296,7 +296,7 @@ export function DashboardPage() {
         </div>
 
         <div className="stat-card">
-          <span>Боевые / Ложные</span>
+          <span>Бойові / Хибні</span>
           <strong>
             {formatNumber(generalTotals?.combatTotal ?? 0)} /{" "}
             {formatNumber(generalTotals?.falseTotal ?? 0)}
@@ -316,21 +316,21 @@ export function DashboardPage() {
         <div className="panel-card">
           <div className="table-header">
             <div>
-              <h2>Топ сотрудников по нагрузке</h2>
-              <p>С учетом нарядов ГБР и постовых дежурств</p>
+              <h2>Топ співробітников по нагрузке</h2>
+              <p>С учетом нарядів ГБР и постовых дежурств</p>
             </div>
           </div>
 
           {topEmployees.length === 0 ? (
-            <div className="empty-state">Нет данных за выбранный период</div>
+            <div className="empty-state">Немає данных за вибраний период</div>
           ) : (
             <div className="table-wrap">
               <table className="data-table compact-data-table">
                 <thead>
                   <tr>
-                    <th>Сотрудник</th>
-                    <th>Город</th>
-                    <th>Смен</th>
+                    <th>Співробітник</th>
+                    <th>Місто</th>
+                    <th>Змін</th>
                     <th>Посты</th>
                     <th>С оружием</th>
                   </tr>
@@ -365,13 +365,13 @@ export function DashboardPage() {
           <div className="dashboard-insights-list">
             <div className="dashboard-insight-card">
               <div className="dashboard-insight-head">
-                <strong>Дополнительные посты</strong>
-                <span>Постовые дежурства</span>
+                <strong>Додаткові посты</strong>
+                <span>Постові чергування</span>
               </div>
 
               <div className="dashboard-metric-grid">
                 <div className="dashboard-metric">
-                  <span>Эквивалент смен</span>
+                  <span>Эквивалент змін</span>
                   <strong>{formatNumber(postDutyEquivalent)}</strong>
                 </div>
 
@@ -389,13 +389,13 @@ export function DashboardPage() {
 
             <div className="dashboard-insight-card">
               <div className="dashboard-insight-head">
-                <strong>Сработки</strong>
+                <strong>Спрацювання</strong>
                 <span>Оперативные показатели</span>
               </div>
 
               <div className="dashboard-metric-grid">
                 <div className="dashboard-metric">
-                  <span>Всего</span>
+                  <span>Усього</span>
                   <strong>{formatNumber(generalTotals?.totalAlarms ?? 0)}</strong>
                 </div>
 
@@ -412,7 +412,7 @@ export function DashboardPage() {
                 </div>
 
                 <div className="dashboard-metric dashboard-metric-wide">
-                  <span>Дополнительные сработки</span>
+                  <span>Додаткові спрацювання</span>
                   <strong>
                     {formatNumber(generalTotals?.additionalTotal ?? 0)}
                   </strong>

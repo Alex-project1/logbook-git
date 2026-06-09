@@ -147,7 +147,7 @@ export function ReportsVehiclesPage() {
       setReport(data);
       setExpandedRows({});
     } catch {
-      setError("Не удалось загрузить отчет по автомобилям");
+      setError("Не удалось загрузить звіт по автомобилям");
     } finally {
       setLoading(false);
     }
@@ -250,9 +250,9 @@ export function ReportsVehiclesPage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>По автомобилям</h1>
+          <h1>За автомобілями</h1>
           <p>
-            Пробег, смены, спидометр, сработки и нагрузка по каждому автомобилю
+            Пробег, зміни, спидометр, спрацювання и нагрузка по каждому автомобилю
           </p>
         </div>
       </div>
@@ -260,7 +260,7 @@ export function ReportsVehiclesPage() {
       <div className="panel-card report-filters">
         <div className="trips-filters-grid">
           <label className="field">
-            <span>Дата от</span>
+            <span>Дата від</span>
             <input
               type="date"
               value={filters.dateFrom ?? ""}
@@ -282,7 +282,7 @@ export function ReportsVehiclesPage() {
           </label>
 
           <label className="field">
-            <span>Город</span>
+            <span>Місто</span>
             <select
               value={filters.cityId ?? 0}
               onChange={(event) =>
@@ -290,7 +290,7 @@ export function ReportsVehiclesPage() {
               }
               disabled={referencesLoading}
             >
-              <option value={0}>Все города</option>
+              <option value={0}>Усі міста</option>
 
               {activeCities.map((city) => (
                 <option key={city.id} value={city.id}>
@@ -301,7 +301,7 @@ export function ReportsVehiclesPage() {
           </label>
 
           <label className="field">
-            <span>Подразделение</span>
+            <span>Підрозділ</span>
             <select
               value={filters.departmentId ?? 0}
               onChange={(event) =>
@@ -309,7 +309,7 @@ export function ReportsVehiclesPage() {
               }
               disabled={referencesLoading}
             >
-              <option value={0}>Все подразделения</option>
+              <option value={0}>Усі підрозділи</option>
 
               {activeDepartments.map((department) => (
                 <option key={department.id} value={department.id}>
@@ -327,7 +327,7 @@ export function ReportsVehiclesPage() {
                 updateFilter("crewId", Number(event.target.value) || undefined)
               }
             >
-              <option value={0}>Все наряды</option>
+              <option value={0}>Все наряди</option>
 
               {visibleCrews.map((crew) => (
                 <option key={crew.id} value={crew.id}>
@@ -338,14 +338,14 @@ export function ReportsVehiclesPage() {
           </label>
 
           <label className="field">
-            <span>Автомобиль</span>
+            <span>Автомобіль</span>
             <select
               value={filters.vehicleId ?? 0}
               onChange={(event) =>
                 updateFilter("vehicleId", Number(event.target.value) || undefined)
               }
             >
-              <option value={0}>Все автомобили</option>
+              <option value={0}>Все автомобілі</option>
 
               {visibleVehicles.map((vehicle) => (
                 <option key={vehicle.id} value={vehicle.id}>
@@ -357,14 +357,14 @@ export function ReportsVehiclesPage() {
           </label>
 
           <label className="field">
-            <span>Сотрудник</span>
+            <span>Співробітник</span>
             <select
               value={filters.employeeId ?? 0}
               onChange={(event) =>
                 updateFilter("employeeId", Number(event.target.value) || undefined)
               }
             >
-              <option value={0}>Все сотрудники</option>
+              <option value={0}>Все співробітники</option>
 
               {visibleEmployees.map((employee) => (
                 <option key={employee.id} value={employee.id}>
@@ -375,7 +375,7 @@ export function ReportsVehiclesPage() {
           </label>
 
           <label className="field">
-            <span>Поиск</span>
+            <span>Пошук</span>
             <input
               value={filters.search ?? ""}
               onChange={(event) => updateFilter("search", event.target.value)}
@@ -386,7 +386,7 @@ export function ReportsVehiclesPage() {
 
         <div className="report-filter-actions">
   <button className="primary-button" onClick={handleApply} disabled={loading}>
-    {loading ? "Загрузка..." : "Сформировать"}
+    {loading ? "Завантаження..." : "Сформировать"}
   </button>
 
   <button className="secondary-button" onClick={handleReset}>
@@ -407,17 +407,17 @@ export function ReportsVehiclesPage() {
 
       <div className="stats-grid report-stats-grid">
         <div className="stat-card">
-          <span>Автомобилей</span>
+          <span>Автомобілів</span>
           <strong>{formatNumber(report?.summary.totalVehicles ?? 0)}</strong>
         </div>
 
         <div className="stat-card">
-          <span>Смен</span>
+          <span>Змін</span>
           <strong>{formatNumber(report?.summary.totalShifts ?? 0)}</strong>
         </div>
 
         <div className="stat-card">
-          <span>Поездок</span>
+          <span>Поїздок</span>
           <strong>{formatNumber(report?.summary.totalTrips ?? 0)}</strong>
         </div>
 
@@ -440,7 +440,7 @@ export function ReportsVehiclesPage() {
         </div>
 
         <div className="stat-card">
-          <span>Боевые / Ложные</span>
+          <span>Бойові / Хибні</span>
           <strong>
             {formatNumber(report?.summary.combatTotal ?? 0)} /{" "}
             {formatNumber(report?.summary.falseTotal ?? 0)}
@@ -459,9 +459,9 @@ export function ReportsVehiclesPage() {
       <div className="panel-card table-card">
         <div className="table-header">
           <div>
-            <h2>Автомобили</h2>
+            <h2>Автомобілі</h2>
             <p>
-              Всего строк: {formatNumber(pagination?.total ?? 0)} · Страница{" "}
+              Усього рядків: {formatNumber(pagination?.total ?? 0)} · Страница{" "}
               {pagination?.page ?? 1} из {pagination?.totalPages ?? 1}
             </p>
           </div>
@@ -483,7 +483,7 @@ export function ReportsVehiclesPage() {
           <div className="empty-state">Загрузка автомобилей...</div>
         ) : rows.length === 0 ? (
           <div className="empty-state">
-            Автомобили по выбранным фильтрам не найдены
+            Автомобілі за вибраними фільтрами не знайдені
           </div>
         ) : (
           <>
@@ -492,10 +492,10 @@ export function ReportsVehiclesPage() {
                 <thead>
                   <tr>
                     <th></th>
-                    <th onClick={() => handleSort("vehicleTitle")}>Автомобиль</th>
-                    <th>Город</th>
-                    <th onClick={() => handleSort("totalShifts")}>Смен</th>
-                    <th onClick={() => handleSort("totalTrips")}>Поездок</th>
+                    <th onClick={() => handleSort("vehicleTitle")}>Автомобіль</th>
+                    <th>Місто</th>
+                    <th onClick={() => handleSort("totalShifts")}>Змін</th>
+                    <th onClick={() => handleSort("totalTrips")}>Поїздок</th>
                     <th onClick={() => handleSort("totalDistanceKm")}>Пробег</th>
                     <th onClick={() => handleSort("averageDistancePerShift")}>
                       Сред. пробег
@@ -505,9 +505,9 @@ export function ReportsVehiclesPage() {
                     <th onClick={() => handleSort("totalAlarms")}>Сработок</th>
                     <th>ОХ</th>
                     <th>Партнеры</th>
-                    <th>Боевые</th>
-                    <th>Ложные</th>
-                    <th>Доп.</th>
+                    <th>Бойові</th>
+                    <th>Хибні</th>
+                    <th>Дод.</th>
                     <th onClick={() => handleSort("detained")}>Задержано</th>
                     <th onClick={() => handleSort("transferred")}>Передано</th>
                   </tr>
@@ -565,14 +565,14 @@ export function ReportsVehiclesPage() {
 
                                     <div className="event-grid">
                                       <span>
-                                        Первая смена: {formatDate(row.firstShiftDate)}
+                                        Первая зміна: {formatDate(row.firstShiftDate)}
                                       </span>
                                       <span>
                                         Первый спидометр:{" "}
                                         {row.odometerStartFirstShift ?? "—"}
                                       </span>
                                       <span>
-                                        Последняя смена:{" "}
+                                        Последняя зміна:{" "}
                                         {formatDate(row.lastShiftDate)}
                                       </span>
                                       <span>
@@ -583,11 +583,11 @@ export function ReportsVehiclesPage() {
                                   </div>
 
                                   <div className="event-card">
-                                    <strong>Дополнительные сработки</strong>
+                                    <strong>Додаткові спрацювання</strong>
 
                                     {additionalRows.length === 0 ? (
                                       <div className="muted-text">
-                                        Нет дополнительных сработок
+                                        Немає дополнительных спрацювань
                                       </div>
                                     ) : (
                                       <div className="mini-table-wrap">
@@ -595,7 +595,7 @@ export function ReportsVehiclesPage() {
                                           <thead>
                                             <tr>
                                               <th>Причина</th>
-                                              <th>Всего</th>
+                                              <th>Усього</th>
                                               <th>ОХ</th>
                                               <th>Партнеры</th>
                                             </tr>
@@ -630,7 +630,7 @@ export function ReportsVehiclesPage() {
 
                                     {distanceRows.length === 0 ? (
                                       <div className="muted-text">
-                                        Нет данных по целям поездки
+                                        Немає данных по целям поїздки
                                       </div>
                                     ) : (
                                       <div className="mini-table-wrap">

@@ -139,7 +139,7 @@ export function ManualShiftsArchivePage() {
       const data = await getDeletedManualShifts(nextFilters);
       setReport(data);
     } catch {
-      setError("Не удалось загрузить архив смен");
+      setError("Не удалось загрузить архив змін");
     } finally {
       setLoading(false);
     }
@@ -209,7 +209,7 @@ export function ManualShiftsArchivePage() {
 
   async function handleRestore(row: DeletedShiftArchiveRow) {
     const confirmed = window.confirm(
-      `Восстановить смену ${row.crew.name} от ${formatDate(row.shiftDate)}?`
+      `Відновити зміну ${row.crew.name} от ${formatDate(row.shiftDate)}?`
     );
 
     if (!confirmed) {
@@ -222,10 +222,10 @@ export function ManualShiftsArchivePage() {
 
     try {
       await restoreManualShift(row.id);
-      setSuccess("Смена восстановлена");
+      setSuccess("Зміна відновленоа");
       await loadArchive(filters);
     } catch (err: any) {
-      setError(err.response?.data?.message || "Не удалось восстановить смену");
+      setError(err.response?.data?.message || "Не удалось восстановить зміну");
     } finally {
       setRestoringId(null);
     }
@@ -235,15 +235,15 @@ export function ManualShiftsArchivePage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Архив смен</h1>
-          <p>Удаленные смены, которые можно восстановить обратно в отчеты</p>
+          <h1>Архів змін</h1>
+          <p>Удаленные зміни, которые можно восстановить обратно в звіти</p>
         </div>
       </div>
 
       <div className="panel-card report-filters">
         <div className="archive-filters-grid">
           <label className="field">
-            <span>Дата от</span>
+            <span>Дата від</span>
             <input
               type="date"
               value={filters.dateFrom ?? ""}
@@ -265,14 +265,14 @@ export function ManualShiftsArchivePage() {
           </label>
 
           <label className="field">
-            <span>Город</span>
+            <span>Місто</span>
             <select
               value={filters.cityId ?? 0}
               onChange={(event) =>
                 updateFilter("cityId", Number(event.target.value) || undefined)
               }
             >
-              <option value={0}>Все города</option>
+              <option value={0}>Усі міста</option>
 
               {activeCities.map((city) => (
                 <option key={city.id} value={city.id}>
@@ -283,18 +283,18 @@ export function ManualShiftsArchivePage() {
           </label>
 
           <label className="field">
-            <span>Поиск</span>
+            <span>Пошук</span>
             <input
               value={filters.search ?? ""}
               onChange={(event) => updateFilter("search", event.target.value)}
-              placeholder="Наряд, авто, сотрудник..."
+              placeholder="Наряд, авто, співробітник..."
             />
           </label>
         </div>
 
         <div className="report-filter-actions">
           <button className="primary-button" onClick={handleApply} disabled={loading}>
-            {loading ? "Загрузка..." : "Сформировать"}
+            {loading ? "Завантаження..." : "Сформировать"}
           </button>
 
           <button className="secondary-button" onClick={handleReset}>
@@ -309,9 +309,9 @@ export function ManualShiftsArchivePage() {
       <div className="panel-card table-card">
         <div className="table-header">
           <div>
-            <h2>Удаленные смены</h2>
+            <h2>Удаленные зміни</h2>
             <p>
-              Всего строк: {(pagination?.total ?? 0).toLocaleString("ru-RU")} ·
+              Усього рядків: {(pagination?.total ?? 0).toLocaleString("ru-RU")} ·
               Страница {pagination?.page ?? 1} из {pagination?.totalPages ?? 1}
             </p>
           </div>
@@ -332,25 +332,25 @@ export function ManualShiftsArchivePage() {
         {loading ? (
           <div className="empty-state">Загрузка архива...</div>
         ) : rows.length === 0 ? (
-          <div className="empty-state">В архиве нет удаленных смен</div>
+          <div className="empty-state">В архіве нет удаленных змін</div>
         ) : (
           <>
             <div className="table-wrap">
               <table className="data-table archive-shifts-table">
                 <thead>
                   <tr>
-                    <th>Дата смены</th>
+                    <th>Дата зміни</th>
                     <th>Удалена</th>
-                  <th>Город</th>
+                  <th>Місто</th>
 <th>Наряд</th>
 <th>Тип</th>
 <th>Транспорт</th>
 <th>Часы</th>
-<th>Смены</th>
+<th>Зміни</th>
 <th>Авто</th>
                     <th>Водитель</th>
                     <th>Старший</th>
-                    <th>Поездок</th>
+                    <th>Поїздок</th>
                     <th>Пробег</th>
                     <th>Спид. начало</th>
                     <th>Спид. конец</th>
@@ -393,10 +393,10 @@ export function ManualShiftsArchivePage() {
                          >
                            {restoringId === row.id
                              ? "Восстанавливаем..."
-                             : "Восстановить"}
+                             : "Відновити"}
                          </button>
                        ) : (
-                         <span className="muted-text">Нет прав</span>
+                         <span className="muted-text">Немає прав</span>
                        )}
                      </td>
                       )}

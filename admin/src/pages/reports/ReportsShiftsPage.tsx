@@ -205,7 +205,7 @@ export function ReportsShiftsPage() {
       setReport(data);
       setExpandedRows({});
     } catch {
-      setError("Не удалось загрузить итоги смен");
+      setError("Не удалось загрузить итоги змін");
     } finally {
       setLoading(false);
     }
@@ -322,7 +322,7 @@ export function ReportsShiftsPage() {
     }
 
     if (!deleteReason.trim()) {
-      setError("Укажите причину удаления смены");
+      setError("Укажите причину удаления зміни");
       return;
     }
 
@@ -335,7 +335,7 @@ export function ReportsShiftsPage() {
       setDeleteReason("");
       await loadReport(filters);
     } catch {
-      setError("Не удалось удалить смену");
+      setError("Не удалось удалить зміну");
     } finally {
       setDeletingShiftId(null);
     }
@@ -344,15 +344,15 @@ export function ReportsShiftsPage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Итоги по сменам</h1>
-          <p>Сводная таблица смен с пробегом, сработками и поездками внутри</p>
+          <h1>Підсумки за змінами</h1>
+          <p>Сводная таблица змін с пробегом, спрацюваннями и поездками внутри</p>
         </div>
       </div>
 
       <div className="panel-card report-filters">
         <div className="trips-filters-grid">
           <label className="field">
-            <span>Дата от</span>
+            <span>Дата від</span>
             <input
               type="date"
               value={filters.dateFrom ?? ""}
@@ -374,7 +374,7 @@ export function ReportsShiftsPage() {
           </label>
 
           <label className="field">
-            <span>Город</span>
+            <span>Місто</span>
             <select
               value={filters.cityId ?? 0}
               onChange={(event) =>
@@ -382,7 +382,7 @@ export function ReportsShiftsPage() {
               }
               disabled={referencesLoading}
             >
-              <option value={0}>Все города</option>
+              <option value={0}>Усі міста</option>
 
               {activeCities.map((city) => (
                 <option key={city.id} value={city.id}>
@@ -393,7 +393,7 @@ export function ReportsShiftsPage() {
           </label>
 
           <label className="field">
-            <span>Подразделение</span>
+            <span>Підрозділ</span>
             <select
               value={filters.departmentId ?? 0}
               onChange={(event) =>
@@ -401,7 +401,7 @@ export function ReportsShiftsPage() {
               }
               disabled={referencesLoading}
             >
-              <option value={0}>Все подразделения</option>
+              <option value={0}>Усі підрозділи</option>
 
               {activeDepartments.map((department) => (
                 <option key={department.id} value={department.id}>
@@ -419,7 +419,7 @@ export function ReportsShiftsPage() {
                 updateFilter("crewId", Number(event.target.value) || undefined)
               }
             >
-              <option value={0}>Все наряды</option>
+              <option value={0}>Все наряди</option>
 
               {visibleCrews.map((crew) => (
                 <option key={crew.id} value={crew.id}>
@@ -430,7 +430,7 @@ export function ReportsShiftsPage() {
           </label>
 
           <label className="field">
-            <span>Автомобиль</span>
+            <span>Автомобіль</span>
             <select
               value={filters.vehicleId ?? 0}
               onChange={(event) =>
@@ -440,7 +440,7 @@ export function ReportsShiftsPage() {
                 )
               }
             >
-              <option value={0}>Все автомобили</option>
+              <option value={0}>Все автомобілі</option>
 
               {visibleVehicles.map((vehicle) => (
                 <option key={vehicle.id} value={vehicle.id}>
@@ -452,7 +452,7 @@ export function ReportsShiftsPage() {
           </label>
 
           <label className="field">
-            <span>Сотрудник</span>
+            <span>Співробітник</span>
             <select
               value={filters.employeeId ?? 0}
               onChange={(event) =>
@@ -462,7 +462,7 @@ export function ReportsShiftsPage() {
                 )
               }
             >
-              <option value={0}>Все сотрудники</option>
+              <option value={0}>Все співробітники</option>
 
               {visibleEmployees.map((employee) => (
                 <option key={employee.id} value={employee.id}>
@@ -473,11 +473,11 @@ export function ReportsShiftsPage() {
           </label>
 
           <label className="field">
-            <span>Поиск</span>
+            <span>Пошук</span>
             <input
               value={filters.search ?? ""}
               onChange={(event) => updateFilter("search", event.target.value)}
-              placeholder="Город, наряд, авто, сотрудник..."
+              placeholder="Місто, наряд, авто, співробітник..."
             />
           </label>
         </div>
@@ -488,7 +488,7 @@ export function ReportsShiftsPage() {
             onClick={handleApply}
             disabled={loading}
           >
-            {loading ? "Загрузка..." : "Сформировать"}
+            {loading ? "Завантаження..." : "Сформировать"}
           </button>
 
           <button className="secondary-button" onClick={handleReset}>
@@ -509,7 +509,7 @@ export function ReportsShiftsPage() {
 
       <div className="stats-grid report-stats-grid">
         <div className="stat-card">
-          <span>Смен на странице</span>
+          <span>Змін на сторінці</span>
           <strong>{formatNumber(report?.summary.totalRowsOnPage ?? 0)}</strong>
           <small>
             Эквивалент:{" "}
@@ -518,7 +518,7 @@ export function ReportsShiftsPage() {
         </div>
 
         <div className="stat-card">
-          <span>Поездок</span>
+          <span>Поїздок</span>
           <strong>{formatNumber(report?.summary.totalTrips ?? 0)}</strong>
         </div>
 
@@ -541,7 +541,7 @@ export function ReportsShiftsPage() {
         </div>
 
         <div className="stat-card">
-          <span>Боевые / Ложные</span>
+          <span>Бойові / Хибні</span>
           <strong>
             {formatNumber(report?.summary.combatTotal ?? 0)} /{" "}
             {formatNumber(report?.summary.falseTotal ?? 0)}
@@ -560,9 +560,9 @@ export function ReportsShiftsPage() {
       <div className="panel-card table-card">
         <div className="table-header">
           <div>
-            <h2>Смены</h2>
+            <h2>Зміни</h2>
             <p>
-              Всего строк: {formatNumber(pagination?.total ?? 0)} · Страница{" "}
+              Усього рядків: {formatNumber(pagination?.total ?? 0)} · Страница{" "}
               {pagination?.page ?? 1} из {pagination?.totalPages ?? 1}
             </p>
           </div>
@@ -583,10 +583,10 @@ export function ReportsShiftsPage() {
         </div>
 
         {loading ? (
-          <div className="empty-state">Загрузка смен...</div>
+          <div className="empty-state">Загрузка змін...</div>
         ) : rows.length === 0 ? (
           <div className="empty-state">
-            Смены по выбранным фильтрам не найдены
+            Зміни за вибраними фільтрами не знайдені
           </div>
         ) : (
           <>
@@ -599,13 +599,13 @@ export function ReportsShiftsPage() {
                     <th onClick={() => handleSort("submittedAt")}>
                       Отправлено
                     </th>
-                    <th>Город</th>
-                    <th>Подразделение</th>
+                    <th>Місто</th>
+                    <th>Підрозділ</th>
                     <th>Наряд</th>
                     <th>Тип</th>
                     <th>Транспорт</th>
                     <th>Часы</th>
-                    <th>Смены</th>
+                    <th>Зміни</th>
                     <th>Авто</th>
                     <th>Водитель</th>
                     <th>Старший</th>
@@ -619,13 +619,13 @@ export function ReportsShiftsPage() {
                     <th onClick={() => handleSort("totalDistanceKm")}>
                       Пробег
                     </th>
-                    <th>Поездок</th>
+                    <th>Поїздок</th>
                     <th>Сработок</th>
                     <th>ОХ</th>
                     <th>Партнеры</th>
-                    <th>Боевые</th>
-                    <th>Ложные</th>
-                    <th>Доп.</th>
+                    <th>Бойові</th>
+                    <th>Хибні</th>
+                    <th>Дод.</th>
                     <th>Задержано</th>
                     <th>Передано</th>
                     {canManageShifts && <th>Действия</th>}
@@ -713,7 +713,7 @@ export function ReportsShiftsPage() {
                                       onClick={() => setOpenActionsRowId(null)}
                                     >
                                       <span className="row-action-dot" />
-                                      Редактировать
+                                      Редагувати
                                     </Link>
 
                                     <button
@@ -738,11 +738,11 @@ export function ReportsShiftsPage() {
                           <tr className="expanded-row">
                         <td colSpan={canManageShifts ? 26 : 25}>
                               <div className="expanded-content">
-                                <h3>Поездки смены</h3>
+                                <h3>Поїздки зміни</h3>
 
                                 {row.trips.length === 0 ? (
                                   <div className="empty-state">
-                                    В смене нет поездок
+                                    В зміне нет поїздок
                                   </div>
                                 ) : (
                                   <div className="shift-trip-list">
@@ -761,7 +761,7 @@ export function ReportsShiftsPage() {
                                             Мин.: {trip.arrivalMinutes}
                                           </span>
                                           <span>
-                                            Сработка: {trip.eventSummary}
+                                            Спрацювання: {trip.eventSummary}
                                           </span>
                                           <span>
                                             Задержано:{" "}
@@ -829,10 +829,10 @@ export function ReportsShiftsPage() {
             className="modal-card"
             onMouseDown={(event) => event.stopPropagation()}
           >
-            <h2>Удалить смену</h2>
+            <h2>Удалить зміну</h2>
 
             <p className="modal-text">
-              Смена: <strong>{deleteCandidate.crew.name}</strong> от{" "}
+              Зміна: <strong>{deleteCandidate.crew.name}</strong> от{" "}
               <strong>{formatDate(deleteCandidate.shiftDate)}</strong>
             </p>
 
@@ -841,7 +841,7 @@ export function ReportsShiftsPage() {
               <textarea
                 value={deleteReason}
                 onChange={(event) => setDeleteReason(event.target.value)}
-                placeholder="Например: ошибка ввода, дубль смены, неверный автомобиль..."
+                placeholder="Например: ошибка ввода, дубль зміни, неверный автомобіль..."
                 rows={4}
                 autoFocus
               />
@@ -853,7 +853,7 @@ export function ReportsShiftsPage() {
                 className="secondary-button"
                 onClick={() => setDeleteCandidate(null)}
               >
-                Отмена
+                Скасувати
               </button>
 
               <button

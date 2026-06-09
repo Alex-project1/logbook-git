@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { getAdminMe } from "../api/auth.api";
-import type { AdminUser } from "../api/auth.api";
+import { useAuth } from "../auth/AuthProvider";
 
 type MenuLink = {
   to: string;
@@ -17,78 +16,60 @@ type MenuGroup = {
 export function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, loading, signOut, isSuperAdmin, canWrite } = useAuth();
 
-  const [user, setUser] = useState<AdminUser | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [openedGroupId, setOpenedGroupId] = useState<string>("main");
 
-  useEffect(() => {
-    async function loadCurrentUser() {
-      try {
-        const response = await getAdminMe();
-        setUser(response.user);
-      } catch {
-        localStorage.removeItem("admin_access_token");
-        navigate("/login");
-      }
-    }
-
-    loadCurrentUser();
-  }, [navigate]);
-
-  const roleCode = user?.role?.code;
-
-  const isSuperAdmin = roleCode === "super_admin";
-  const isAdmin = roleCode === "admin";
-
-  const canWrite = isSuperAdmin || isAdmin;
   const canSeeActionLogs = isSuperAdmin;
 
   const menuGroups = useMemo<MenuGroup[]>(() => {
     const groups: MenuGroup[] = [
       {
         id: "main",
-        label: "Основное",
-        items: [{ to: "/", label: "Dashboard" }],
+        label: "Основне",
+        items: [{ to: "/", label: "Головна" }],
       },
       {
         id: "shifts",
-        label: "Смены и дежурства",
+        label: "Зміни та чергування",
         items: [
           ...(canWrite
-            ? [{ to: "/manual-shifts/create", label: "Добавить смену ГБР" }]
+            ? [{ to: "/manual-shifts/create", label: "Додати зміну ГБР" }]
             : []),
           ...(canWrite
-            ? [{ to: "/manual-shifts/archive", label: "Архив смен ГБР" }]
+            ? [{ to: "/manual-shifts/archive", label: "Архів змін ГБР" }]
             : []),
-          { to: "/post-duties", label: "Постовые дежурства" },
+          { to: "/post-duties", label: "Постові чергування" },
         ],
       },
       {
-  id: "notifications",
-  label: "Уведомления",
-  items: [
-    { to: "/notifications/new", label: "Новое уведомление" },
-    { to: "/notifications/history", label: "История уведомлений" },
-  ],
-},
+        id: "notifications",
+        label: "Сповіщення",
+        items: [
+          ...(canWrite
+            ? [{ to: "/notifications/new", label: "Нове сповіщення" }]
+            : []),
+          { to: "/notifications/history", label: "Історія сповіщень" },
+        ],
+      },
       {
         id: "directories",
-        label: "Справочники",
+        label: "Довідники",
         items: [
-          ...(isSuperAdmin ? [{ to: "/cities", label: "Города" }] : []),
-          { to: "/mobile-users", label: "Пользователи приложения" },
-          { to: "/departments", label: "Подразделения" },
-          { to: "/employees", label: "Сотрудники" },
-          { to: "/crews", label: "Наряды ГБР" },
-          { to: "/duty-posts", label: "Доп. посты" },
-          { to: "/vehicles", label: "Автомобили" },
+          ...(isSuperAdmin ? [{ to: "/cities", label: "Міста" }] : []),
+          { to: "/mobile-users", label: "Користувачі застосунку" },
+          ...(canWrite ? [{ to: "/departments", label: "Підрозділи" }] : []),
+          { to: "/employees", label: "Співробітники" },
+          { to: "/crews", label: "Наряди ГБР" },
+          { to: "/duty-posts", label: "Дод. пости" },
+          { to: "/vehicles", label: "Автомобілі" },
           ...(isSuperAdmin
             ? [
-                { to: "/trip-goals", label: "Цели поездок" },
+                { to: "/trip-goals", label: "Цілі поїздок" },
                 {
                   to: "/additional-alarm-reasons",
-                  label: "Причины доп. сработок",
+                  label: "Причини дод. спрацювань",
                 },
               ]
             : []),
@@ -96,27 +77,27 @@ export function AdminLayout() {
       },
       {
         id: "reports",
-        label: "Отчеты",
+        label: "Звіти",
         items: [
-          { to: "/reports/general", label: "Общая статистика" },
-          { to: "/reports/custom", label: "Кастомный отчет" },
-          { to: "/reports/trips", label: "Все поездки" },
-          { to: "/reports/shifts", label: "Итоги по сменам" },
-          { to: "/reports/employees", label: "По сотрудникам" },
-          { to: "/reports/crews", label: "По нарядам" },
-          { to: "/reports/vehicles", label: "По автомобилям" },
-          { to: "/reports/alarms", label: "По сработкам" },
+          { to: "/reports/general", label: "Загальна статистика" },
+          { to: "/reports/custom", label: "Користувацький звіт" },
+          { to: "/reports/trips", label: "Усі поїздки" },
+          { to: "/reports/shifts", label: "Підсумки за змінами" },
+          { to: "/reports/employees", label: "За співробітниками" },
+          { to: "/reports/crews", label: "За нарядамии" },
+          { to: "/reports/vehicles", label: "За автомобілями" },
+          { to: "/reports/alarms", label: "За спрацюваннями" },
         ],
       },
       {
         id: "administration",
-        label: "Администрирование",
+        label: "Адміністрування",
         items: [
           ...(isSuperAdmin
-            ? [{ to: "/admin-users", label: "Администраторы" }]
+            ? [{ to: "/admin-users", label: "Адміністратори" }]
             : []),
           ...(canSeeActionLogs
-            ? [{ to: "/action-logs", label: "Журнал действий" }]
+            ? [{ to: "/action-logs", label: "Журнал дій" }]
             : []),
         ],
       },
@@ -130,8 +111,8 @@ export function AdminLayout() {
       group.items.some((item) =>
         item.to === "/"
           ? location.pathname === "/"
-          : location.pathname.startsWith(item.to)
-      )
+          : location.pathname.startsWith(item.to),
+      ),
     );
 
     if (activeGroup) {
@@ -140,7 +121,7 @@ export function AdminLayout() {
   }, [location.pathname, menuGroups]);
 
   function handleLogout() {
-    localStorage.removeItem("admin_access_token");
+    signOut();
     navigate("/login");
   }
 
@@ -152,8 +133,12 @@ export function AdminLayout() {
     return group.items.some((item) =>
       item.to === "/"
         ? location.pathname === "/"
-        : location.pathname.startsWith(item.to)
+        : location.pathname.startsWith(item.to),
     );
+  }
+
+  if (loading) {
+    return <div className="empty-state">Завантаження профілю адміністратора...</div>;
   }
 
   return (
@@ -168,7 +153,7 @@ export function AdminLayout() {
         type="button"
         className="sidebar-toggle-button"
         onClick={() => setSidebarOpen((current) => !current)}
-        aria-label={sidebarOpen ? "Скрыть меню" : "Показать меню"}
+        aria-label={sidebarOpen ? "Сховати меню" : "Показати меню"}
       >
         {sidebarOpen ? "‹" : "☰"}
       </button>
@@ -178,8 +163,10 @@ export function AdminLayout() {
           <div className="logo-mark">Ж</div>
 
           <div>
-            <div className="logo-title">Бортовой журнал</div>
-            <div className="logo-subtitle">Админ-панель</div>
+            <div className="logo-title">Бортовий журнал</div>
+            <div className="logo-subtitle">
+              {user?.name || "Адмін-панель"}
+            </div>
           </div>
         </div>
 
@@ -233,7 +220,7 @@ export function AdminLayout() {
         </nav>
 
         <button className="logout-button" onClick={handleLogout}>
-          Выйти
+          Вийти
         </button>
       </aside>
 

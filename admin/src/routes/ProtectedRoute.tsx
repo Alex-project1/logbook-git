@@ -1,15 +1,21 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
+import { useAuth } from "../auth/AuthProvider";
 
 type Props = {
   children: ReactNode;
 };
 
 export function ProtectedRoute({ children }: Props) {
-  const token = localStorage.getItem("admin_access_token");
+  const location = useLocation();
+  const { authenticated, loading } = useAuth();
 
-  if (!token) {
-    return <Navigate to="/login" replace />;
+  if (loading) {
+    return <div className="empty-state">Перевірка сесії...</div>;
+  }
+
+  if (!authenticated) {
+    return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
   return <>{children}</>;

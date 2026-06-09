@@ -524,7 +524,7 @@ fun NewShiftScreen(
 
         when {
             selectedPostId == 0 -> {
-                postSaveError = "Виберіть пост"
+                postSaveError = "Оберіть пост"
                 summarySectionOpen = true
                 return
             }
@@ -655,15 +655,15 @@ fun validateGbrForm(data: MobileBootstrapDto): GbrFormErrors {
         }.toMap()
 
         return GbrFormErrors(
-            crew = if (selectedCrewId == 0) "Виберіть наряд" else null,
-            vehicle = if (selectedVehicleId == 0) "Виберіть автомобіль" else null,
+            crew = if (selectedCrewId == 0) "Оберіть наряд" else null,
+            vehicle = if (selectedVehicleId == 0) "Оберіть автомобіль" else null,
             driver = when {
-                selectedDriverId == 0 -> "Виберіть водія"
+                selectedDriverId == 0 -> "Оберіть водія"
                 selectedDriverId == selectedSeniorId && selectedSeniorId > 0 -> "Водій і старший не можуть бути одним співробітником"
                 else -> null
             },
             senior = when {
-                selectedSeniorId == 0 -> "Виберіть старшого наряду"
+                selectedSeniorId == 0 -> "Оберіть старшого наряду"
                 selectedDriverId == selectedSeniorId && selectedDriverId > 0 -> "Водій і старший не можуть бути одним співробітником"
                 else -> null
             },
@@ -2137,7 +2137,7 @@ private fun TripAccordionCard(
                     }
 
                     SelectField(
-                        label = "Ціль поїздки",
+                        label = "Мета поїздки",
                         selectedLabel = findTripGoalLabel(tripGoals, trip.goalId),
                         options = tripGoals.map {
                             SelectOption(
@@ -2280,13 +2280,13 @@ private fun RegularAlarmFields(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "Сработка: $alarmSourceLabel",
+                text = "Спрацювання: $alarmSourceLabel",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
 
             SelectField(
-                label = "Тип сработки",
+                label = "Тип спрацювання",
                 selectedLabel = trip.regularAlarmType.label,
                 options = RegularAlarmType.entries.mapIndexed { index, type ->
                     SelectOption(
@@ -2353,7 +2353,7 @@ private fun AdditionalAlarmFields(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "Список сработок",
+                text = "Список спрацювань",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
@@ -3025,7 +3025,7 @@ private fun getTripValidationErrors(
     val goal = tripGoals.firstOrNull { it.id == trip.goalId }
 
     if (trip.goalId <= 0) {
-        errors.add("виберіть ціль поїздки")
+        errors.add("оберіть мета поїздки")
     }
 
     if (trip.fromLocation.isBlank()) {
@@ -3083,7 +3083,7 @@ private fun getTripValidationErrors(
         val hasReason = trip.additionalReasonId > 0 || trip.customReasonText.isNotBlank()
 
         if (!hasReason) {
-            errors.add("виберіть причину або введіть свою причину")
+            errors.add("оберіть причину або введіть свою причину")
         }
 
         if (ohCount + partnerCount <= 0) {
@@ -3115,7 +3115,7 @@ private fun validateTripEvents(
             val hasReason = trip.additionalReasonId > 0 || trip.customReasonText.isNotBlank()
 
             if (!hasReason) {
-                return "Поїздка ${index + 1}: виберіть причину або введіть свою причину"
+                return "Поїздка ${index + 1}: оберіть причину або введіть свою причину"
             }
 
             if (ohCount + partnerCount <= 0) {
@@ -3228,7 +3228,7 @@ private fun isAdditionalAlarmGoal(goal: TripGoalDto?): Boolean {
 
     val text = goalSearchText(goal)
 
-    return (text.contains("список") && text.contains("сработ")) ||
+    return (text.contains("список") && text.contains("спрац")) ||
         text.contains("додатков") ||
         text.contains("дополн") ||
         text.contains("additional")
@@ -3238,7 +3238,7 @@ private fun getRegularAlarmSourceLabel(goal: TripGoalDto?): String {
     return when {
         isOhAlarmGoal(goal) -> "ОХ"
         isPartnerAlarmGoal(goal) -> "Партнери"
-        else -> "Сработка"
+        else -> "Спрацювання"
     }
 }
 
