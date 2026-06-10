@@ -54,7 +54,10 @@ function departmentSelect() {
 }
 
 type ShiftWithData = Awaited<ReturnType<typeof loadShiftsForReports>>[number];
-
+type ShiftSummaryInput = Pick<
+  ShiftWithData,
+  "totalDistanceKm" | "shiftDurationHours" | "trips"
+>;
 async function loadShiftsForReports(params: {
   cityId?: number;
   departmentId?: number;
@@ -141,7 +144,7 @@ async function loadShiftsForReports(params: {
   });
 }
 
-function calculateShiftSummary(shift: ShiftWithData) {
+function calculateShiftSummary(shift: ShiftSummaryInput) {
   let totalTrips = 0;
   let totalDistanceKm = toNumber(shift.totalDistanceKm);
 

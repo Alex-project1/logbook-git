@@ -4,15 +4,14 @@ const bcrypt = require('bcrypt');
 const prisma = new PrismaClient();
 
 const systemCities = [
-  { id: 1, name: 'Київ', lat: 50.4501, lng: 30.5234 },
-  { id: 2, name: 'Запоріжжя', lat: 47.8388, lng: 35.1396 },
-  { id: 3, name: 'Дніпро', lat: 48.4647, lng: 35.0462 },
-  { id: 4, name: 'Львів', lat: 49.8397, lng: 24.0297 },
-  { id: 5, name: 'Павлоград', lat: 48.5321, lng: 35.87 },
-  { id: 6, name: 'Кам’янське', lat: 48.511339, lng: 34.602103 },
-  { id: 8, name: 'Кривий Ріг', lat: 47.9105, lng: 33.3918 },
+  { id: 1, name: 'Запоріжжя', externalRegionId: 2, lat: 47.8388, lng: 35.1396 },
+  { id: 2, name: 'Дніпро', externalRegionId: 3, lat: 48.4647, lng: 35.0462 },
+  { id: 3, name: 'Кривий Ріг', externalRegionId: 8, lat: 47.9105, lng: 33.3918 },
+  { id: 4, name: 'Київ', externalRegionId: 1, lat: 50.4501, lng: 30.5234 },
+  { id: 5, name: 'Павлоград', externalRegionId: 5, lat: 48.5321, lng: 35.87 },
+  { id: 6, name: 'Кам’янське', externalRegionId: 6, lat: 48.511339, lng: 34.602103 },
+  { id: 7, name: 'Львів', externalRegionId: 4, lat: 49.8397, lng: 24.0297 },
 ];
-
 const tripGoals = [
   { name: 'Спрацювання ОХ', systemCode: 'alarm_oh', sortOrder: 10 },
   { name: 'Спрацювання Партнери', systemCode: 'alarm_partner', sortOrder: 20 },
@@ -132,7 +131,7 @@ async function main() {
 
   const objectsMap = {};
   for (const city of systemCities) {
-    objectsMap[String(city.id)] = { externalRegionId: city.id, lat: city.lat, lng: city.lng };
+    objectsMap[String(city.id)] = { externalRegionId: city.externalRegionId, lat: city.lat, lng: city.lng };
   }
 
   console.log('ГОТОВО');

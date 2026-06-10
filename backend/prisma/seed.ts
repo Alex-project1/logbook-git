@@ -5,20 +5,20 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("Start seeding...");
+  console.log("Початок заповнення бази даних...");
 
   const superAdminRole = await prisma.role.upsert({
     where: {
       code: "super_admin",
     },
     update: {
-      name: "Супер администратор",
-      description: "Полный доступ ко всем разделам",
+      name: "Супер адміністратор",
+      description: "Повний доступ до всіх розділів",
     },
     create: {
       code: "super_admin",
-      name: "Супер администратор",
-      description: "Полный доступ ко всем разделам",
+      name: "Супер адміністратор",
+      description: "Повний доступ до всіх розділів",
     },
   });
 
@@ -27,13 +27,13 @@ async function main() {
       code: "admin",
     },
     update: {
-      name: "Администратор",
-      description: "Управление назначенными городами",
+      name: "Адміністратор",
+      description: "Керування призначеними містами",
     },
     create: {
       code: "admin",
-      name: "Администратор",
-      description: "Управление назначенными городами",
+      name: "Адміністратор",
+      description: "Керування призначеними містами",
     },
   });
 
@@ -42,13 +42,13 @@ async function main() {
       code: "viewer",
     },
     update: {
-      name: "Наблюдатель",
-      description: "Только просмотр назначенных городов",
+      name: "Спостерігач",
+      description: "Лише перегляд призначених міст",
     },
     create: {
       code: "viewer",
-      name: "Наблюдатель",
-      description: "Только просмотр назначенных городов",
+      name: "Спостерігач",
+      description: "Лише перегляд призначених міст",
     },
   });
 
@@ -58,14 +58,14 @@ async function main() {
     where: { login: "admin" },
     update: {
       roleId: superAdminRole.id,
-      name: "Главный администратор",
+      name: "Головний адміністратор",
       email: "admin@example.com",
       passwordHash: adminPasswordHash,
       isActive: true,
     },
     create: {
       roleId: superAdminRole.id,
-      name: "Главный администратор",
+      name: "Головний адміністратор",
       login: "admin",
       email: "admin@example.com",
       passwordHash: adminPasswordHash,
@@ -75,32 +75,32 @@ async function main() {
 
   const systemTripGoals = [
     {
-      name: "Сработка ОХ",
+      name: "Спрацювання ОХ",
       systemCode: "alarm_oh",
       sortOrder: 10,
     },
     {
-      name: "Сработка Партнеры",
+      name: "Спрацювання партнерів",
       systemCode: "alarm_partner",
       sortOrder: 20,
     },
     {
-      name: "Список сработок",
+      name: "Список спрацювань",
       systemCode: "additional_alarm_list",
       sortOrder: 30,
     },
     {
-      name: "Мойка",
+      name: "Мийка",
       systemCode: "wash",
       sortOrder: 40,
     },
     {
-      name: "Пересменка",
+      name: "Перезміна",
       systemCode: "shift_change",
       sortOrder: 50,
     },
     {
-      name: "Проверка",
+      name: "Перевірка",
       systemCode: "check",
       sortOrder: 60,
     },
@@ -128,12 +128,12 @@ async function main() {
   const customTripGoals = [
     { name: "Патруль", sortOrder: 100 },
     { name: "Точка", sortOrder: 110 },
-    { name: "Ознакомление", sortOrder: 120 },
-    { name: "Туалет/Обед", sortOrder: 130 },
-    { name: "Подвоз ОХ", sortOrder: 140 },
-    { name: "Подвоз Партнеры", sortOrder: 150 },
+    { name: "Ознайомлення", sortOrder: 120 },
+    { name: "Туалет/Обід", sortOrder: 130 },
+    { name: "Підвезення ОХ", sortOrder: 140 },
+    { name: "Підвезення партнерів", sortOrder: 150 },
     { name: "СТО", sortOrder: 160 },
-    { name: "Другое", sortOrder: 999 },
+    { name: "Інше", sortOrder: 999 },
   ];
 
   for (const goal of customTripGoals) {
@@ -160,15 +160,15 @@ async function main() {
 
   const reasons = [
     {
-      name: "Военные действия",
+      name: "Воєнні дії",
       sortOrder: 10,
     },
     {
-      name: "Массовое отключение",
+      name: "Масове відключення",
       sortOrder: 20,
     },
     {
-      name: "Свой вариант",
+      name: "Свій варіант",
       sortOrder: 999,
     },
   ];
@@ -204,18 +204,18 @@ async function main() {
     });
   }
 
-  console.log("Seeding completed.");
+  console.log("Заповнення бази даних завершено.");
   console.log("");
-  console.log("Default admin:");
+  console.log("Адміністратор за замовчуванням:");
   console.log("login: admin");
   console.log("password: admin12345");
   console.log("");
-  console.log("Change this password later in admin panel.");
+  console.log("Змініть цей пароль пізніше в адміністративній панелі.");
 }
 
 main()
   .catch((error) => {
-    console.error("Seed error:", error);
+    console.error("Помилка заповнення бази даних:", error);
     process.exit(1);
   })
   .finally(async () => {

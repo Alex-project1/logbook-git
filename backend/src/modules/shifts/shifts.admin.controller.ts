@@ -867,6 +867,7 @@ export async function createAdminShift(req: Request, res: Response) {
         isActive: true,
       },
       select: {
+        departmentId: true,
         dutyType: true,
         transportType: true,
         durationHours: true,
@@ -884,6 +885,7 @@ export async function createAdminShift(req: Request, res: Response) {
       const shift = await tx.shift.create({
         data: {
           cityId: data.cityId,
+          departmentId: selectedCrew.departmentId,
           createdByAdminId: req.user?.id ?? null,
           sourceType: ShiftSourceType.ADMIN_PANEL,
 

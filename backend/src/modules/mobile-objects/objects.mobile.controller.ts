@@ -638,9 +638,11 @@ export async function getMobileObjects(req: Request, res: Response) {
   try {
     if (!ensureObjectsAccess(req, res)) return;
 
+    const mobileUser = req.mobileUser!;
+    
     const city = await prisma.city.findFirst({
       where: {
-        id: req.mobileUser.cityId,
+        id: mobileUser.cityId,
         deletedAt: null,
         isActive: true,
       },
