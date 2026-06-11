@@ -115,7 +115,7 @@ export function EmployeesPage() {
       const employeesData = await getEmployees({ includeInactive: true });
       setEmployees(employeesData);
     } catch (caught) {
-      setError(getErrorMessage(caught, "Не удалось загрузить співробітников"));
+      setError(getErrorMessage(caught, "Не вдалося завантажити співробітників"));
     } finally {
       setLoading(false);
     }
@@ -155,9 +155,9 @@ export function EmployeesPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!form.cityId) return setError("Выберите город");
-    if (!form.departmentId) return setError("Выберите подразделение");
-    if (!form.fullName.trim()) return setError("Введите ФИО співробітника");
+    if (!form.cityId) return setError("Оберіть місто");
+    if (!form.departmentId) return setError("Оберіть підрозділ");
+    if (!form.fullName.trim()) return setError("Введіть ПІБ співробітника");
 
     setSaving(true);
     setError("");
@@ -175,39 +175,39 @@ export function EmployeesPage() {
 
       if (editingEmployee) {
         await updateEmployee(editingEmployee.id, payload);
-        setSuccess("Співробітник оновлено");
+        setSuccess("Співробітника оновлено");
       } else {
         await createEmployee(payload);
-        setSuccess("Співробітник додано");
+        setSuccess("Співробітника додано");
       }
 
       resetForm();
       await loadEmployees();
     } catch (caught) {
-      setError(getErrorMessage(caught, "Не удалось зберегти співробітника"));
+      setError(getErrorMessage(caught, "Не вдалося зберегти співробітника"));
     } finally {
       setSaving(false);
     }
   }
 
   async function handleArchive(employee: Employee) {
-    if (!window.confirm(`Отправить співробітника "${employee.fullName}" в архив?`)) return;
+    if (!window.confirm(`Перемістити співробітника "${employee.fullName}" до архіву?`)) return;
     try {
       await deleteEmployee(employee.id);
-      setSuccess("Співробітник відправлено в архив");
+      setSuccess("Співробітника переміщено до архіву");
       await loadEmployees();
     } catch (caught) {
-      setError(getErrorMessage(caught, "Не удалось отправить співробітника в архив"));
+      setError(getErrorMessage(caught, "Не вдалося перемістити співробітника до архіву"));
     }
   }
 
   async function handleRestore(employee: Employee) {
     try {
       await restoreEmployee(employee.id);
-      setSuccess("Співробітник відновлено");
+      setSuccess("Співробітника відновлено");
       await loadEmployees();
     } catch (caught) {
-      setError(getErrorMessage(caught, "Не удалось восстановить співробітника"));
+      setError(getErrorMessage(caught, "Не вдалося відновити співробітника"));
     }
   }
 
@@ -239,7 +239,7 @@ export function EmployeesPage() {
       <div className="page-header">
         <div>
           <h1>Співробітники</h1>
-          <p>Співробітники теперь прив’язані к міста и підрозділу.</p>
+          <p>Співробітники за містом і підрозділами.</p>
         </div>
       </div>
 
@@ -251,7 +251,7 @@ export function EmployeesPage() {
           <label>
             Місто
             <select value={form.cityId} onChange={(event) => handleFormCityChange(Number(event.target.value))}>
-              <option value={0}>Выберите город</option>
+              <option value={0}>Оберіть місто</option>
               {activeCities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}
             </select>
           </label>
@@ -259,7 +259,7 @@ export function EmployeesPage() {
           <label>
             Підрозділ
             <select value={form.departmentId} onChange={(event) => setForm((prev) => ({ ...prev, departmentId: Number(event.target.value) }))}>
-              <option value={0}>Выберите подразделение</option>
+              <option value={0}>Оберіть підрозділ</option>
               {formDepartments.map((department) => (
                 <option key={department.id} value={department.id}>{department.name} · {departmentTypeLabels[department.type]}</option>
               ))}
@@ -267,12 +267,12 @@ export function EmployeesPage() {
           </label>
 
           <label>
-            ФИО
+            ПІБ
             <input value={form.fullName} onChange={(event) => setForm((prev) => ({ ...prev, fullName: event.target.value }))} />
           </label>
 
           <label>
-            Должность
+            Посада
             <input value={form.position} onChange={(event) => setForm((prev) => ({ ...prev, position: event.target.value }))} />
           </label>
 
@@ -283,7 +283,7 @@ export function EmployeesPage() {
 
           <label className="checkbox-row">
             <input type="checkbox" checked={form.isActive} onChange={(event) => setForm((prev) => ({ ...prev, isActive: event.target.checked }))} />
-            Активный
+            Активний
           </label>
 
           <div className="form-actions">
@@ -324,7 +324,7 @@ export function EmployeesPage() {
           <table>
             <thead>
               <tr>
-                <th>ФИО</th><th>Місто</th><th>Підрозділ</th><th>Должность</th><th>Коментар</th><th>Статус</th><th></th>
+                <th>ПІБ</th><th>Місто</th><th>Підрозділ</th><th>Посада</th><th>Коментар</th><th>Статус</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -339,12 +339,12 @@ export function EmployeesPage() {
                   <td>
                     {canEdit && <RowActionMenu items={showArchive ? [{ label: "Відновити", onClick: () => handleRestore(employee), variant: "edit" }] : [
                       { label: "Редагувати", onClick: () => startEdit(employee), variant: "edit" },
-                      { label: "В архів", onClick: () => handleArchive(employee), variant: "danger" },
+                      { label: "До архіву", onClick: () => handleArchive(employee), variant: "danger" },
                     ]} />}
                   </td>
                 </tr>
               ))}
-              {employees.length === 0 && <tr><td colSpan={7}>Немає співробітников</td></tr>}
+              {employees.length === 0 && <tr><td colSpan={7}>Немає співробітників</td></tr>}
             </tbody>
           </table>
         </div>

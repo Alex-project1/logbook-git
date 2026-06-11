@@ -160,7 +160,9 @@ export function AdminLayout() {
 
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <div className="logo-mark">Ж</div>
+          <div className="logo-mark">
+            <img src="./logo.webp" alt="" />
+          </div>
 
           <div>
             <div className="logo-title">Бортовий журнал</div>

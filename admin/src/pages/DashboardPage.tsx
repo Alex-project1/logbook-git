@@ -17,10 +17,10 @@ const periodOptions: {
   key: PeriodKey;
   label: string;
 }[] = [
-  { key: "today", label: "Сегодня" },
-  { key: "7days", label: "7 дней" },
-  { key: "30days", label: "30 дней" },
-  { key: "all", label: "Все время" },
+  { key: "today", label: "Сьогодні" },
+  { key: "7days", label: "7 днів" },
+  { key: "30days", label: "30 днів" },
+  { key: "all", label: "Увесь час" },
 ];
 
 function toDateInputValue(date: Date) {
@@ -71,7 +71,7 @@ function getPeriodFilters(
 }
 
 function formatNumber(value: number) {
-  return value.toLocaleString("ru-RU", {
+  return value.toLocaleString("uk-UA", {
     maximumFractionDigits: 2,
   });
 }
@@ -86,14 +86,14 @@ function getPeriodLabel(filters: ReportFilters) {
   }
 
   if (filters.dateFrom) {
-    return `с ${filters.dateFrom}`;
+    return `з ${filters.dateFrom}`;
   }
 
   if (filters.dateTo) {
-    return `по ${filters.dateTo}`;
+    return `до ${filters.dateTo}`;
   }
 
-  return "Все данные за все время";
+  return "Усі дані за весь час";
 }
 
 export function DashboardPage() {
@@ -146,7 +146,7 @@ export function DashboardPage() {
       setGeneralReport(generalData);
       setEmployeesReport(employeesData);
     } catch {
-      setError("Не удалось загрузить данные Dashboard");
+      setError("Не вдалося завантажити дані панелі керування");
     } finally {
       setLoading(false);
     }
@@ -163,7 +163,7 @@ export function DashboardPage() {
 
   async function handleCustomPeriodApply() {
     if (customDateFrom && customDateTo && customDateFrom > customDateTo) {
-      setError("Дата начала не может быть позже даты окончания");
+      setError("Дата початку не може бути пізніше дати завершення");
       return;
     }
 
@@ -190,8 +190,8 @@ export function DashboardPage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Dashboard</h1>
-          <p>Оперативная сводка по змінами, постам, спрацюваннями и нагрузке</p>
+          <h1>Панель керування</h1>
+          <p>Оперативне зведення щодо змін, постів, спрацювань і навантаження</p>
         </div>
 
         {user && (
@@ -205,7 +205,7 @@ export function DashboardPage() {
       <div className="panel-card dashboard-toolbar">
         <div className="dashboard-toolbar-main">
           <div>
-            <h2>Период</h2>
+            <h2>Період</h2>
             <p>{getPeriodLabel(filters)}</p>
           </div>
 
@@ -249,7 +249,7 @@ export function DashboardPage() {
             onClick={handleCustomPeriodApply}
             disabled={loading}
           >
-            Применить период
+            Застосувати період
           </button>
         </div>
       </div>
@@ -258,10 +258,10 @@ export function DashboardPage() {
 
       <div className="stats-grid dashboard-stats-grid">
         <div className="stat-card">
-          <span>Усього змін с постами</span>
+          <span>Усього змін із постами</span>
           <strong>{formatNumber(totalShiftsWithPosts)}</strong>
           <small>
-            Машинные: {formatNumber(machineShifts)} · Посты:{" "}
+            Машинні: {formatNumber(machineShifts)} · Пости:{" "}
             {formatNumber(postDutyEquivalent)}
           </small>
         </div>
@@ -269,7 +269,7 @@ export function DashboardPage() {
         <div className="stat-card">
           <span>Постові чергування</span>
           <strong>{formatNumber(postDutyCount)}</strong>
-          <small>{formatNumber(postDutyHours)} часов</small>
+          <small>{formatNumber(postDutyHours)} годин</small>
         </div>
 
         <div className="stat-card">
@@ -278,17 +278,17 @@ export function DashboardPage() {
         </div>
 
         <div className="stat-card">
-          <span>Пробег</span>
+          <span>Пробіг</span>
           <strong>{formatKm(generalTotals?.totalDistanceKm ?? 0)}</strong>
         </div>
 
         <div className="stat-card">
-          <span>Сработок</span>
+          <span>Спрацювань</span>
           <strong>{formatNumber(generalTotals?.totalAlarms ?? 0)}</strong>
         </div>
 
         <div className="stat-card">
-          <span>ОХ / Партнеры</span>
+          <span>ОХ / Партнери</span>
           <strong>
             {formatNumber(generalTotals?.totalOh ?? 0)} /{" "}
             {formatNumber(generalTotals?.totalPartner ?? 0)}
@@ -304,7 +304,7 @@ export function DashboardPage() {
         </div>
 
         <div className="stat-card">
-          <span>Задержано / Передано</span>
+          <span>Затримано / Передано</span>
           <strong>
             {formatNumber(generalTotals?.detained ?? 0)} /{" "}
             {formatNumber(generalTotals?.transferred ?? 0)}
@@ -316,13 +316,13 @@ export function DashboardPage() {
         <div className="panel-card">
           <div className="table-header">
             <div>
-              <h2>Топ співробітников по нагрузке</h2>
-              <p>С учетом нарядів ГБР и постовых дежурств</p>
+              <h2>Топ співробітників за навантаженням</h2>
+              <p>З урахуванням нарядів ГШР і постових чергувань</p>
             </div>
           </div>
 
           {topEmployees.length === 0 ? (
-            <div className="empty-state">Немає данных за вибраний период</div>
+            <div className="empty-state">Немає даних за вибраний період</div>
           ) : (
             <div className="table-wrap">
               <table className="data-table compact-data-table">
@@ -331,8 +331,8 @@ export function DashboardPage() {
                     <th>Співробітник</th>
                     <th>Місто</th>
                     <th>Змін</th>
-                    <th>Посты</th>
-                    <th>С оружием</th>
+                    <th>Пости</th>
+                    <th>Зі зброєю</th>
                   </tr>
                 </thead>
 
@@ -357,31 +357,31 @@ export function DashboardPage() {
         <div className="panel-card dashboard-insights-card">
           <div className="table-header">
             <div>
-              <h2>Итоги по постам</h2>
-              <p>Дежурства считаются как часы / 24</p>
+              <h2>Підсумки за постами</h2>
+              <p>Чергування рахуються як години / 24</p>
             </div>
           </div>
 
           <div className="dashboard-insights-list">
             <div className="dashboard-insight-card">
               <div className="dashboard-insight-head">
-                <strong>Додаткові посты</strong>
+                <strong>Додаткові пости</strong>
                 <span>Постові чергування</span>
               </div>
 
               <div className="dashboard-metric-grid">
                 <div className="dashboard-metric">
-                  <span>Эквивалент змін</span>
+                  <span>Еквівалент змін</span>
                   <strong>{formatNumber(postDutyEquivalent)}</strong>
                 </div>
 
                 <div className="dashboard-metric">
-                  <span>Часы</span>
+                  <span>Години</span>
                   <strong>{formatNumber(postDutyHours)}</strong>
                 </div>
 
                 <div className="dashboard-metric">
-                  <span>Выходы</span>
+                  <span>Виходи</span>
                   <strong>{formatNumber(postDutyCount)}</strong>
                 </div>
               </div>
@@ -390,7 +390,7 @@ export function DashboardPage() {
             <div className="dashboard-insight-card">
               <div className="dashboard-insight-head">
                 <strong>Спрацювання</strong>
-                <span>Оперативные показатели</span>
+                <span>Оперативні показники</span>
               </div>
 
               <div className="dashboard-metric-grid">
@@ -405,7 +405,7 @@ export function DashboardPage() {
                 </div>
 
                 <div className="dashboard-metric">
-                  <span>Партнеры</span>
+                  <span>Партнери</span>
                   <strong>
                     {formatNumber(generalTotals?.totalPartner ?? 0)}
                   </strong>
@@ -423,7 +423,7 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {loading && <div className="muted-text">Обновление данных...</div>}
+      {loading && <div className="muted-text">Оновлення даних...</div>}
     </div>
   );
 }

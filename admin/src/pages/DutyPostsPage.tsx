@@ -96,7 +96,7 @@ export function DutyPostsPage() {
         const postsData = await getDutyPosts({ includeInactive: true });
         setPosts(postsData);
       } catch (caught) {
-        setError(getErrorMessage(caught, "Не удалось загрузить посты"));
+        setError(getErrorMessage(caught, "Не вдалося завантажити пости"));
       } finally {
         setLoading(false);
       }
@@ -137,20 +137,20 @@ export function DutyPostsPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!form.cityId) return setError("Выберите город");
-    if (!form.departmentId) return setError("Выберите подразделение");
-    if (!form.name.trim()) return setError("Введите название поста");
-    if (!form.login.trim()) return setError("Введите логин приложения");
+    if (!form.cityId) return setError("Оберіть місто");
+    if (!form.departmentId) return setError("Оберіть підрозділ");
+    if (!form.name.trim()) return setError("Введіть назву поста");
+    if (!form.login.trim()) return setError("Введіть логін застосунку");
 
     if (!editingPost) {
-      if (!form.password) return setError("Введите пароль");
-      if (form.password.length < 6) return setError("Пароль должен быть минимум 6 символов");
-      if (form.password !== form.confirmPassword) return setError("Пароли не совпадают");
+      if (!form.password) return setError("Введіть пароль");
+      if (form.password.length < 6) return setError("Пароль має містити щонайменше 6 символів");
+      if (form.password !== form.confirmPassword) return setError("Паролі не збігаються");
     }
 
     if (editingPost && (form.newPassword || form.confirmNewPassword)) {
-      if (form.newPassword.length < 6) return setError("Новий пароль должен быть минимум 6 символов");
-      if (form.newPassword !== form.confirmNewPassword) return setError("Новые пароли не совпадают");
+      if (form.newPassword.length < 6) return setError("Новий пароль має містити щонайменше 6 символів");
+      if (form.newPassword !== form.confirmNewPassword) return setError("Нові паролі не збігаються");
     }
 
     setSaving(true);
@@ -174,25 +174,25 @@ export function DutyPostsPage() {
         setSuccess("Пост оновлено");
       } else {
         await createDutyPost({ ...basePayload, password: form.password, confirmPassword: form.confirmPassword });
-        setSuccess("Пост создан. Логін и пароль можно передать пользователю приложения.");
+        setSuccess("Пост створено. Логін і пароль можна передати користувачу застосунку.");
       }
       resetForm();
       await loadPosts();
     } catch (caught) {
-      setError(getErrorMessage(caught, "Не удалось зберегти пост"));
+      setError(getErrorMessage(caught, "Не вдалося зберегти пост"));
     } finally {
       setSaving(false);
     }
   }
 
   async function handleArchive(post: DutyPost) {
-    if (!window.confirm(`Отправить пост "${post.name}" в архив? Користувач приложения тоже будет отключен.`)) return;
+    if (!window.confirm(`Перемістити пост "${post.name}" до архіву? Користувача застосунку також буде вимкнено.`)) return;
     try {
       await deleteDutyPost(post.id);
-      setSuccess("Пост відправлено в архив");
+      setSuccess("Пост переміщено до архіву");
       await loadPosts();
     } catch (caught) {
-      setError(getErrorMessage(caught, "Не удалось отправить пост в архив"));
+      setError(getErrorMessage(caught, "Не вдалося перемістити пост до архіву"));
     }
   }
 
@@ -202,7 +202,7 @@ export function DutyPostsPage() {
       setSuccess("Пост відновлено");
       await loadPosts();
     } catch (caught) {
-      setError(getErrorMessage(caught, "Не удалось восстановить пост"));
+      setError(getErrorMessage(caught, "Не вдалося відновити пост"));
     }
   }
 
@@ -227,20 +227,20 @@ export function DutyPostsPage() {
 
   return (
     <div className="page-card">
-      <div className="page-header"><div><h1>Дод. пости</h1><p>Пост создается вместе с логином приложения и привязывается к підрозділу.</p></div></div>
+      <div className="page-header"><div><h1>Додаткові пости</h1><p>Пост створюється разом із логіном застосунку та прив’язується до підрозділу.</p></div></div>
       {error && <div className="alert alert-error">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
 
       {canEdit && !showArchive && (
         <form className="form-grid" onSubmit={handleSubmit}>
-          <label>Місто<select value={form.cityId} onChange={(event) => handleFormCityChange(Number(event.target.value))}><option value={0}>Выберите город</option>{activeCities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></label>
-          <label>Підрозділ<select value={form.departmentId} onChange={(event) => setForm((prev) => ({ ...prev, departmentId: Number(event.target.value) }))}><option value={0}>Выберите подразделение</option>{formDepartments.map((department) => <option key={department.id} value={department.id}>{formatDepartmentOption(department, { showCity: false })}</option>)}</select></label>
+          <label>Місто<select value={form.cityId} onChange={(event) => handleFormCityChange(Number(event.target.value))}><option value={0}>Оберіть місто</option>{activeCities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></label>
+          <label>Підрозділ<select value={form.departmentId} onChange={(event) => setForm((prev) => ({ ...prev, departmentId: Number(event.target.value) }))}><option value={0}>Оберіть підрозділ</option>{formDepartments.map((department) => <option key={department.id} value={department.id}>{formatDepartmentOption(department, { showCity: false })}</option>)}</select></label>
           <label>Назва поста<input value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} /></label>
-          <label>Логін приложения<input value={form.login} onChange={(event) => setForm((prev) => ({ ...prev, login: event.target.value }))} /></label>
-          {!editingPost && <><label>Пароль<input type="password" value={form.password} onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))} /></label><label>Подтвердить пароль<input type="password" value={form.confirmPassword} onChange={(event) => setForm((prev) => ({ ...prev, confirmPassword: event.target.value }))} /></label></>}
-          {editingPost && <><div className="alert alert-info">Текущий пароль не хранится в открытом виде. Для изменения задайте новый пароль.</div><label>Новий пароль<input type="password" value={form.newPassword} onChange={(event) => setForm((prev) => ({ ...prev, newPassword: event.target.value }))} /></label><label>Подтвердить новый пароль<input type="password" value={form.confirmNewPassword} onChange={(event) => setForm((prev) => ({ ...prev, confirmNewPassword: event.target.value }))} /></label></>}
+          <label>Логін застосунку<input value={form.login} onChange={(event) => setForm((prev) => ({ ...prev, login: event.target.value }))} /></label>
+          {!editingPost && <><label>Пароль<input type="password" value={form.password} onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))} /></label><label>Підтвердити пароль<input type="password" value={form.confirmPassword} onChange={(event) => setForm((prev) => ({ ...prev, confirmPassword: event.target.value }))} /></label></>}
+          {editingPost && <><div className="alert alert-info">Поточний пароль не зберігається у відкритому вигляді. Щоб змінити його, задайте новий пароль.</div><label>Новий пароль<input type="password" value={form.newPassword} onChange={(event) => setForm((prev) => ({ ...prev, newPassword: event.target.value }))} /></label><label>Підтвердити новий пароль<input type="password" value={form.confirmNewPassword} onChange={(event) => setForm((prev) => ({ ...prev, confirmNewPassword: event.target.value }))} /></label></>}
           <label>Коментар<input value={form.comment} onChange={(event) => setForm((prev) => ({ ...prev, comment: event.target.value }))} /></label>
-          <label className="checkbox-row"><input type="checkbox" checked={form.isActive} onChange={(event) => setForm((prev) => ({ ...prev, isActive: event.target.checked }))} />Активный</label>
+          <label className="checkbox-row"><input type="checkbox" checked={form.isActive} onChange={(event) => setForm((prev) => ({ ...prev, isActive: event.target.checked }))} />Активний</label>
           <div className="form-actions"><button type="submit" disabled={saving}>{saving ? "Збереження..." : editingPost ? "Оновити" : "Додати"}</button>{editingPost && <button type="button" className="secondary-button" onClick={resetForm}>Скасувати</button>}</div>
         </form>
       )}
@@ -251,7 +251,7 @@ export function DutyPostsPage() {
         <label>Стан<select value={showArchive ? "archive" : "active"} onChange={(event) => handleArchiveFilterChange(event.target.value)}><option value="active">Активні</option><option value="archive">Архів</option></select></label>
       </div>
 
-      {loading ? <p>Завантаження...</p> : <div className="table-wrapper"><table><thead><tr><th>Пост</th><th>Логін</th><th>Місто</th><th>Підрозділ</th><th>Коментар</th><th>Статус</th><th></th></tr></thead><tbody>{posts.map((post) => <tr key={post.id}><td>{post.name}</td><td>{post.login || post.mobileUser?.login || "—"}</td><td>{post.city?.name || post.cityId}</td><td>{post.department ? formatDepartmentOption(post.department, { showCity: !selectedCityId }) : post.departmentId}</td><td>{post.comment || "—"}</td><td>{post.deletedAt ? "Архів" : post.isActive ? "Активний" : "Вимкнений"}</td><td>{canEdit && <RowActionMenu items={showArchive ? [{ label: "Відновити", onClick: () => handleRestore(post), variant: "edit" }] : [{ label: "Редагувати", onClick: () => startEdit(post), variant: "edit" }, { label: "В архів", onClick: () => handleArchive(post), variant: "danger" }]} />}</td></tr>)}{posts.length === 0 && <tr><td colSpan={7}>Немає постов</td></tr>}</tbody></table></div>}
+      {loading ? <p>Завантаження...</p> : <div className="table-wrapper"><table><thead><tr><th>Пост</th><th>Логін</th><th>Місто</th><th>Підрозділ</th><th>Коментар</th><th>Статус</th><th></th></tr></thead><tbody>{posts.map((post) => <tr key={post.id}><td>{post.name}</td><td>{post.login || post.mobileUser?.login || "—"}</td><td>{post.city?.name || post.cityId}</td><td>{post.department ? formatDepartmentOption(post.department, { showCity: !selectedCityId }) : post.departmentId}</td><td>{post.comment || "—"}</td><td>{post.deletedAt ? "Архів" : post.isActive ? "Активний" : "Вимкнений"}</td><td>{canEdit && <RowActionMenu items={showArchive ? [{ label: "Відновити", onClick: () => handleRestore(post), variant: "edit" }] : [{ label: "Редагувати", onClick: () => startEdit(post), variant: "edit" }, { label: "До архіву", onClick: () => handleArchive(post), variant: "danger" }]} />}</td></tr>)}{posts.length === 0 && <tr><td colSpan={7}>Немає постів</td></tr>}</tbody></table></div>}
     </div>
   );
 }

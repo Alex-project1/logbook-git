@@ -32,42 +32,42 @@ const metricOptions: {
   {
     value: "totalShifts",
     label: "Усього змін",
-    hint: "С учетом часов: 24ч = 1 зміна",
+    hint: "З урахуванням годин: 24 год = 1 зміна",
   },
   {
     value: "totalTrips",
     label: "Усього поїздок",
-    hint: "Количество поїздок",
+    hint: "Кількість поїздок",
   },
   {
     value: "totalDistanceKm",
-    label: "Пробег",
-    hint: "Километры по поездкам",
+    label: "Пробіг",
+    hint: "Кілометри за поїздками",
   },
   {
     value: "totalAlarms",
     label: "Усього спрацювань",
-    hint: "ОХ + партнеры + додаткові",
+    hint: "ОХ + партнери + додаткові",
   },
   {
     value: "falseTotal",
     label: "Хибні",
-    hint: "Хибні обычные спрацювання",
+    hint: "Хибні звичайні спрацювання",
   },
   {
     value: "combatTotal",
     label: "Бойові",
-    hint: "Бойові обычные спрацювання",
+    hint: "Бойові звичайні спрацювання",
   },
   {
     value: "additionalTotal",
     label: "Додаткові",
-    hint: "С подпунктами причин",
+    hint: "З підпунктами причин",
   },
   {
     value: "detained",
-    label: "Задержано",
-    hint: "С подпунктом передано в полицию",
+    label: "Затримано",
+    hint: "З підпунктом передано до поліції",
   },
 ];
 
@@ -84,7 +84,7 @@ function toDateInput(date: Date) {
 function formatDateLabel(value: string) {
   if (!value) return "—";
 
-  return new Date(`${value}T00:00:00`).toLocaleDateString("ru-RU");
+  return new Date(`${value}T00:00:00`).toLocaleDateString("uk-UA");
 }
 
 function formatPeriodLabel(dateFrom: string, dateTo: string) {
@@ -138,7 +138,7 @@ function getPeriodRange(params: {
 }
 
 function formatNumber(value: number) {
-  return value.toLocaleString("ru-RU", {
+  return value.toLocaleString("uk-UA", {
     maximumFractionDigits: 2,
   });
 }
@@ -164,7 +164,7 @@ function CustomReportTableView({
     <div className="panel-card custom-report-table-card">
       <AccordionSection
         title={title}
-        subtitle={periodLabel || "Кастомная таблица по вибраними показателям"}
+        subtitle={periodLabel || "Користувацька таблиця за вибраними показниками"}
         open={open}
         onToggle={onToggle}
       >
@@ -172,7 +172,7 @@ function CustomReportTableView({
           <table className="data-table custom-report-table">
             <thead>
               <tr>
-                <th>Показатель</th>
+                <th>Показник</th>
                 {table.columns.map((column) => (
                   <th key={column.key}>{column.label}</th>
                 ))}
@@ -233,13 +233,13 @@ function SimpleBarChart({
       <div className="table-header">
         <div>
           <h2>{title}</h2>
-          <p>График построен по сформированной таблице</p>
+          <p>Графік побудовано за сформованою таблицею</p>
         </div>
       </div>
 
       <div className="custom-bars">
         {rows.length === 0 ? (
-          <div className="empty-state">Немає данных для графика</div>
+          <div className="empty-state">Немає даних для графіка</div>
         ) : (
           rows.map((row) => (
             <div className="custom-bar-row" key={row.label}>
@@ -291,15 +291,15 @@ function AlarmGroupComparisonChart({
         <div>
           <h2>{title}</h2>
           <p>
-            Усього спрацювань = обычные + додаткові. Хибні и бойові относятся
-            только к обычным спрацюваннями.
+            Усього спрацювань = звичайні + додаткові. Хибні й бойові належать
+            лише до звичайних спрацювань.
           </p>
         </div>
       </div>
 
       <div className="alarm-comparison-list">
         {rows.length === 0 ? (
-          <div className="empty-state">Немає данных для графика</div>
+          <div className="empty-state">Немає даних для графіка</div>
         ) : (
           rows.map((row) => (
             <div className="alarm-comparison-card" key={row.name}>
@@ -393,14 +393,14 @@ function PeriodComparisonChart({
     <div className="panel-card custom-chart-card">
       <div className="table-header">
         <div>
-          <h2>Сравнение периодов</h2>
-          <p>Основной период сравнивается с вибраними периодом сравнения</p>
+          <h2>Порівняння періодів</h2>
+          <p>Основний період порівнюється з вибраним періодом порівняння</p>
         </div>
       </div>
 
       <div className="period-comparison-list">
         {rows.length === 0 ? (
-          <div className="empty-state">Немає данных для сравнения</div>
+          <div className="empty-state">Немає даних для порівняння</div>
         ) : (
           rows.map((row) => {
             const compare = row.compare ?? 0;
@@ -420,7 +420,7 @@ function PeriodComparisonChart({
                 </div>
 
                 <div className="period-metric-row">
-                  <span>Основной</span>
+                  <span>Основний</span>
 
                   <div className="period-metric-track">
                     <div
@@ -435,7 +435,7 @@ function PeriodComparisonChart({
                 </div>
 
                 <div className="period-metric-row">
-                  <span>Сравнение</span>
+                  <span>Порівняння</span>
 
                   <div className="period-metric-track">
                     <div
@@ -554,7 +554,7 @@ export function ReportsCustomPage() {
         setCities(citiesData);
         setTripGoals(goalsData);
       } catch {
-        setError("Не удалось загрузить справочники");
+        setError("Не вдалося завантажити довідники");
       } finally {
         setReferencesLoading(false);
       }
@@ -634,7 +634,7 @@ export function ReportsCustomPage() {
 
   async function handleBuildReport() {
     if (metrics.length === 0) {
-      setError("Выберите хотя бы один показатель");
+      setError("Оберіть хоча б один показник");
       setOpenedSections((prev) => ({
         ...prev,
         settings: true,
@@ -646,12 +646,12 @@ export function ReportsCustomPage() {
     const { mainPeriod, comparePeriod, filters } = buildCurrentReportRequest();
 
     setMainPeriodLabel(
-      `Основной период: ${formatPeriodLabel(mainPeriod.dateFrom, mainPeriod.dateTo)}`,
+      `Основний період: ${formatPeriodLabel(mainPeriod.dateFrom, mainPeriod.dateTo)}`,
     );
 
     setComparePeriodLabel(
       compareEnabled
-        ? `Период сравнения: ${formatPeriodLabel(
+        ? `Період порівняння: ${formatPeriodLabel(
             comparePeriod.dateFrom,
             comparePeriod.dateTo,
           )}`
@@ -673,7 +673,7 @@ export function ReportsCustomPage() {
         charts: true,
       }));
     } catch (err: any) {
-      setError(err.response?.data?.message || "Не удалось сформировать звіт");
+      setError(err.response?.data?.message || "Не вдалося сформувати звіт");
     } finally {
       setLoading(false);
     }
@@ -681,7 +681,7 @@ export function ReportsCustomPage() {
 
   async function handleDownloadExcel() {
     if (metrics.length === 0) {
-      setError("Выберите хотя бы один показатель");
+      setError("Оберіть хоча б один показник");
       setOpenedSections((prev) => ({
         ...prev,
         settings: true,
@@ -693,12 +693,12 @@ export function ReportsCustomPage() {
     const { mainPeriod, comparePeriod, filters } = buildCurrentReportRequest();
 
     setMainPeriodLabel(
-      `Основной период: ${formatPeriodLabel(mainPeriod.dateFrom, mainPeriod.dateTo)}`,
+      `Основний період: ${formatPeriodLabel(mainPeriod.dateFrom, mainPeriod.dateTo)}`,
     );
 
     setComparePeriodLabel(
       compareEnabled
-        ? `Период сравнения: ${formatPeriodLabel(
+        ? `Період порівняння: ${formatPeriodLabel(
             comparePeriod.dateFrom,
             comparePeriod.dateTo,
           )}`
@@ -711,7 +711,7 @@ export function ReportsCustomPage() {
     try {
       await downloadCustomReportExcel(filters);
     } catch (err: any) {
-      setError(err.response?.data?.message || "Не удалось скачать Excel");
+      setError(err.response?.data?.message || "Не вдалося завантажити Excel");
     } finally {
       setExcelDownloading(false);
     }
@@ -731,25 +731,25 @@ export function ReportsCustomPage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Кастомный звіт</h1>
+          <h1>Користувацький звіт</h1>
           <p>
-            Настраиваемая аналитика по периодам, городам, нарядами и показателям
+            Налаштовувана аналітика за періодами, містами, нарядами та показниками
           </p>
         </div>
       </div>
 
       <div className="panel-card report-filters">
         <AccordionSection
-          title="Настройки звіта"
-          subtitle="Период, город, детализация, показатели и сравнение"
+          title="Налаштування звіту"
+          subtitle="Період, місто, деталізація, показники та порівняння"
           open={openedSections.settings}
           onToggle={() => toggleSection("settings")}
         >
           <div className="custom-report-toolbar">
             <div>
-              <strong>Параметры формирования</strong>
+              <strong>Параметри формування</strong>
               <span>
-                {mainPeriodLabel || "По умолчанию выбран текущий месяц"}
+                {mainPeriodLabel || "За замовчуванням обрано поточний місяць"}
               </span>
             </div>
 
@@ -759,7 +759,7 @@ export function ReportsCustomPage() {
                 onClick={handleBuildReport}
                 disabled={loading || referencesLoading}
               >
-                {loading ? "Формируем..." : "Сформировать"}
+                {loading ? "Формуємо..." : "Сформувати"}
               </button>
 
               <button
@@ -768,30 +768,30 @@ export function ReportsCustomPage() {
                 onClick={handleDownloadExcel}
                 disabled={excelDownloading || loading || referencesLoading}
               >
-                {excelDownloading ? "Скачиваем..." : "Скачать Excel"}
+                {excelDownloading ? "Завантажуємо..." : "Завантажити Excel"}
               </button>
             </div>
           </div>
 
           <div className="custom-report-filter-grid">
             <label className="field">
-              <span>Период</span>
+              <span>Період</span>
               <select
                 value={periodMode}
                 onChange={(event) =>
                   setPeriodMode(event.target.value as PeriodMode)
                 }
               >
-                <option value="month">Месяц</option>
+                <option value="month">Місяць</option>
                 <option value="quarter">Квартал</option>
-                <option value="year">Год</option>
-                <option value="custom">Произвольный период</option>
+                <option value="year">Рік</option>
+                <option value="custom">Довільний період</option>
               </select>
             </label>
 
             {periodMode !== "custom" && (
               <label className="field">
-                <span>Год</span>
+                <span>Рік</span>
                 <select
                   value={periodYear}
                   onChange={(event) =>
@@ -809,7 +809,7 @@ export function ReportsCustomPage() {
 
             {periodMode === "month" && (
               <label className="field">
-                <span>Месяц</span>
+                <span>Місяць</span>
                 <select
                   value={periodMonth}
                   onChange={(event) =>
@@ -836,10 +836,10 @@ export function ReportsCustomPage() {
                     setPeriodQuarter(Number(event.target.value))
                   }
                 >
-                  <option value={1}>1 квартал</option>
-                  <option value={2}>2 квартал</option>
-                  <option value={3}>3 квартал</option>
-                  <option value={4}>4 квартал</option>
+                  <option value={1}>1-й квартал</option>
+                  <option value={2}>2-й квартал</option>
+                  <option value={3}>3-й квартал</option>
+                  <option value={4}>4-й квартал</option>
                 </select>
               </label>
             )}
@@ -880,7 +880,7 @@ export function ReportsCustomPage() {
                 }}
                 disabled={referencesLoading}
               >
-                <option value={0}>Все доступные города</option>
+                <option value={0}>Усі доступні міста</option>
 
                 {cities.map((city) => (
                   <option key={city.id} value={city.id}>
@@ -891,7 +891,7 @@ export function ReportsCustomPage() {
             </label>
 
             <label className="field">
-              <span>Детализация</span>
+              <span>Деталізація</span>
               <select
                 value={groupMode}
                 onChange={(event) =>
@@ -899,7 +899,7 @@ export function ReportsCustomPage() {
                 }
                 disabled={!cityId}
               >
-                <option value="city">По городам</option>
+                <option value="city">За містами</option>
                 <option value="crew">За нарядами вибраного міста</option>
               </select>
             </label>
@@ -907,15 +907,15 @@ export function ReportsCustomPage() {
 
           <div className="custom-report-section">
             <AccordionSection
-              title="Показатели"
-              subtitle={`Выбрано: ${metrics.length} из ${metricOptions.length}`}
+              title="Показники"
+              subtitle={`Обрано: ${metrics.length} із ${metricOptions.length}`}
               open={openedSections.metrics}
               onToggle={() => toggleSection("metrics")}
             >
               <div className="custom-report-section-header">
                 <div>
-                  <strong>Показатели таблицы</strong>
-                  <span>Выберите строки, которые нужно показать в звіте</span>
+                  <strong>Показники таблиці</strong>
+                  <span>Оберіть рядки, які потрібно показати у звіті</span>
                 </div>
 
                 <div className="table-header-actions">
@@ -924,7 +924,7 @@ export function ReportsCustomPage() {
                     className="secondary-button"
                     onClick={selectAllMetrics}
                   >
-                    Выбрать все
+                    Обрати всі
                   </button>
 
                   <button
@@ -932,7 +932,7 @@ export function ReportsCustomPage() {
                     className="secondary-button"
                     onClick={clearMetrics}
                   >
-                    Снять все
+                    Зняти всі
                   </button>
                 </div>
               </div>
@@ -961,17 +961,17 @@ export function ReportsCustomPage() {
               title="Цілі поїздок"
               subtitle={
                 tripGoalIds.length
-                  ? `Дополнительных строк: ${tripGoalIds.length}`
-                  : "Цели не выбраны — додаткові строки не добавляются"
+                  ? `Додаткових рядків: ${tripGoalIds.length}`
+                  : "Цілі не обрано — додаткові рядки не додаються"
               }
               open={openedSections.tripGoals}
               onToggle={() => toggleSection("tripGoals")}
             >
               <div className="custom-report-section-header">
                 <div>
-                  <strong>Додаткові строки по целям</strong>
+                  <strong>Додаткові рядки за цілями</strong>
                   <span>
-                    Выбранные цели добавляются вложенными строками под “Усього
+                    Обрані цілі додаються вкладеними рядками під “Усього
                     поїздок”
                   </span>
                 </div>
@@ -982,7 +982,7 @@ export function ReportsCustomPage() {
                     className="secondary-button"
                     onClick={selectAllTripGoals}
                   >
-                    Выбрать все
+                    Обрати всі
                   </button>
 
                   <button
@@ -990,7 +990,7 @@ export function ReportsCustomPage() {
                     className="secondary-button"
                     onClick={clearTripGoals}
                   >
-                    Сбросить цели
+                    Скинути цілі
                   </button>
                 </div>
               </div>
@@ -1006,7 +1006,7 @@ export function ReportsCustomPage() {
 
                     <span>
                       <strong>{goal.name}</strong>
-                      <small>Додати отдельную строку в звіт</small>
+                      <small>Додати окремий рядок у звіт</small>
                     </span>
                   </label>
                 ))}
@@ -1016,11 +1016,11 @@ export function ReportsCustomPage() {
 
           <div className="custom-report-section">
             <AccordionSection
-              title="Сравнительный период"
+              title="Порівняльний період"
               subtitle={
                 compareEnabled
-                  ? comparePeriodLabel || "Сравнение включено"
-                  : "Сравнение выключено"
+                  ? comparePeriodLabel || "Порівняння увімкнено"
+                  : "Порівняння вимкнено"
               }
               open={openedSections.compare}
               onToggle={() => toggleSection("compare")}
@@ -1031,14 +1031,14 @@ export function ReportsCustomPage() {
                   checked={compareEnabled}
                   onChange={(event) => setCompareEnabled(event.target.checked)}
                 />
-                <span>Додати сравнительный звіт</span>
+                <span>Додати порівняльний звіт</span>
               </label>
 
               {compareEnabled && (
                 <div className="custom-report-filter-grid">
                   {periodMode !== "custom" && (
                     <label className="field">
-                      <span>Год сравнения</span>
+                      <span>Рік порівняння</span>
                       <select
                         value={compareYear}
                         onChange={(event) =>
@@ -1056,7 +1056,7 @@ export function ReportsCustomPage() {
 
                   {periodMode === "month" && (
                     <label className="field">
-                      <span>Месяц сравнения</span>
+                      <span>Місяць порівняння</span>
                       <select
                         value={compareMonth}
                         onChange={(event) =>
@@ -1077,17 +1077,17 @@ export function ReportsCustomPage() {
 
                   {periodMode === "quarter" && (
                     <label className="field">
-                      <span>Квартал сравнения</span>
+                      <span>Квартал порівняння</span>
                       <select
                         value={compareQuarter}
                         onChange={(event) =>
                           setCompareQuarter(Number(event.target.value))
                         }
                       >
-                        <option value={1}>1 квартал</option>
-                        <option value={2}>2 квартал</option>
-                        <option value={3}>3 квартал</option>
-                        <option value={4}>4 квартал</option>
+                        <option value={1}>1-й квартал</option>
+                        <option value={2}>2-й квартал</option>
+                        <option value={3}>3-й квартал</option>
+                        <option value={4}>4-й квартал</option>
                       </select>
                     </label>
                   )}
@@ -1095,7 +1095,7 @@ export function ReportsCustomPage() {
                   {periodMode === "custom" && (
                     <>
                       <label className="field">
-                        <span>Дата сравнения от</span>
+                        <span>Дата порівняння від</span>
                         <input
                           type="date"
                           value={compareDateFrom}
@@ -1106,7 +1106,7 @@ export function ReportsCustomPage() {
                       </label>
 
                       <label className="field">
-                        <span>Дата сравнения до</span>
+                        <span>Дата порівняння до</span>
                         <input
                           type="date"
                           value={compareDateTo}
@@ -1127,11 +1127,11 @@ export function ReportsCustomPage() {
       {error && <div className="form-error report-error">{error}</div>}
 
       {!report ? (
-        <div className="empty-state">Сформируйте звіт</div>
+        <div className="empty-state">Сформуйте звіт</div>
       ) : (
         <>
           <CustomReportTableView
-            title="Основной звіт"
+            title="Основний звіт"
             table={report.data.main.table}
             periodLabel={mainPeriodLabel}
             open={openedSections.mainTable}
@@ -1140,7 +1140,7 @@ export function ReportsCustomPage() {
 
           {report.data.compare && (
             <CustomReportTableView
-              title="Сравнительный звіт"
+              title="Порівняльний звіт"
               table={report.data.compare.table}
               periodLabel={comparePeriodLabel}
               open={openedSections.compareTable}
@@ -1150,8 +1150,8 @@ export function ReportsCustomPage() {
 
           <div className="panel-card custom-report-charts-card">
             <AccordionSection
-              title="Графики"
-              subtitle="Визуальная аналитика по сформированной таблице"
+              title="Графіки"
+              subtitle="Візуальна аналітика за сформованою таблицею"
               open={openedSections.charts}
               onToggle={() => toggleSection("charts")}
             >
@@ -1159,8 +1159,8 @@ export function ReportsCustomPage() {
                 <AlarmGroupComparisonChart
                   title={
                     cityId && groupMode === "crew"
-                      ? "Сравнение нарядів по спрацюваннями"
-                      : "Сравнение городов по спрацюваннями"
+                      ? "Порівняння нарядів за спрацюваннями"
+                      : "Порівняння міст за спрацюваннями"
                   }
                   rows={report.data.charts.byGroups.map((group) => ({
                     name: group.name,

@@ -105,7 +105,7 @@ export function CrewsPage() {
         const crewsData = await getCrews({ includeInactive: true });
         setCrews(crewsData);
       } catch (caught) {
-        setError(getErrorMessage(caught, "Не удалось загрузить наряди"));
+        setError(getErrorMessage(caught, "Не вдалося завантажити наряди"));
       } finally {
         setLoading(false);
       }
@@ -157,23 +157,23 @@ export function CrewsPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!form.cityId) return setError("Выберите город");
-    if (!form.departmentId) return setError("Выберите подразделение ГШР");
-    if (!form.name.trim()) return setError("Введите позывной наряда");
-    if (!form.login.trim()) return setError("Введите логин приложения");
+    if (!form.cityId) return setError("Оберіть місто");
+    if (!form.departmentId) return setError("Оберіть підрозділ ГШР");
+    if (!form.name.trim()) return setError("Введіть позивний наряду");
+    if (!form.login.trim()) return setError("Введіть логін застосунку");
 
     const durationHours = form.dutyType === "FULL_DAY" ? 24 : Number(form.durationHours);
-    if (!Number.isFinite(durationHours) || durationHours <= 0 || durationHours > 24) return setError("Укажите длительность от 0 до 24 часов");
+    if (!Number.isFinite(durationHours) || durationHours <= 0 || durationHours > 24) return setError("Вкажіть тривалість від 0 до 24 годин");
 
     if (!editingCrew) {
-      if (!form.password) return setError("Введите пароль");
-      if (form.password.length < 6) return setError("Пароль должен быть минимум 6 символов");
-      if (form.password !== form.confirmPassword) return setError("Пароли не совпадают");
+      if (!form.password) return setError("Введіть пароль");
+      if (form.password.length < 6) return setError("Пароль має містити щонайменше 6 символів");
+      if (form.password !== form.confirmPassword) return setError("Паролі не збігаються");
     }
 
     if (editingCrew && (form.newPassword || form.confirmNewPassword)) {
-      if (form.newPassword.length < 6) return setError("Новий пароль должен быть минимум 6 символов");
-      if (form.newPassword !== form.confirmNewPassword) return setError("Новые пароли не совпадают");
+      if (form.newPassword.length < 6) return setError("Новий пароль має містити щонайменше 6 символів");
+      if (form.newPassword !== form.confirmNewPassword) return setError("Нові паролі не збігаються");
     }
 
     setSaving(true);
@@ -200,26 +200,26 @@ export function CrewsPage() {
         setSuccess("Наряд оновлено");
       } else {
         await createCrew({ ...basePayload, password: form.password, confirmPassword: form.confirmPassword });
-        setSuccess("Наряд создан. Логін и пароль можно передать пользователю приложения.");
+        setSuccess("Наряд створено. Логін і пароль можна передати користувачу застосунку.");
       }
 
       resetForm();
       await loadCrews();
     } catch (caught) {
-      setError(getErrorMessage(caught, "Не удалось зберегти наряд"));
+      setError(getErrorMessage(caught, "Не вдалося зберегти наряд"));
     } finally {
       setSaving(false);
     }
   }
 
   async function handleArchive(crew: Crew) {
-    if (!window.confirm(`Отправить наряд "${crew.name}" в архив? Користувач приложения тоже будет отключен.`)) return;
+    if (!window.confirm(`Перемістити наряд "${crew.name}" до архіву? Користувача застосунку також буде вимкнено.`)) return;
     try {
       await deleteCrew(crew.id);
-      setSuccess("Наряд відправлено в архив");
+      setSuccess("Наряд переміщено до архіву");
       await loadCrews();
     } catch (caught) {
-      setError(getErrorMessage(caught, "Не удалось отправить наряд в архив"));
+      setError(getErrorMessage(caught, "Не вдалося перемістити наряд до архіву"));
     }
   }
 
@@ -229,7 +229,7 @@ export function CrewsPage() {
       setSuccess("Наряд відновлено");
       await loadCrews();
     } catch (caught) {
-      setError(getErrorMessage(caught, "Не удалось восстановить наряд"));
+      setError(getErrorMessage(caught, "Не вдалося відновити наряд"));
     }
   }
 
@@ -254,34 +254,34 @@ export function CrewsPage() {
 
   return (
     <div className="page-card">
-      <div className="page-header"><div><h1>Наряди ГБР</h1><p>Наряд создается вместе с логином приложения и привязывается к підрозділу ГШР.</p></div></div>
+      <div className="page-header"><div><h1>Наряди ГШР</h1><p>Наряд створюється разом із логіном застосунку та прив’язується до підрозділу ГШР.</p></div></div>
       {error && <div className="alert alert-error">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
 
       {canEdit && !showArchive && (
         <form className="form-grid" onSubmit={handleSubmit}>
-          <label>Місто<select value={form.cityId} onChange={(event) => handleFormCityChange(Number(event.target.value))}><option value={0}>Выберите город</option>{activeCities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></label>
-          <label>Підрозділ ГШР<select value={form.departmentId} onChange={(event) => setForm((prev) => ({ ...prev, departmentId: Number(event.target.value) }))}><option value={0}>Выберите ГШР</option>{formDepartments.map((department) => <option key={department.id} value={department.id}>{formatDepartmentOption(department, { showCity: false, showType: false })}</option>)}</select></label>
-          <label>Позывной<input value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} /></label>
-          <label>Логін приложения<input value={form.login} onChange={(event) => setForm((prev) => ({ ...prev, login: event.target.value }))} /></label>
-          {!editingCrew && <><label>Пароль<input type="password" value={form.password} onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))} /></label><label>Подтвердить пароль<input type="password" value={form.confirmPassword} onChange={(event) => setForm((prev) => ({ ...prev, confirmPassword: event.target.value }))} /></label></>}
-          {editingCrew && <><div className="alert alert-info">Текущий пароль не хранится в открытом виде. Для изменения задайте новый пароль.</div><label>Новий пароль<input type="password" value={form.newPassword} onChange={(event) => setForm((prev) => ({ ...prev, newPassword: event.target.value }))} /></label><label>Подтвердить новый пароль<input type="password" value={form.confirmNewPassword} onChange={(event) => setForm((prev) => ({ ...prev, confirmNewPassword: event.target.value }))} /></label></>}
-          <label>Тип наряда<select value={form.dutyType} onChange={(event) => handleDutyTypeChange(event.target.value as CrewDutyType)}><option value="FULL_DAY">Добовий</option><option value="DAY">Денний</option><option value="NIGHT">Нічний</option></select></label>
+          <label>Місто<select value={form.cityId} onChange={(event) => handleFormCityChange(Number(event.target.value))}><option value={0}>Оберіть місто</option>{activeCities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></label>
+          <label>Підрозділ ГШР<select value={form.departmentId} onChange={(event) => setForm((prev) => ({ ...prev, departmentId: Number(event.target.value) }))}><option value={0}>Оберіть ГШР</option>{formDepartments.map((department) => <option key={department.id} value={department.id}>{formatDepartmentOption(department, { showCity: false, showType: false })}</option>)}</select></label>
+          <label>Позивний<input value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} /></label>
+          <label>Логін застосунку<input value={form.login} onChange={(event) => setForm((prev) => ({ ...prev, login: event.target.value }))} /></label>
+          {!editingCrew && <><label>Пароль<input type="password" value={form.password} onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))} /></label><label>Підтвердити пароль<input type="password" value={form.confirmPassword} onChange={(event) => setForm((prev) => ({ ...prev, confirmPassword: event.target.value }))} /></label></>}
+          {editingCrew && <><div className="alert alert-info">Поточний пароль не зберігається у відкритому вигляді. Щоб змінити його, задайте новий пароль.</div><label>Новий пароль<input type="password" value={form.newPassword} onChange={(event) => setForm((prev) => ({ ...prev, newPassword: event.target.value }))} /></label><label>Підтвердити новий пароль<input type="password" value={form.confirmNewPassword} onChange={(event) => setForm((prev) => ({ ...prev, confirmNewPassword: event.target.value }))} /></label></>}
+          <label>Тип наряду<select value={form.dutyType} onChange={(event) => handleDutyTypeChange(event.target.value as CrewDutyType)}><option value="FULL_DAY">Добовий</option><option value="DAY">Денний</option><option value="NIGHT">Нічний</option></select></label>
           <label>Транспорт<select value={form.transportType} onChange={(event) => setForm((prev) => ({ ...prev, transportType: event.target.value as CrewTransportType }))}><option value="AUTO">Авто</option><option value="MOTO">Мото</option></select></label>
-          <label>Длительность, часов<input disabled={form.dutyType === "FULL_DAY"} value={form.durationHours} onChange={(event) => setForm((prev) => ({ ...prev, durationHours: event.target.value.replace(/[^0-9.,]/g, "").replace(",", ".") }))} /></label>
+          <label>Тривалість, годин<input disabled={form.dutyType === "FULL_DAY"} value={form.durationHours} onChange={(event) => setForm((prev) => ({ ...prev, durationHours: event.target.value.replace(/[^0-9.,]/g, "").replace(",", ".") }))} /></label>
           <label>Коментар<input value={form.comment} onChange={(event) => setForm((prev) => ({ ...prev, comment: event.target.value }))} /></label>
-          <label className="checkbox-row"><input type="checkbox" checked={form.isActive} onChange={(event) => setForm((prev) => ({ ...prev, isActive: event.target.checked }))} />Активный</label>
+          <label className="checkbox-row"><input type="checkbox" checked={form.isActive} onChange={(event) => setForm((prev) => ({ ...prev, isActive: event.target.checked }))} />Активний</label>
           <div className="form-actions"><button type="submit" disabled={saving}>{saving ? "Збереження..." : editingCrew ? "Оновити" : "Додати"}</button>{editingCrew && <button type="button" className="secondary-button" onClick={resetForm}>Скасувати</button>}</div>
         </form>
       )}
 
       <div className="filters-row">
         <label>Місто<select value={selectedCityId} onChange={(event) => handleCityFilterChange(Number(event.target.value))}><option value={0}>Усі міста</option>{cities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></label>
-        <label>Підрозділ<select value={selectedDepartmentId} onChange={(event) => handleDepartmentFilterChange(Number(event.target.value))}><option value={0}>Все ГШР</option>{filterDepartments.map((department) => <option key={department.id} value={department.id}>{formatDepartmentOption(department, { showCity: !selectedCityId, showType: false })}</option>)}</select></label>
+        <label>Підрозділ<select value={selectedDepartmentId} onChange={(event) => handleDepartmentFilterChange(Number(event.target.value))}><option value={0}>Усі ГШР</option>{filterDepartments.map((department) => <option key={department.id} value={department.id}>{formatDepartmentOption(department, { showCity: !selectedCityId, showType: false })}</option>)}</select></label>
         <label>Стан<select value={showArchive ? "archive" : "active"} onChange={(event) => handleArchiveFilterChange(event.target.value)}><option value="active">Активні</option><option value="archive">Архів</option></select></label>
       </div>
 
-      {loading ? <p>Завантаження...</p> : <div className="table-wrapper"><table><thead><tr><th>Позывной</th><th>Логін</th><th>Місто</th><th>Підрозділ</th><th>Тип</th><th>Транспорт</th><th>Часы</th><th>Статус</th><th></th></tr></thead><tbody>{crews.map((crew) => <tr key={crew.id}><td>{crew.name}</td><td>{crew.login || crew.mobileUser?.login || "—"}</td><td>{crew.city?.name || crew.cityId}</td><td>{crew.department ? formatDepartmentOption(crew.department, { showCity: !selectedCityId, showType: false }) : crew.departmentId}</td><td>{dutyTypeLabels[crew.dutyType]}</td><td>{transportTypeLabels[crew.transportType]}</td><td>{crew.durationHours}</td><td>{crew.deletedAt ? "Архів" : crew.isActive ? "Активний" : "Вимкнений"}</td><td>{canEdit && <RowActionMenu items={showArchive ? [{ label: "Відновити", onClick: () => handleRestore(crew), variant: "edit" }] : [{ label: "Редагувати", onClick: () => startEdit(crew), variant: "edit" }, { label: "В архів", onClick: () => handleArchive(crew), variant: "danger" }]} />}</td></tr>)}{crews.length === 0 && <tr><td colSpan={9}>Немає нарядів</td></tr>}</tbody></table></div>}
+      {loading ? <p>Завантаження...</p> : <div className="table-wrapper"><table><thead><tr><th>Позивний</th><th>Логін</th><th>Місто</th><th>Підрозділ</th><th>Тип</th><th>Транспорт</th><th>Години</th><th>Статус</th><th></th></tr></thead><tbody>{crews.map((crew) => <tr key={crew.id}><td>{crew.name}</td><td>{crew.login || crew.mobileUser?.login || "—"}</td><td>{crew.city?.name || crew.cityId}</td><td>{crew.department ? formatDepartmentOption(crew.department, { showCity: !selectedCityId, showType: false }) : crew.departmentId}</td><td>{dutyTypeLabels[crew.dutyType]}</td><td>{transportTypeLabels[crew.transportType]}</td><td>{crew.durationHours}</td><td>{crew.deletedAt ? "Архів" : crew.isActive ? "Активний" : "Вимкнений"}</td><td>{canEdit && <RowActionMenu items={showArchive ? [{ label: "Відновити", onClick: () => handleRestore(crew), variant: "edit" }] : [{ label: "Редагувати", onClick: () => startEdit(crew), variant: "edit" }, { label: "До архіву", onClick: () => handleArchive(crew), variant: "danger" }]} />}</td></tr>)}{crews.length === 0 && <tr><td colSpan={9}>Немає нарядів</td></tr>}</tbody></table></div>}
     </div>
   );
 }

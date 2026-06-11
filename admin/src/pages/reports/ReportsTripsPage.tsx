@@ -31,18 +31,18 @@ const defaultFilters: TripsTableFilters = {
 };
 
 function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("ru-RU");
+  return new Date(value).toLocaleDateString("uk-UA");
 }
 
 function formatTime(value: string) {
-  return new Date(value).toLocaleTimeString("ru-RU", {
+  return new Date(value).toLocaleTimeString("uk-UA", {
     hour: "2-digit",
     minute: "2-digit",
   });
 }
 
 function formatNumber(value: number) {
-  return value.toLocaleString("ru-RU");
+  return value.toLocaleString("uk-UA");
 }
 
 function formatKm(value: number) {
@@ -51,11 +51,11 @@ function formatKm(value: number) {
 
 function getCombatLabel(row: TripTableRow) {
   if (row.eventTotals.combatTotal > 0 && row.eventTotals.falseTotal > 0) {
-    return "Есть бойові и хибні";
+    return "Є бойові та хибні";
   }
 
   if (row.eventTotals.combatTotal > 0) {
-    return "Боевая";
+    return "Бойова";
   }
 
   if (row.eventTotals.falseTotal > 0) {
@@ -156,7 +156,7 @@ export function ReportsTripsPage() {
       setReport(data);
       setExpandedRows({});
     } catch {
-      setError("Не удалось загрузить звіт по поездкам");
+      setError("Не вдалося завантажити звіт за поїздками");
     } finally {
       setLoading(false);
     }
@@ -237,6 +237,7 @@ export function ReportsTripsPage() {
       [rowId]: !prev[rowId],
     }));
   }
+
   async function handleExcel() {
     setExcelLoading(true);
     setError("");
@@ -244,17 +245,18 @@ export function ReportsTripsPage() {
     try {
       await downloadTripsTableExcel(filters);
     } catch {
-      setError("Не удалось скачать Excel");
+      setError("Не вдалося завантажити Excel");
     } finally {
       setExcelLoading(false);
     }
   }
+
   return (
     <div className="page">
       <div className="page-header">
         <div>
           <h1>Усі поїздки</h1>
-          <p>Маршрути из відправленоных змін с фильтрами, сортировкой и деталями спрацювань</p>
+          <p>Маршрути з надісланих змін із фільтрами, сортуванням і деталями спрацювань</p>
         </div>
       </div>
 
@@ -328,7 +330,7 @@ export function ReportsTripsPage() {
                 updateFilter("crewId", Number(event.target.value) || undefined)
               }
             >
-              <option value={0}>Все наряди</option>
+              <option value={0}>Усі наряди</option>
 
               {visibleCrews.map((crew) => (
                 <option key={crew.id} value={crew.id}>
@@ -346,7 +348,7 @@ export function ReportsTripsPage() {
                 updateFilter("vehicleId", Number(event.target.value) || undefined)
               }
             >
-              <option value={0}>Все автомобілі</option>
+              <option value={0}>Усі автомобілі</option>
 
               {visibleVehicles.map((vehicle) => (
                 <option key={vehicle.id} value={vehicle.id}>
@@ -365,7 +367,7 @@ export function ReportsTripsPage() {
                 updateFilter("employeeId", Number(event.target.value) || undefined)
               }
             >
-              <option value={0}>Все співробітники</option>
+              <option value={0}>Усі співробітники</option>
 
               {visibleEmployees.map((employee) => (
                 <option key={employee.id} value={employee.id}>
@@ -383,7 +385,7 @@ export function ReportsTripsPage() {
                 updateFilter("goalId", Number(event.target.value) || undefined)
               }
             >
-              <option value={0}>Все цели</option>
+              <option value={0}>Усі цілі</option>
 
               {tripGoals.map((goal) => (
                 <option key={goal.id} value={goal.id}>
@@ -406,14 +408,14 @@ export function ReportsTripsPage() {
                 )
               }
             >
-              <option value="">Все</option>
+              <option value="">Усі</option>
               <option value="OH">ОХ</option>
-              <option value="PARTNER">Партнеры</option>
+              <option value="PARTNER">Партнери</option>
             </select>
           </label>
 
           <label className="field">
-            <span>Боевая / хибна</span>
+            <span>Бойова / хибна</span>
             <select
               value={
                 typeof filters.isCombat === "boolean"
@@ -429,7 +431,7 @@ export function ReportsTripsPage() {
                 )
               }
             >
-              <option value="">Все</option>
+              <option value="">Усі</option>
               <option value="true">Бойові</option>
               <option value="false">Хибні</option>
             </select>
@@ -440,18 +442,18 @@ export function ReportsTripsPage() {
             <input
               value={filters.search ?? ""}
               onChange={(event) => updateFilter("search", event.target.value)}
-              placeholder="Адрес, наряд, авто, співробітник..."
+              placeholder="Адреса, наряд, авто, співробітник..."
             />
           </label>
         </div>
 
         <div className="report-filter-actions">
           <button className="primary-button" onClick={handleApply} disabled={loading}>
-            {loading ? "Завантаження..." : "Сформировать"}
+            {loading ? "Завантаження..." : "Сформувати"}
           </button>
 
           <button className="secondary-button" onClick={handleReset}>
-            Сбросить
+            Скинути
           </button>
 
           <button
@@ -459,7 +461,7 @@ export function ReportsTripsPage() {
             onClick={handleExcel}
             disabled={excelLoading}
           >
-            {excelLoading ? "Скачивание..." : "Скачать Excel"}
+            {excelLoading ? "Завантаження..." : "Завантажити Excel"}
           </button>
         </div>
       </div>
@@ -468,22 +470,22 @@ export function ReportsTripsPage() {
 
       <div className="stats-grid report-stats-grid">
         <div className="stat-card">
-          <span>Строк на странице</span>
+          <span>Рядків на сторінці</span>
           <strong>{formatNumber(report?.summary.totalRowsOnPage ?? 0)}</strong>
         </div>
 
         <div className="stat-card">
-          <span>Пробег на странице</span>
+          <span>Пробіг на сторінці</span>
           <strong>{formatKm(report?.summary.totalDistanceKm ?? 0)}</strong>
         </div>
 
         <div className="stat-card">
-          <span>Сработок</span>
+          <span>Спрацювань</span>
           <strong>{formatNumber(report?.summary.totalAlarms ?? 0)}</strong>
         </div>
 
         <div className="stat-card">
-          <span>ОХ / Партнеры</span>
+          <span>ОХ / Партнери</span>
           <strong>
             {formatNumber(report?.summary.totalOh ?? 0)} /{" "}
             {formatNumber(report?.summary.totalPartner ?? 0)}
@@ -496,8 +498,8 @@ export function ReportsTripsPage() {
           <div>
             <h2>Маршрути</h2>
             <p>
-              Усього рядків: {formatNumber(pagination?.total ?? 0)} · Страница{" "}
-              {pagination?.page ?? 1} из {pagination?.totalPages ?? 1}
+              Усього рядків: {formatNumber(pagination?.total ?? 0)} · Сторінка{" "}
+              {pagination?.page ?? 1} з {pagination?.totalPages ?? 1}
             </p>
           </div>
 
@@ -507,18 +509,18 @@ export function ReportsTripsPage() {
               value={filters.pageSize ?? 20}
               onChange={(event) => handlePageSizeChange(Number(event.target.value))}
             >
-              <option value={10}>10 строк</option>
-              <option value={20}>20 строк</option>
-              <option value={50}>50 строк</option>
-              <option value={100}>100 строк</option>
+              <option value={10}>10 рядків</option>
+              <option value={20}>20 рядків</option>
+              <option value={50}>50 рядків</option>
+              <option value={100}>100 рядків</option>
             </select>
           </div>
         </div>
 
         {loading ? (
-          <div className="empty-state">Загрузка поїздок...</div>
+          <div className="empty-state">Завантаження поїздок...</div>
         ) : rows.length === 0 ? (
-          <div className="empty-state">Поїздки за вибраними фільтрами не знайдені</div>
+          <div className="empty-state">Поїздки за вибраними фільтрами не знайдено</div>
         ) : (
           <>
             <div className="table-wrap">
@@ -532,20 +534,20 @@ export function ReportsTripsPage() {
                     <th>Наряд</th>
                     <th>Авто</th>
                     <th>Старший</th>
-                    <th>Водитель</th>
-                    <th>Спидометр начало</th>
-                    <th>Откуда</th>
-                    <th onClick={() => handleSort("departureTime")}>Выехал</th>
-                    <th>Куда</th>
-                    <th onClick={() => handleSort("arrivalTime")}>Прибыл</th>
-                    <th onClick={() => handleSort("arrivalMinutes")}>Мин.</th>
+                    <th>Водій</th>
+                    <th>Спідометр початок</th>
+                    <th>Звідки</th>
+                    <th onClick={() => handleSort("departureTime")}>Виїхав</th>
+                    <th>Куди</th>
+                    <th onClick={() => handleSort("arrivalTime")}>Прибув</th>
+                    <th onClick={() => handleSort("arrivalMinutes")}>Хв.</th>
                     <th onClick={() => handleSort("distanceKm")}>Км</th>
-                    <th>Цель</th>
+                    <th>Ціль</th>
                     <th>Спрацювання</th>
-                    <th>Боевая?</th>
-                    <th>Задержано</th>
+                    <th>Бойова?</th>
+                    <th>Затримано</th>
                     <th>Передано</th>
-                    <th>Примечание</th>
+                    <th>Примітка</th>
                   </tr>
                 </thead>
 
@@ -597,11 +599,11 @@ export function ReportsTripsPage() {
                           <tr className="expanded-row">
                             <td colSpan={20}>
                               <div className="expanded-content">
-                                <h3>События поїздки</h3>
+                                <h3>Події поїздки</h3>
 
                                 {row.events.length === 0 ? (
                                   <div className="empty-state">
-                                    У этой поїздки нет событий спрацювань
+                                    У цієї поїздки немає подій спрацювань
                                   </div>
                                 ) : (
                                   <div className="event-list">
@@ -612,20 +614,20 @@ export function ReportsTripsPage() {
                                         <div className="event-grid">
                                           <span>Усього: {event.countTotal}</span>
                                           <span>ОХ: {event.ohCount}</span>
-                                          <span>Партнеры: {event.partnerCount}</span>
+                                          <span>Партнери: {event.partnerCount}</span>
                                           <span>
                                             Тип:{" "}
                                             {event.isCombat === null
                                               ? "—"
                                               : event.isCombat
-                                                ? "Боевая"
+                                                ? "Бойова"
                                                 : "Хибна"}
                                           </span>
                                           <span>
                                             Причина: {event.reasonName || "—"}
                                           </span>
                                           <span>
-                                            Задержано: {event.detainedCount}
+                                            Затримано: {event.detainedCount}
                                           </span>
                                           <span>
                                             Передано: {event.transferredCount}
@@ -662,7 +664,7 @@ export function ReportsTripsPage() {
               </button>
 
               <span>
-                Страница {pagination?.page ?? 1} из{" "}
+                Сторінка {pagination?.page ?? 1} з{" "}
                 {pagination?.totalPages ?? 1}
               </span>
 

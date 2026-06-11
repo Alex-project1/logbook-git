@@ -29,7 +29,7 @@ const defaultFilters: CrewsTableFilters = {
 };
 
 function formatNumber(value: number) {
-  return value.toLocaleString("ru-RU");
+  return value.toLocaleString("uk-UA");
 }
 
 function formatKm(value: number) {
@@ -140,7 +140,7 @@ export function ReportsCrewsPage() {
       setReport(data);
       setExpandedRows({});
     } catch {
-      setError("Не удалось загрузить звіт по нарядами");
+      setError("Не вдалося завантажити звіт за нарядами");
     } finally {
       setLoading(false);
     }
@@ -224,6 +224,7 @@ export function ReportsCrewsPage() {
       [rowId]: !prev[rowId],
     }));
   }
+
   async function handleExcel() {
     setExcelLoading(true);
     setError("");
@@ -231,17 +232,18 @@ export function ReportsCrewsPage() {
     try {
       await downloadCrewsTableExcel(filters);
     } catch {
-      setError("Не удалось скачать Excel");
+      setError("Не вдалося завантажити Excel");
     } finally {
       setExcelLoading(false);
     }
   }
+
   return (
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>За нарядамии</h1>
-          <p>Сравнение нарядів по змінами, пробегу, спрацюваннями и нагрузке</p>
+          <h1>За нарядами</h1>
+          <p>Порівняння нарядів за змінами, пробігом, спрацюваннями та навантаженням</p>
         </div>
       </div>
 
@@ -315,7 +317,7 @@ export function ReportsCrewsPage() {
                 updateFilter("crewId", Number(event.target.value) || undefined)
               }
             >
-              <option value={0}>Все наряди</option>
+              <option value={0}>Усі наряди</option>
 
               {visibleCrews.map((crew) => (
                 <option key={crew.id} value={crew.id}>
@@ -333,7 +335,7 @@ export function ReportsCrewsPage() {
                 updateFilter("vehicleId", Number(event.target.value) || undefined)
               }
             >
-              <option value={0}>Все автомобілі</option>
+              <option value={0}>Усі автомобілі</option>
 
               {visibleVehicles.map((vehicle) => (
                 <option key={vehicle.id} value={vehicle.id}>
@@ -352,7 +354,7 @@ export function ReportsCrewsPage() {
                 updateFilter("employeeId", Number(event.target.value) || undefined)
               }
             >
-              <option value={0}>Все співробітники</option>
+              <option value={0}>Усі співробітники</option>
 
               {visibleEmployees.map((employee) => (
                 <option key={employee.id} value={employee.id}>
@@ -367,35 +369,35 @@ export function ReportsCrewsPage() {
             <input
               value={filters.search ?? ""}
               onChange={(event) => updateFilter("search", event.target.value)}
-              placeholder="Наряд, город, авто, співробітник..."
+              placeholder="Наряд, місто, авто, співробітник..."
             />
           </label>
         </div>
 
         <div className="report-filter-actions">
-  <button className="primary-button" onClick={handleApply} disabled={loading}>
-    {loading ? "Завантаження..." : "Сформировать"}
-  </button>
+          <button className="primary-button" onClick={handleApply} disabled={loading}>
+            {loading ? "Завантаження..." : "Сформувати"}
+          </button>
 
-  <button className="secondary-button" onClick={handleReset}>
-    Сбросить
-  </button>
+          <button className="secondary-button" onClick={handleReset}>
+            Скинути
+          </button>
 
-  <button
-    className="secondary-button"
-    onClick={handleExcel}
-    disabled={excelLoading}
-  >
-    {excelLoading ? "Скачивание..." : "Скачать Excel"}
-  </button>
-</div>
+          <button
+            className="secondary-button"
+            onClick={handleExcel}
+            disabled={excelLoading}
+          >
+            {excelLoading ? "Завантаження..." : "Завантажити Excel"}
+          </button>
+        </div>
       </div>
 
       {error && <div className="form-error report-error">{error}</div>}
 
       <div className="stats-grid report-stats-grid">
         <div className="stat-card">
-          <span>Нарядов</span>
+          <span>Нарядів</span>
           <strong>{formatNumber(report?.summary.totalCrews ?? 0)}</strong>
         </div>
 
@@ -410,17 +412,17 @@ export function ReportsCrewsPage() {
         </div>
 
         <div className="stat-card">
-          <span>Пробег</span>
+          <span>Пробіг</span>
           <strong>{formatKm(report?.summary.totalDistanceKm ?? 0)}</strong>
         </div>
 
         <div className="stat-card">
-          <span>Сработок</span>
+          <span>Спрацювань</span>
           <strong>{formatNumber(report?.summary.totalAlarms ?? 0)}</strong>
         </div>
 
         <div className="stat-card">
-          <span>ОХ / Партнеры</span>
+          <span>ОХ / Партнери</span>
           <strong>
             {formatNumber(report?.summary.totalOh ?? 0)} /{" "}
             {formatNumber(report?.summary.totalPartner ?? 0)}
@@ -436,7 +438,7 @@ export function ReportsCrewsPage() {
         </div>
 
         <div className="stat-card">
-          <span>Задержано / Передано</span>
+          <span>Затримано / Передано</span>
           <strong>
             {formatNumber(report?.summary.detained ?? 0)} /{" "}
             {formatNumber(report?.summary.transferred ?? 0)}
@@ -449,8 +451,8 @@ export function ReportsCrewsPage() {
           <div>
             <h2>Наряди</h2>
             <p>
-              Усього рядків: {formatNumber(pagination?.total ?? 0)} · Страница{" "}
-              {pagination?.page ?? 1} из {pagination?.totalPages ?? 1}
+              Усього рядків: {formatNumber(pagination?.total ?? 0)} · Сторінка{" "}
+              {pagination?.page ?? 1} з {pagination?.totalPages ?? 1}
             </p>
           </div>
 
@@ -460,18 +462,18 @@ export function ReportsCrewsPage() {
               value={filters.pageSize ?? 20}
               onChange={(event) => handlePageSizeChange(Number(event.target.value))}
             >
-              <option value={20}>20 строк</option>
-              <option value={50}>50 строк</option>
-              <option value={100}>100 строк</option>
+              <option value={20}>20 рядків</option>
+              <option value={50}>50 рядків</option>
+              <option value={100}>100 рядків</option>
             </select>
           </div>
         </div>
 
         {loading ? (
-          <div className="empty-state">Загрузка нарядів...</div>
+          <div className="empty-state">Завантаження нарядів...</div>
         ) : rows.length === 0 ? (
           <div className="empty-state">
-            Наряди за вибраними фільтрами не знайдені
+            Наряди за вибраними фільтрами не знайдено
           </div>
         ) : (
           <>
@@ -484,20 +486,20 @@ export function ReportsCrewsPage() {
                     <th>Місто</th>
                     <th onClick={() => handleSort("totalShifts")}>Змін</th>
                     <th onClick={() => handleSort("totalTrips")}>Поїздок</th>
-                    <th onClick={() => handleSort("totalDistanceKm")}>Пробег</th>
+                    <th onClick={() => handleSort("totalDistanceKm")}>Пробіг</th>
                     <th onClick={() => handleSort("averageDistancePerShift")}>
-                      Сред. пробег
+                      Сер. пробіг
                     </th>
-                    <th onClick={() => handleSort("totalAlarms")}>Сработок</th>
+                    <th onClick={() => handleSort("totalAlarms")}>Спрацювань</th>
                     <th onClick={() => handleSort("averageAlarmsPerShift")}>
-                      Средняя
+                      Середня
                     </th>
                     <th>ОХ</th>
-                    <th>Партнеры</th>
+                    <th>Партнери</th>
                     <th>Бойові</th>
                     <th>Хибні</th>
                     <th>Дод.</th>
-                    <th onClick={() => handleSort("detained")}>Задержано</th>
+                    <th onClick={() => handleSort("detained")}>Затримано</th>
                     <th onClick={() => handleSort("transferred")}>Передано</th>
                   </tr>
                 </thead>
@@ -542,7 +544,7 @@ export function ReportsCrewsPage() {
                           <tr className="expanded-row">
                             <td colSpan={16}>
                               <div className="expanded-content">
-                                <h3>Детализация наряда</h3>
+                                <h3>Деталізація наряду</h3>
 
                                 <div className="event-list">
                                   <div className="event-card">
@@ -550,7 +552,7 @@ export function ReportsCrewsPage() {
 
                                     {additionalRows.length === 0 ? (
                                       <div className="muted-text">
-                                        Немає дополнительных спрацювань
+                                        Немає додаткових спрацювань
                                       </div>
                                     ) : (
                                       <div className="mini-table-wrap">
@@ -560,14 +562,14 @@ export function ReportsCrewsPage() {
                                               <th>Причина</th>
                                               <th>Усього</th>
                                               <th>ОХ</th>
-                                              <th>Партнеры</th>
+                                              <th>Партнери</th>
                                             </tr>
                                           </thead>
 
                                           <tbody>
                                             <tr>
                                               <td>
-                                                <strong>Дополнительно</strong>
+                                                <strong>Додатково</strong>
                                               </td>
                                               <td>{row.additionalTotal}</td>
                                               <td>{row.additionalOh}</td>
@@ -589,19 +591,19 @@ export function ReportsCrewsPage() {
                                   </div>
 
                                   <div className="event-card">
-                                    <strong>Пробег по целям</strong>
+                                    <strong>Пробіг за цілями</strong>
 
                                     {distanceRows.length === 0 ? (
                                       <div className="muted-text">
-                                        Немає данных по целям поїздки
+                                        Немає даних за цілями поїздки
                                       </div>
                                     ) : (
                                       <div className="mini-table-wrap">
                                         <table className="mini-table">
                                           <thead>
                                             <tr>
-                                              <th>Цель</th>
-                                              <th>Пробег</th>
+                                              <th>Ціль</th>
+                                              <th>Пробіг</th>
                                             </tr>
                                           </thead>
 
@@ -639,7 +641,7 @@ export function ReportsCrewsPage() {
               </button>
 
               <span>
-                Страница {pagination?.page ?? 1} из{" "}
+                Сторінка {pagination?.page ?? 1} з{" "}
                 {pagination?.totalPages ?? 1}
               </span>
 

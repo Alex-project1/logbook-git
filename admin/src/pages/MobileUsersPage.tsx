@@ -9,7 +9,7 @@ import type { MobileUser, MobileUserKind } from "../api/mobile-users.api";
 import { AccordionSection } from "../components/AccordionSection";
 
 function getKindLabel(kind: MobileUserKind) {
-  return kind === "CREW" ? "Наряд ГБР" : "Пост";
+  return kind === "CREW" ? "Наряд ГШР" : "Пост";
 }
 
 function getBoundEntityLabel(user: MobileUser) {
@@ -171,7 +171,7 @@ export function MobileUsersPage() {
         <div>
           <h1>Користувачі застосунку</h1>
           <p>
-            Перегляд логінів, які створюються через “Наряди ГБР” та “Дод. пости”.
+            Перегляд логінів, які створюються через “Наряди ГШР” та “Дод. пости”.
             Нових користувачів тут не додаємо — вони привʼязані до наряду або поста.
           </p>
         </div>
@@ -223,7 +223,7 @@ export function MobileUsersPage() {
                   onChange={(event) => handleKindChange(event.target.value as MobileUserKind | "")}
                 >
                   <option value="">Усі типи</option>
-                  <option value="CREW">Наряди ГБР</option>
+                  <option value="CREW">Наряди ГШР</option>
                   <option value="POST">Пости</option>
                 </select>
               </label>
@@ -234,7 +234,7 @@ export function MobileUsersPage() {
                   value={showArchive ? "archive" : "active"}
                   onChange={(event) => handleArchiveChange(event.target.value)}
                 >
-                  <option value="active">Робочі</option>
+                  <option value="active">Активні</option>
                   <option value="archive">Архів</option>
                 </select>
               </label>

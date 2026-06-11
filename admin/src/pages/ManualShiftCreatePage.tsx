@@ -105,6 +105,7 @@ function toNumber(value: string) {
 
   return numberValue;
 }
+
 function calculateArrivalMinutesValue(departureTime: string, arrivalTime: string) {
   if (!departureTime || !arrivalTime) {
     return "";
@@ -198,7 +199,7 @@ export function ManualShiftCreatePage() {
       setTripGoals(goalsData);
       setReasons(reasonsData);
     } catch {
-      setError("Не удалось загрузить справочники");
+      setError("Не вдалося завантажити довідники");
     } finally {
       setLoading(false);
     }
@@ -259,11 +260,11 @@ export function ManualShiftCreatePage() {
       [key]: value,
       ...(key === "cityId"
         ? {
-          crewId: 0,
-          vehicleId: 0,
-          driverEmployeeId: 0,
-          seniorEmployeeId: 0,
-        }
+            crewId: 0,
+            vehicleId: 0,
+            driverEmployeeId: 0,
+            seniorEmployeeId: 0,
+          }
         : {}),
     }));
   }
@@ -373,35 +374,35 @@ export function ManualShiftCreatePage() {
   }
 
   function validateForm() {
-    if (!form.cityId) return "Выберите город";
-    if (!form.crewId) return "Выберите наряд";
-    if (!form.vehicleId) return "Выберите автомобіль";
-    if (!form.driverEmployeeId) return "Выберите водителя";
-    if (!form.seniorEmployeeId) return "Выберите старшего";
+    if (!form.cityId) return "Оберіть місто";
+    if (!form.crewId) return "Оберіть наряд";
+    if (!form.vehicleId) return "Оберіть автомобіль";
+    if (!form.driverEmployeeId) return "Оберіть водія";
+    if (!form.seniorEmployeeId) return "Оберіть старшого";
 
     if (form.driverEmployeeId === form.seniorEmployeeId) {
-      return "Водитель и старший не могут быть одним співробітником";
+      return "Водій і старший не можуть бути одним співробітником";
     }
 
-    if (!form.shiftDate) return "Укажите дату и время начала зміни";
+    if (!form.shiftDate) return "Вкажіть дату й час початку зміни";
 
     if (!form.odometerStart || toNumber(form.odometerStart) < 0) {
-      return "Укажите корректный спидометр на начало зміни";
+      return "Вкажіть коректні показники спідометра на початок зміни";
     }
 
     for (let index = 0; index < trips.length; index += 1) {
       const trip = trips[index];
       const number = index + 1;
 
-      if (!trip.fromLocation.trim()) return `Поїздка ${number}: заполните Откуда`;
-      if (!trip.toLocation.trim()) return `Поїздка ${number}: заполните Куда`;
-      if (!trip.departureTime) return `Поїздка ${number}: укажите время выезда`;
-      if (!trip.arrivalTime) return `Поїздка ${number}: укажите время прибытия`;
+      if (!trip.fromLocation.trim()) return `Поїздка ${number}: заповніть поле «Звідки»`;
+      if (!trip.toLocation.trim()) return `Поїздка ${number}: заповніть поле «Куди»`;
+      if (!trip.departureTime) return `Поїздка ${number}: вкажіть час виїзду`;
+      if (!trip.arrivalTime) return `Поїздка ${number}: вкажіть час прибуття`;
       if (!trip.arrivalMinutes) {
-        return `Поїздка ${number}: время прибытия должно быть позже времени выезда`;
+        return `Поїздка ${number}: час прибуття має бути пізніше часу виїзду`;
       }
-      if (!trip.distanceKm) return `Поїздка ${number}: укажите расстояние`;
-      if (!trip.goalId) return `Поїздка ${number}: выберите цель поїздки`;
+      if (!trip.distanceKm) return `Поїздка ${number}: вкажіть відстань`;
+      if (!trip.goalId) return `Поїздка ${number}: оберіть ціль поїздки`;
 
       const goal = getGoal(trip.goalId);
       const systemCode = formatGoalCode(goal);
@@ -410,11 +411,11 @@ export function ManualShiftCreatePage() {
         const totalAdditional = toNumber(trip.ohCount) + toNumber(trip.partnerCount);
 
         if (totalAdditional <= 0) {
-          return `Поїздка ${number}: укажите количество дод. спрацювань`;
+          return `Поїздка ${number}: вкажіть кількість додаткових спрацювань`;
         }
 
         if (!trip.reasonId && !trip.customReasonText.trim()) {
-          return `Поїздка ${number}: выберите причину дод. спрацювань`;
+          return `Поїздка ${number}: оберіть причину додаткових спрацювань`;
         }
       }
     }
@@ -466,11 +467,11 @@ export function ManualShiftCreatePage() {
         })),
       });
 
-      setSuccess("Зміна успешно доданоа");
+      setSuccess("Зміну успішно додано");
       setForm(initialShiftForm);
       setTrips([createEmptyTrip()]);
     } catch (err: any) {
-      setError(err.response?.data?.message || "Не удалось додати зміну");
+      setError(err.response?.data?.message || "Не вдалося додати зміну");
     } finally {
       setSaving(false);
     }
@@ -480,23 +481,23 @@ export function ManualShiftCreatePage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Додати зміну вручную</h1>
-          <p>Ручное создание зміни администратором с поездками и спрацюваннями</p>
+          <h1>Додати зміну вручну</h1>
+          <p>Ручне створення зміни адміністратором із поїздками та спрацюваннями</p>
         </div>
       </div>
 
       {loading ? (
-        <div className="empty-state">Загрузка справочников...</div>
+        <div className="empty-state">Завантаження довідників...</div>
       ) : (
         <form className="manual-shift-form" onSubmit={handleSubmit}>
           <div className="panel-card manual-accordion-card">
             <AccordionSection
-              title="Основные данные зміни"
-              subtitle="Місто, наряд, автомобіль, экипаж, время и пробег"
+              title="Основні дані зміни"
+              subtitle="Місто, наряд, автомобіль, екіпаж, час і пробіг"
               open={openedSections.main}
               onToggle={() => toggleSection("main")}
             >
-              <h2>Основные данные зміни</h2>
+              <h2>Основні дані зміни</h2>
 
               <div className="manual-form-grid">
                 <label className="field">
@@ -507,7 +508,7 @@ export function ManualShiftCreatePage() {
                       updateForm("cityId", Number(event.target.value))
                     }
                   >
-                    <option value={0}>Выберите город</option>
+                    <option value={0}>Оберіть місто</option>
 
                     {activeCities.map((city) => (
                       <option key={city.id} value={city.id}>
@@ -525,7 +526,7 @@ export function ManualShiftCreatePage() {
                       updateForm("crewId", Number(event.target.value))
                     }
                   >
-                    <option value={0}>Выберите наряд</option>
+                    <option value={0}>Оберіть наряд</option>
 
                     {filteredCrews.map((crew) => (
                       <option key={crew.id} value={crew.id}>
@@ -543,7 +544,7 @@ export function ManualShiftCreatePage() {
                       updateForm("vehicleId", Number(event.target.value))
                     }
                   >
-                    <option value={0}>Выберите автомобіль</option>
+                    <option value={0}>Оберіть автомобіль</option>
 
                     {filteredVehicles.map((vehicle) => (
                       <option key={vehicle.id} value={vehicle.id}>
@@ -555,7 +556,7 @@ export function ManualShiftCreatePage() {
                 </label>
 
                 <label className="field">
-                  <span>Дата и время начала зміни</span>
+                  <span>Дата й час початку зміни</span>
                   <input
                     type="datetime-local"
                     value={form.shiftDate}
@@ -564,7 +565,7 @@ export function ManualShiftCreatePage() {
                 </label>
 
                 <label className="field">
-                  <span>Время отправки звіта</span>
+                  <span>Час надсилання звіту</span>
                   <input
                     type="datetime-local"
                     value={form.submittedAt}
@@ -575,7 +576,7 @@ export function ManualShiftCreatePage() {
                 </label>
 
                 <label className="field">
-                  <span>Спидометр начало</span>
+                  <span>Спідометр на початок</span>
                   <input
                     type="number"
                     min="0"
@@ -588,7 +589,7 @@ export function ManualShiftCreatePage() {
                 </label>
 
                 <label className="field">
-                  <span>Спидометр конец</span>
+                  <span>Спідометр на кінець</span>
                   <input value={odometerEnd || ""} disabled />
                 </label>
               </div>
@@ -596,7 +597,7 @@ export function ManualShiftCreatePage() {
               <div className="manual-form-grid manual-form-grid-two">
                 <div className="manual-person-card">
                   <label className="field">
-                    <span>Водитель</span>
+                    <span>Водій</span>
                     <select
                       value={form.driverEmployeeId}
                       onChange={(event) =>
@@ -606,7 +607,7 @@ export function ManualShiftCreatePage() {
                         )
                       }
                     >
-                      <option value={0}>Выберите водителя</option>
+                      <option value={0}>Оберіть водія</option>
 
                       {filteredEmployees.map((employee) => (
                         <option key={employee.id} value={employee.id}>
@@ -624,7 +625,7 @@ export function ManualShiftCreatePage() {
                         updateForm("driverHasWeapon", event.target.checked)
                       }
                     />
-                    <span>Водитель с оружием</span>
+                    <span>Водій зі зброєю</span>
                   </label>
                 </div>
 
@@ -640,7 +641,7 @@ export function ManualShiftCreatePage() {
                         )
                       }
                     >
-                      <option value={0}>Выберите старшего</option>
+                      <option value={0}>Оберіть старшого</option>
 
                       {filteredEmployees.map((employee) => (
                         <option key={employee.id} value={employee.id}>
@@ -658,7 +659,7 @@ export function ManualShiftCreatePage() {
                         updateForm("seniorHasWeapon", event.target.checked)
                       }
                     />
-                    <span>Старший с оружием</span>
+                    <span>Старший зі зброєю</span>
                   </label>
                 </div>
               </div>
@@ -668,7 +669,7 @@ export function ManualShiftCreatePage() {
           <div className="panel-card manual-accordion-card">
             <AccordionSection
               title="Поїздки"
-              subtitle={`Усього поїздок: ${trips.length} · Общий пробег: ${totalDistanceKm.toFixed(
+              subtitle={`Усього поїздок: ${trips.length} · Загальний пробіг: ${totalDistanceKm.toFixed(
                 1
               )} км`}
               open={openedSections.trips}
@@ -677,10 +678,8 @@ export function ManualShiftCreatePage() {
               <div className="manual-trips-toolbar">
                 <div>
                   <strong>Поїздки зміни: </strong>
-                  <span>Добавляй маршруты, цели поїздок и спрацювання</span>
+                  <span>Додавайте маршрути, цілі поїздок і спрацювання</span>
                 </div>
-
-            
               </div>
 
               <div className="manual-trip-list">
@@ -693,292 +692,293 @@ export function ManualShiftCreatePage() {
 
                   return (
                     <div className="manual-trip-card" key={index}>
-                    <AccordionSection
-                      title={`Поїздка ${index + 1}`}
-                      subtitle={`${trip.fromLocation || "Откуда не указано"} → ${
-                        trip.toLocation || "Куда не указано"
-                      } · ${trip.distanceKm || "0"} км`}
-                      open={Boolean(openedTrips[index])}
-                      onToggle={() => toggleTrip(index)}
-                    >
-                      <div className="manual-trip-card-header">
-                        <h3>Поїздка {index + 1}</h3>
+                      <AccordionSection
+                        title={`Поїздка ${index + 1}`}
+                        subtitle={`${trip.fromLocation || "Звідки не вказано"} → ${
+                          trip.toLocation || "Куди не вказано"
+                        } · ${trip.distanceKm || "0"} км`}
+                        open={Boolean(openedTrips[index])}
+                        onToggle={() => toggleTrip(index)}
+                      >
+                        <div className="manual-trip-card-header">
+                          <h3>Поїздка {index + 1}</h3>
 
-                        {trips.length > 1 && (
-                          <button
-                            type="button"
-                            className="small-button danger-button"
-                            onClick={() => removeTrip(index)}
-                          >
-                            Удалить
-                          </button>
+                          {trips.length > 1 && (
+                            <button
+                              type="button"
+                              className="small-button danger-button"
+                              onClick={() => removeTrip(index)}
+                            >
+                              Видалити
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="manual-form-grid">
+                          <label className="field">
+                            <span>Звідки</span>
+                            <input
+                              value={trip.fromLocation}
+                              onChange={(event) =>
+                                updateTrip(index, "fromLocation", event.target.value)
+                              }
+                              placeholder="База"
+                            />
+                          </label>
+
+                          <label className="field">
+                            <span>Час виїзду</span>
+                            <input
+                              type="datetime-local"
+                              value={trip.departureTime}
+                              onChange={(event) =>
+                                updateTrip(index, "departureTime", event.target.value)
+                              }
+                            />
+                          </label>
+
+                          <label className="field">
+                            <span>Куди</span>
+                            <input
+                              value={trip.toLocation}
+                              onChange={(event) =>
+                                updateTrip(index, "toLocation", event.target.value)
+                              }
+                              placeholder="Об’єкт 1045"
+                            />
+                          </label>
+
+                          <label className="field">
+                            <span>Час прибуття</span>
+                            <input
+                              type="datetime-local"
+                              value={trip.arrivalTime}
+                              onChange={(event) =>
+                                updateTrip(index, "arrivalTime", event.target.value)
+                              }
+                            />
+                          </label>
+
+                          <label className="field">
+                            <span>Прибуття, хв</span>
+                            <input
+                              value={trip.arrivalMinutes}
+                              disabled
+                              placeholder="Автоматично"
+                            />
+                          </label>
+
+                          <label className="field">
+                            <span>Відстань, км</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.1"
+                              value={trip.distanceKm}
+                              onChange={(event) =>
+                                updateTrip(index, "distanceKm", event.target.value)
+                              }
+                            />
+                          </label>
+
+                          <label className="field">
+                            <span>Ціль поїздки</span>
+                            <select
+                              value={trip.goalId}
+                              onChange={(event) =>
+                                updateTrip(index, "goalId", Number(event.target.value))
+                              }
+                            >
+                              <option value={0}>Оберіть ціль</option>
+
+                              {tripGoals.map((goalItem) => (
+                                <option key={goalItem.id} value={goalItem.id}>
+                                  {goalItem.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <label className="field">
+                            <span>Примітка</span>
+                            <input
+                              value={trip.note}
+                              onChange={(event) =>
+                                updateTrip(index, "note", event.target.value)
+                              }
+                              placeholder="Необов’язково"
+                            />
+                          </label>
+                        </div>
+
+                        {isRegularAlarm && (
+                          <div className="manual-event-box">
+                            <h4>
+                              {systemCode === "alarm_oh"
+                                ? "Спрацювання ОХ"
+                                : "Спрацювання партнерів"}
+                            </h4>
+
+                            <div className="manual-form-grid">
+                              <label className="field">
+                                <span>Тип</span>
+                                <select
+                                  value={String(trip.isCombat)}
+                                  onChange={(event) =>
+                                    updateTrip(
+                                      index,
+                                      "isCombat",
+                                      event.target.value === "true"
+                                    )
+                                  }
+                                >
+                                  <option value="false">Хибна</option>
+                                  <option value="true">Бойова</option>
+                                </select>
+                              </label>
+
+                              <label className="field">
+                                <span>Затримано</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={trip.detainedCount}
+                                  onChange={(event) =>
+                                    updateTrip(
+                                      index,
+                                      "detainedCount",
+                                      event.target.value
+                                    )
+                                  }
+                                />
+                              </label>
+
+                              <label className="field">
+                                <span>Передано</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={trip.transferredCount}
+                                  onChange={(event) =>
+                                    updateTrip(
+                                      index,
+                                      "transferredCount",
+                                      event.target.value
+                                    )
+                                  }
+                                />
+                              </label>
+                            </div>
+                          </div>
                         )}
-                      </div>
 
-                      <div className="manual-form-grid">
-                        <label className="field">
-                          <span>Откуда</span>
-                          <input
-                            value={trip.fromLocation}
-                            onChange={(event) =>
-                              updateTrip(index, "fromLocation", event.target.value)
-                            }
-                            placeholder="База"
-                          />
-                        </label>
+                        {isAdditionalAlarm && (
+                          <div className="manual-event-box">
+                            <h4>Список спрацювань</h4>
 
-                        <label className="field">
-                          <span>Время выезда</span>
-                          <input
-                            type="datetime-local"
-                            value={trip.departureTime}
-                            onChange={(event) =>
-                              updateTrip(index, "departureTime", event.target.value)
-                            }
-                          />
-                        </label>
+                            <div className="manual-form-grid">
+                              <label className="field">
+                                <span>Причина</span>
+                                <select
+                                  value={trip.reasonId}
+                                  onChange={(event) =>
+                                    updateTrip(index, "reasonId", Number(event.target.value))
+                                  }
+                                >
+                                  <option value={0}>Оберіть причину</option>
 
-                        <label className="field">
-                          <span>Куда</span>
-                          <input
-                            value={trip.toLocation}
-                            onChange={(event) =>
-                              updateTrip(index, "toLocation", event.target.value)
-                            }
-                            placeholder="Объект 1045"
-                          />
-                        </label>
+                                  {reasons.map((reason) => (
+                                    <option key={reason.id} value={reason.id}>
+                                      {reason.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
 
-                        <label className="field">
-                          <span>Время прибытия</span>
-                          <input
-                            type="datetime-local"
-                            value={trip.arrivalTime}
-                            onChange={(event) =>
-                              updateTrip(index, "arrivalTime", event.target.value)
-                            }
-                          />
-                        </label>
+                              <label className="field">
+                                <span>Власна причина</span>
+                                <input
+                                  value={trip.customReasonText}
+                                  onChange={(event) =>
+                                    updateTrip(
+                                      index,
+                                      "customReasonText",
+                                      event.target.value
+                                    )
+                                  }
+                                  placeholder="За потреби"
+                                />
+                              </label>
 
-                        <label className="field">
-                          <span>Прибытие, мин</span>
-                          <input
-                            value={trip.arrivalMinutes}
-                            disabled
-                            placeholder="Автоматически"
-                          />
-                        </label>
+                              <label className="field">
+                                <span>Кількість ОХ</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={trip.ohCount}
+                                  onChange={(event) =>
+                                    updateTrip(index, "ohCount", event.target.value)
+                                  }
+                                />
+                              </label>
 
-                        <label className="field">
-                          <span>Расстояние, км</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.1"
-                            value={trip.distanceKm}
-                            onChange={(event) =>
-                              updateTrip(index, "distanceKm", event.target.value)
-                            }
-                          />
-                        </label>
+                              <label className="field">
+                                <span>Кількість партнерів</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={trip.partnerCount}
+                                  onChange={(event) =>
+                                    updateTrip(index, "partnerCount", event.target.value)
+                                  }
+                                />
+                              </label>
 
-                        <label className="field">
-                          <span>Ціль поїздки</span>
-                          <select
-                            value={trip.goalId}
-                            onChange={(event) =>
-                              updateTrip(index, "goalId", Number(event.target.value))
-                            }
-                          >
-                            <option value={0}>Выберите цель</option>
+                              <label className="field">
+                                <span>Затримано</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={trip.detainedCount}
+                                  onChange={(event) =>
+                                    updateTrip(
+                                      index,
+                                      "detainedCount",
+                                      event.target.value
+                                    )
+                                  }
+                                />
+                              </label>
 
-                            {tripGoals.map((goalItem) => (
-                              <option key={goalItem.id} value={goalItem.id}>
-                                {goalItem.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-
-                        <label className="field">
-                          <span>Примечание</span>
-                          <input
-                            value={trip.note}
-                            onChange={(event) =>
-                              updateTrip(index, "note", event.target.value)
-                            }
-                            placeholder="Необязательно"
-                          />
-                        </label>
-                      </div>
-
-                      {isRegularAlarm && (
-                        <div className="manual-event-box">
-                          <h4>
-                            {systemCode === "alarm_oh"
-                              ? "Спрацювання ОХ"
-                              : "Спрацювання Партнери"}
-                          </h4>
-
-                          <div className="manual-form-grid">
-                            <label className="field">
-                              <span>Тип</span>
-                              <select
-                                value={String(trip.isCombat)}
-                                onChange={(event) =>
-                                  updateTrip(
-                                    index,
-                                    "isCombat",
-                                    event.target.value === "true"
-                                  )
-                                }
-                              >
-                                <option value="false">Хибна</option>
-                                <option value="true">Боевая</option>
-                              </select>
-                            </label>
-
-                            <label className="field">
-                              <span>Задержано</span>
-                              <input
-                                type="number"
-                                min="0"
-                                value={trip.detainedCount}
-                                onChange={(event) =>
-                                  updateTrip(
-                                    index,
-                                    "detainedCount",
-                                    event.target.value
-                                  )
-                                }
-                              />
-                            </label>
-
-                            <label className="field">
-                              <span>Передано</span>
-                              <input
-                                type="number"
-                                min="0"
-                                value={trip.transferredCount}
-                                onChange={(event) =>
-                                  updateTrip(
-                                    index,
-                                    "transferredCount",
-                                    event.target.value
-                                  )
-                                }
-                              />
-                            </label>
+                              <label className="field">
+                                <span>Передано</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={trip.transferredCount}
+                                  onChange={(event) =>
+                                    updateTrip(
+                                      index,
+                                      "transferredCount",
+                                      event.target.value
+                                    )
+                                  }
+                                />
+                              </label>
+                            </div>
                           </div>
-                        </div>
-                      )}
-
-                      {isAdditionalAlarm && (
-                        <div className="manual-event-box">
-                          <h4>Список спрацювань</h4>
-
-                          <div className="manual-form-grid">
-                            <label className="field">
-                              <span>Причина</span>
-                              <select
-                                value={trip.reasonId}
-                                onChange={(event) =>
-                                  updateTrip(index, "reasonId", Number(event.target.value))
-                                }
-                              >
-                                <option value={0}>Выберите причину</option>
-
-                                {reasons.map((reason) => (
-                                  <option key={reason.id} value={reason.id}>
-                                    {reason.name}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-
-                            <label className="field">
-                              <span>Своя причина</span>
-                              <input
-                                value={trip.customReasonText}
-                                onChange={(event) =>
-                                  updateTrip(
-                                    index,
-                                    "customReasonText",
-                                    event.target.value
-                                  )
-                                }
-                                placeholder="Если нужно"
-                              />
-                            </label>
-
-                            <label className="field">
-                              <span>Количество ОХ</span>
-                              <input
-                                type="number"
-                                min="0"
-                                value={trip.ohCount}
-                                onChange={(event) =>
-                                  updateTrip(index, "ohCount", event.target.value)
-                                }
-                              />
-                            </label>
-
-                            <label className="field">
-                              <span>Количество Партнеры</span>
-                              <input
-                                type="number"
-                                min="0"
-                                value={trip.partnerCount}
-                                onChange={(event) =>
-                                  updateTrip(index, "partnerCount", event.target.value)
-                                }
-                              />
-                            </label>
-
-                            <label className="field">
-                              <span>Задержано</span>
-                              <input
-                                type="number"
-                                min="0"
-                                value={trip.detainedCount}
-                                onChange={(event) =>
-                                  updateTrip(
-                                    index,
-                                    "detainedCount",
-                                    event.target.value
-                                  )
-                                }
-                              />
-                            </label>
-
-                            <label className="field">
-                              <span>Передано</span>
-                              <input
-                                type="number"
-                                min="0"
-                                value={trip.transferredCount}
-                                onChange={(event) =>
-                                  updateTrip(
-                                    index,
-                                    "transferredCount",
-                                    event.target.value
-                                  )
-                                }
-                              />
-                            </label>
-                          </div>
-                        </div>
-                      )}
-                       </AccordionSection>
+                        )}
+                      </AccordionSection>
                     </div>
                   );
                 })}
-            <button
+
+                <button
                   type="button"
                   className="secondary-button"
                   onClick={addTrip}
                 >
-                  Додати поездку
+                  Додати поїздку
                 </button>
               </div>
             </AccordionSection>

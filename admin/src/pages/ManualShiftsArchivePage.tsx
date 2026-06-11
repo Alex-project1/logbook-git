@@ -22,13 +22,13 @@ const defaultFilters: DeletedShiftArchiveFilters = {
 function formatDate(value: string | null) {
   if (!value) return "—";
 
-  return new Date(value).toLocaleDateString("ru-RU");
+  return new Date(value).toLocaleDateString("uk-UA");
 }
 
 function formatDateTime(value: string | null) {
   if (!value) return "—";
 
-  return new Date(value).toLocaleString("ru-RU", {
+  return new Date(value).toLocaleString("uk-UA", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -38,13 +38,14 @@ function formatDateTime(value: string | null) {
 }
 
 function formatKm(value: number) {
-  return `${value.toLocaleString("ru-RU")} км`;
+  return `${value.toLocaleString("uk-UA")} км`;
 }
+
 function getDutyTypeLabel(value: string) {
   const labels: Record<string, string> = {
-    FULL_DAY: "Суточный",
-    DAY: "Дневной",
-    NIGHT: "Ночной",
+    FULL_DAY: "Добовий",
+    DAY: "Денний",
+    NIGHT: "Нічний",
   };
 
   return labels[value] ?? value;
@@ -60,10 +61,11 @@ function getTransportTypeLabel(value: string) {
 }
 
 function formatShiftEquivalent(value: number) {
-  return value.toLocaleString("ru-RU", {
+  return value.toLocaleString("uk-UA", {
     maximumFractionDigits: 2,
   });
 }
+
 export function ManualShiftsArchivePage() {
   const [filters, setFilters] =
     useState<DeletedShiftArchiveFilters>(defaultFilters);
@@ -116,20 +118,19 @@ export function ManualShiftsArchivePage() {
     }
   }
 
+  async function loadReferences() {
+    try {
+      const [citiesData, accessibleCitiesData] = await Promise.all([
+        getCities(false),
+        getAccessibleCities(false),
+      ]);
 
- async function loadReferences() {
-  try {
-    const [citiesData, accessibleCitiesData] = await Promise.all([
-      getCities(false),
-      getAccessibleCities(false),
-    ]);
-
-    setCities(citiesData);
-    setAccessibleCities(accessibleCitiesData);
-  } catch {
-    setError("Не удалось загрузить города");
+      setCities(citiesData);
+      setAccessibleCities(accessibleCitiesData);
+    } catch {
+      setError("Не вдалося завантажити міста");
+    }
   }
-}
 
   async function loadArchive(nextFilters = filters) {
     setLoading(true);
@@ -139,7 +140,7 @@ export function ManualShiftsArchivePage() {
       const data = await getDeletedManualShifts(nextFilters);
       setReport(data);
     } catch {
-      setError("Не удалось загрузить архив змін");
+      setError("Не вдалося завантажити архів змін");
     } finally {
       setLoading(false);
     }
@@ -209,7 +210,7 @@ export function ManualShiftsArchivePage() {
 
   async function handleRestore(row: DeletedShiftArchiveRow) {
     const confirmed = window.confirm(
-      `Відновити зміну ${row.crew.name} от ${formatDate(row.shiftDate)}?`
+      `Відновити зміну ${row.crew.name} від ${formatDate(row.shiftDate)}?`
     );
 
     if (!confirmed) {
@@ -222,10 +223,10 @@ export function ManualShiftsArchivePage() {
 
     try {
       await restoreManualShift(row.id);
-      setSuccess("Зміна відновленоа");
+      setSuccess("Зміну відновлено");
       await loadArchive(filters);
     } catch (err: any) {
-      setError(err.response?.data?.message || "Не удалось восстановить зміну");
+      setError(err.response?.data?.message || "Не вдалося відновити зміну");
     } finally {
       setRestoringId(null);
     }
@@ -236,7 +237,7 @@ export function ManualShiftsArchivePage() {
       <div className="page-header">
         <div>
           <h1>Архів змін</h1>
-          <p>Удаленные зміни, которые можно восстановить обратно в звіти</p>
+          <p>Видалені зміни, які можна відновити та повернути до звітів</p>
         </div>
       </div>
 
@@ -294,11 +295,11 @@ export function ManualShiftsArchivePage() {
 
         <div className="report-filter-actions">
           <button className="primary-button" onClick={handleApply} disabled={loading}>
-            {loading ? "Завантаження..." : "Сформировать"}
+            {loading ? "Завантаження..." : "Сформувати"}
           </button>
 
           <button className="secondary-button" onClick={handleReset}>
-            Сбросить
+            Скинути
           </button>
         </div>
       </div>
@@ -309,10 +310,10 @@ export function ManualShiftsArchivePage() {
       <div className="panel-card table-card">
         <div className="table-header">
           <div>
-            <h2>Удаленные зміни</h2>
+            <h2>Видалені зміни</h2>
             <p>
-              Усього рядків: {(pagination?.total ?? 0).toLocaleString("ru-RU")} ·
-              Страница {pagination?.page ?? 1} из {pagination?.totalPages ?? 1}
+              Усього рядків: {(pagination?.total ?? 0).toLocaleString("uk-UA")} ·
+              Сторінка {pagination?.page ?? 1} з {pagination?.totalPages ?? 1}
             </p>
           </div>
 
@@ -322,17 +323,17 @@ export function ManualShiftsArchivePage() {
               value={filters.pageSize ?? 20}
               onChange={(event) => handlePageSizeChange(Number(event.target.value))}
             >
-              <option value={20}>20 строк</option>
-              <option value={50}>50 строк</option>
-              <option value={100}>100 строк</option>
+              <option value={20}>20 рядків</option>
+              <option value={50}>50 рядків</option>
+              <option value={100}>100 рядків</option>
             </select>
           </div>
         </div>
 
         {loading ? (
-          <div className="empty-state">Загрузка архива...</div>
+          <div className="empty-state">Завантаження архіву...</div>
         ) : rows.length === 0 ? (
-          <div className="empty-state">В архіве нет удаленных змін</div>
+          <div className="empty-state">В архіві немає видалених змін</div>
         ) : (
           <>
             <div className="table-wrap">
@@ -340,21 +341,21 @@ export function ManualShiftsArchivePage() {
                 <thead>
                   <tr>
                     <th>Дата зміни</th>
-                    <th>Удалена</th>
-                  <th>Місто</th>
-<th>Наряд</th>
-<th>Тип</th>
-<th>Транспорт</th>
-<th>Часы</th>
-<th>Зміни</th>
-<th>Авто</th>
-                    <th>Водитель</th>
+                    <th>Видалено</th>
+                    <th>Місто</th>
+                    <th>Наряд</th>
+                    <th>Тип</th>
+                    <th>Транспорт</th>
+                    <th>Години</th>
+                    <th>Зміни</th>
+                    <th>Авто</th>
+                    <th>Водій</th>
                     <th>Старший</th>
                     <th>Поїздок</th>
-                    <th>Пробег</th>
-                    <th>Спид. начало</th>
-                    <th>Спид. конец</th>
-                    {canRestoreShifts && <th>Действия</th>}
+                    <th>Пробіг</th>
+                    <th>Спід. початок</th>
+                    <th>Спід. кінець</th>
+                    {canRestoreShifts && <th>Дії</th>}
                   </tr>
                 </thead>
 
@@ -363,14 +364,14 @@ export function ManualShiftsArchivePage() {
                     <tr key={row.id}>
                       <td>{formatDate(row.shiftDate)}</td>
                       <td>{formatDateTime(row.deletedAt)}</td>
-                  <td>{row.city.name}</td>
-<td>{row.crew.name}</td>
-<td>{getDutyTypeLabel(row.crewDutyType)}</td>
-<td>{getTransportTypeLabel(row.crewTransportType)}</td>
-<td>{Number(row.shiftDurationHours)}</td>
-<td>{formatShiftEquivalent(row.shiftEquivalent)}</td>
-<td>
-  {row.vehicle.title}
+                      <td>{row.city.name}</td>
+                      <td>{row.crew.name}</td>
+                      <td>{getDutyTypeLabel(row.crewDutyType)}</td>
+                      <td>{getTransportTypeLabel(row.crewTransportType)}</td>
+                      <td>{Number(row.shiftDurationHours)}</td>
+                      <td>{formatShiftEquivalent(row.shiftEquivalent)}</td>
+                      <td>
+                        {row.vehicle.title}
                         {row.vehicle.licensePlate && (
                           <div className="muted-text">
                             {row.vehicle.licensePlate}
@@ -384,21 +385,21 @@ export function ManualShiftsArchivePage() {
                       <td>{row.odometerStart}</td>
                       <td>{row.odometerEndCalculated}</td>
                       {canRestoreShifts && (
-                       <td>
-                       {canRestoreRow(row) ? (
-                         <button
-                           className="small-button"
-                           onClick={() => handleRestore(row)}
-                           disabled={restoringId === row.id}
-                         >
-                           {restoringId === row.id
-                             ? "Восстанавливаем..."
-                             : "Відновити"}
-                         </button>
-                       ) : (
-                         <span className="muted-text">Немає прав</span>
-                       )}
-                     </td>
+                        <td>
+                          {canRestoreRow(row) ? (
+                            <button
+                              className="small-button"
+                              onClick={() => handleRestore(row)}
+                              disabled={restoringId === row.id}
+                            >
+                              {restoringId === row.id
+                                ? "Відновлюємо..."
+                                : "Відновити"}
+                            </button>
+                          ) : (
+                            <span className="muted-text">Немає прав</span>
+                          )}
+                        </td>
                       )}
                     </tr>
                   ))}
@@ -416,7 +417,7 @@ export function ManualShiftsArchivePage() {
               </button>
 
               <span>
-                Страница {pagination?.page ?? 1} из{" "}
+                Сторінка {pagination?.page ?? 1} з{" "}
                 {pagination?.totalPages ?? 1}
               </span>
 

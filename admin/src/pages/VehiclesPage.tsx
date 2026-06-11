@@ -81,7 +81,7 @@ export function VehiclesPage() {
         const vehiclesData = await getVehicles({ includeInactive: true });
         setVehicles(vehiclesData);
       } catch (caught) {
-        setError(getErrorMessage(caught, "Не удалось загрузить автомобілі"));
+        setError(getErrorMessage(caught, "Не вдалося завантажити автомобілі"));
       } finally {
         setLoading(false);
       }
@@ -119,11 +119,11 @@ export function VehiclesPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!form.cityId) return setError("Выберите город");
-    if (!form.departmentId) return setError("Выберите подразделение");
-    if (!form.title.trim()) return setError("Введите название автомобиля");
+    if (!form.cityId) return setError("Оберіть місто");
+    if (!form.departmentId) return setError("Оберіть підрозділ");
+    if (!form.title.trim()) return setError("Введіть назву автомобіля");
     const startOdometer = form.startOdometer.trim() ? Number(form.startOdometer) : null;
-    if (startOdometer !== null && (!Number.isInteger(startOdometer) || startOdometer < 0)) return setError("Начальный пробег должен быть целым числом от 0");
+    if (startOdometer !== null && (!Number.isInteger(startOdometer) || startOdometer < 0)) return setError("Початковий пробіг має бути цілим числом від 0");
 
     setSaving(true);
     setError("");
@@ -148,20 +148,20 @@ export function VehiclesPage() {
       resetForm();
       await loadVehicles();
     } catch (caught) {
-      setError(getErrorMessage(caught, "Не удалось зберегти автомобіль"));
+      setError(getErrorMessage(caught, "Не вдалося зберегти автомобіль"));
     } finally {
       setSaving(false);
     }
   }
 
   async function handleArchive(vehicle: Vehicle) {
-    if (!window.confirm(`Отправить автомобіль "${vehicle.title}" в архив?`)) return;
+    if (!window.confirm(`Перемістити автомобіль "${vehicle.title}" до архіву?`)) return;
     try {
       await deleteVehicle(vehicle.id);
-      setSuccess("Автомобіль відправлено в архів");
+      setSuccess("Автомобіль переміщено до архіву");
       await loadVehicles();
     } catch (caught) {
-      setError(getErrorMessage(caught, "Не удалось отправить автомобіль в архив"));
+      setError(getErrorMessage(caught, "Не вдалося перемістити автомобіль до архіву"));
     }
   }
 
@@ -171,7 +171,7 @@ export function VehiclesPage() {
       setSuccess("Автомобіль відновлено");
       await loadVehicles();
     } catch (caught) {
-      setError(getErrorMessage(caught, "Не удалось восстановить автомобіль"));
+      setError(getErrorMessage(caught, "Не вдалося відновити автомобіль"));
     }
   }
 
@@ -202,13 +202,13 @@ export function VehiclesPage() {
 
       {canEdit && !showArchive && (
         <form className="form-grid" onSubmit={handleSubmit}>
-          <label>Місто<select value={form.cityId} onChange={(event) => handleFormCityChange(Number(event.target.value))}><option value={0}>Выберите город</option>{activeCities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></label>
-          <label>Підрозділ<select value={form.departmentId} onChange={(event) => setForm((prev) => ({ ...prev, departmentId: Number(event.target.value) }))}><option value={0}>Выберите подразделение</option>{formDepartments.map((department) => <option key={department.id} value={department.id}>{department.name} · {departmentTypeLabels[department.type]}</option>)}</select></label>
+          <label>Місто<select value={form.cityId} onChange={(event) => handleFormCityChange(Number(event.target.value))}><option value={0}>Оберіть місто</option>{activeCities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></label>
+          <label>Підрозділ<select value={form.departmentId} onChange={(event) => setForm((prev) => ({ ...prev, departmentId: Number(event.target.value) }))}><option value={0}>Оберіть підрозділ</option>{formDepartments.map((department) => <option key={department.id} value={department.id}>{department.name} · {departmentTypeLabels[department.type]}</option>)}</select></label>
           <label>Назва<input value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} /></label>
-          <label>Госномер<input value={form.licensePlate} onChange={(event) => setForm((prev) => ({ ...prev, licensePlate: event.target.value }))} /></label>
-          <label>Начальный пробег<input value={form.startOdometer} onChange={(event) => setForm((prev) => ({ ...prev, startOdometer: event.target.value.replace(/\D/g, "") }))} /></label>
+          <label>Державний номер<input value={form.licensePlate} onChange={(event) => setForm((prev) => ({ ...prev, licensePlate: event.target.value }))} /></label>
+          <label>Початковий пробіг<input value={form.startOdometer} onChange={(event) => setForm((prev) => ({ ...prev, startOdometer: event.target.value.replace(/\D/g, "") }))} /></label>
           <label>Коментар<input value={form.comment} onChange={(event) => setForm((prev) => ({ ...prev, comment: event.target.value }))} /></label>
-          <label className="checkbox-row"><input type="checkbox" checked={form.isActive} onChange={(event) => setForm((prev) => ({ ...prev, isActive: event.target.checked }))} />Активный</label>
+          <label className="checkbox-row"><input type="checkbox" checked={form.isActive} onChange={(event) => setForm((prev) => ({ ...prev, isActive: event.target.checked }))} />Активний</label>
           <div className="form-actions"><button type="submit" disabled={saving}>{saving ? "Збереження..." : editingVehicle ? "Оновити" : "Додати"}</button>{editingVehicle && <button type="button" className="secondary-button" onClick={resetForm}>Скасувати</button>}</div>
         </form>
       )}
@@ -219,7 +219,7 @@ export function VehiclesPage() {
         <label>Стан<select value={showArchive ? "archive" : "active"} onChange={(event) => handleArchiveFilterChange(event.target.value)}><option value="active">Активні</option><option value="archive">Архів</option></select></label>
       </div>
 
-      {loading ? <p>Завантаження...</p> : <div className="table-wrapper"><table><thead><tr><th>Авто</th><th>Номер</th><th>Місто</th><th>Підрозділ</th><th>Пробег</th><th>Коментар</th><th>Статус</th><th></th></tr></thead><tbody>{vehicles.map((vehicle) => <tr key={vehicle.id}><td>{vehicle.title}</td><td>{vehicle.licensePlate || "—"}</td><td>{vehicle.city?.name || vehicle.cityId}</td><td>{vehicle.department?.name || vehicle.departmentId}</td><td>{vehicle.startOdometer ?? "—"}</td><td>{vehicle.comment || "—"}</td><td>{vehicle.deletedAt ? "Архів" : vehicle.isActive ? "Активний" : "Вимкнений"}</td><td>{canEdit && <RowActionMenu items={showArchive ? [{ label: "Відновити", onClick: () => handleRestore(vehicle), variant: "edit" }] : [{ label: "Редагувати", onClick: () => startEdit(vehicle), variant: "edit" }, { label: "В архів", onClick: () => handleArchive(vehicle), variant: "danger" }]} />}</td></tr>)}{vehicles.length === 0 && <tr><td colSpan={8}>Немає автомобилей</td></tr>}</tbody></table></div>}
+      {loading ? <p>Завантаження...</p> : <div className="table-wrapper"><table><thead><tr><th>Авто</th><th>Номер</th><th>Місто</th><th>Підрозділ</th><th>Пробіг</th><th>Коментар</th><th>Статус</th><th></th></tr></thead><tbody>{vehicles.map((vehicle) => <tr key={vehicle.id}><td>{vehicle.title}</td><td>{vehicle.licensePlate || "—"}</td><td>{vehicle.city?.name || vehicle.cityId}</td><td>{vehicle.department?.name || vehicle.departmentId}</td><td>{vehicle.startOdometer ?? "—"}</td><td>{vehicle.comment || "—"}</td><td>{vehicle.deletedAt ? "Архів" : vehicle.isActive ? "Активний" : "Вимкнений"}</td><td>{canEdit && <RowActionMenu items={showArchive ? [{ label: "Відновити", onClick: () => handleRestore(vehicle), variant: "edit" }] : [{ label: "Редагувати", onClick: () => startEdit(vehicle), variant: "edit" }, { label: "До архіву", onClick: () => handleArchive(vehicle), variant: "danger" }]} />}</td></tr>)}{vehicles.length === 0 && <tr><td colSpan={8}>Немає автомобілів</td></tr>}</tbody></table></div>}
     </div>
   );
 }

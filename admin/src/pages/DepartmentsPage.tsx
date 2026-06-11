@@ -99,7 +99,7 @@ export function DepartmentsPage() {
     setSuccess("");
 
     if (!form.cityId) {
-      setError("Виберіть місто");
+      setError("Оберіть місто");
       return;
     }
 
@@ -142,11 +142,11 @@ export function DepartmentsPage() {
       return;
     }
 
-    if (!confirm(`Відправити підрозділ "${department.name}" в архів?`)) return;
+    if (!confirm(`Перемістити підрозділ "${department.name}" до архіву?`)) return;
 
     try {
       await archiveDepartment(department.id);
-      setSuccess("Підрозділ відправлено в архів");
+      setSuccess("Підрозділ переміщено до архіву");
       await loadAll();
     } catch (caught: any) {
       setError(caught?.response?.data?.message || "Не вдалося архівувати підрозділ");
@@ -181,7 +181,7 @@ export function DepartmentsPage() {
       <div className="page-header">
         <div>
           <h1>Підрозділи</h1>
-          <p>Керуйте підрозділами по містах. Системний ГШР створюється автоматично.</p>
+          <p>Керуйте підрозділами за містами. Системний ГШР створюється автоматично.</p>
         </div>
       </div>
 
@@ -192,7 +192,7 @@ export function DepartmentsPage() {
         <label>
           Місто
           <select value={form.cityId} onChange={(event) => setForm((prev) => ({ ...prev, cityId: Number(event.target.value) }))} disabled={Boolean(editingDepartment?.isSystem)}>
-            <option value={0}>Виберіть місто</option>
+            <option value={0}>Оберіть місто</option>
             {activeCities.map((city) => (
               <option key={city.id} value={city.id}>{city.name}</option>
             ))}
@@ -233,7 +233,7 @@ export function DepartmentsPage() {
         <label>
           Фільтр міста
           <select value={selectedCityId} onChange={(event) => handleCityFilterChange(Number(event.target.value))}>
-            <option value={0}>Всі міста</option>
+            <option value={0}>Усі міста</option>
             {cities.map((city) => (
               <option key={city.id} value={city.id}>{city.name}</option>
             ))}
@@ -279,7 +279,7 @@ export function DepartmentsPage() {
                           ? [{ label: "Відновити", onClick: () => handleRestore(department), variant: "edit" }]
                           : [
                               { label: "Редагувати", onClick: () => startEdit(department), variant: "edit" },
-                              ...(!department.isSystem ? [{ label: "В архів", variant: "danger" as const, onClick: () => handleArchive(department) }] : []),
+                              ...(!department.isSystem ? [{ label: "До архіву", variant: "danger" as const, onClick: () => handleArchive(department) }] : []),
                             ]
                       }
                     />

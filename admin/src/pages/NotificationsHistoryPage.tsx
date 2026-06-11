@@ -38,7 +38,7 @@ const initialFilters: Filters = {
 function formatDateTime(value: string | null) {
   if (!value) return "—";
 
-  return new Date(value).toLocaleString("ru-RU");
+  return new Date(value).toLocaleString("uk-UA");
 }
 
 function getDeliveredCount(notification: AdminNotification) {
@@ -53,22 +53,22 @@ function getNotificationStatusLabel(notification: AdminNotification) {
     notification.recipientsCount > 0 &&
     notification.repliedCount === notification.recipientsCount
   ) {
-    return "Все ответили";
+    return "Усі відповіли";
   }
 
   if (notification.repliedCount > 0) {
-    return "Есть ответы";
+    return "Є відповіді";
   }
 
   if (
     notification.recipientsCount > 0 &&
     notification.readCount === notification.recipientsCount
   ) {
-    return "Все ознакомились";
+    return "Усі ознайомилися";
   }
 
   if (notification.readCount > 0) {
-    return "Частично ознакомились";
+    return "Частково ознайомилися";
   }
 
   if (
@@ -79,10 +79,10 @@ function getNotificationStatusLabel(notification: AdminNotification) {
   }
 
   if (deliveredCount > 0) {
-    return "Частично доставлено";
+    return "Частково доставлено";
   }
 
-  return "Отправлено";
+  return "Надіслано";
 }
 
 function getNotificationStatusClass(notification: AdminNotification) {
@@ -104,11 +104,11 @@ function getNotificationStatusClass(notification: AdminNotification) {
 function getRecipientStatusLabel(
   recipient: AdminNotification["recipients"][number],
 ) {
-  if (recipient.repliedAt) return "Ответил";
-  if (recipient.readAt) return "Ознакомился";
+  if (recipient.repliedAt) return "Відповів";
+  if (recipient.readAt) return "Ознайомився";
   if (recipient.deliveredAt) return "Доставлено";
 
-  return "Отправлено";
+  return "Надіслано";
 }
 
 function getRecipientStatusClass(
@@ -127,7 +127,7 @@ function getRecipientTimelineItems(
   return [
     {
       key: "sent",
-      label: "Отправлено",
+      label: "Надіслано",
       value: recipient.sentAt,
       active: Boolean(recipient.sentAt),
     },
@@ -139,13 +139,13 @@ function getRecipientTimelineItems(
     },
     {
       key: "read",
-      label: "Ознакомился",
+      label: "Ознайомився",
       value: recipient.readAt,
       active: Boolean(recipient.readAt),
     },
     {
       key: "reply",
-      label: "Ответил",
+      label: "Відповів",
       value: recipient.repliedAt,
       active: Boolean(recipient.repliedAt),
     },
@@ -210,7 +210,7 @@ export function NotificationsHistoryPage() {
         setDepartments(departmentsData);
         setMobileUsers(usersData);
       } catch {
-        setError("Не удалось загрузить справочники");
+        setError("Не вдалося завантажити довідники");
       }
     }
 
@@ -249,7 +249,7 @@ export function NotificationsHistoryPage() {
       setFilters(nextFilters);
     } catch (err: any) {
       setError(
-        err.response?.data?.message || "Не удалось загрузить сповіщення",
+        err.response?.data?.message || "Не вдалося завантажити сповіщення",
       );
     } finally {
       setLoading(false);
@@ -264,7 +264,7 @@ export function NotificationsHistoryPage() {
       const data = await getNotificationById(notification.id);
       setSelectedNotification(data);
     } catch (err: any) {
-      setError(err.response?.data?.message || "Не удалось открыть уведомление");
+      setError(err.response?.data?.message || "Не вдалося відкрити сповіщення");
     } finally {
       setDetailsLoading(false);
     }
@@ -303,7 +303,7 @@ export function NotificationsHistoryPage() {
       <div className="page-header">
         <div>
           <h1>Історія сповіщень</h1>
-          <p>Список відправленоных сповіщень и реакций користувачів</p>
+          <p>Список надісланих сповіщень і реакцій користувачів</p>
         </div>
       </div>
 
@@ -311,8 +311,8 @@ export function NotificationsHistoryPage() {
 
       <div className="panel-card">
         <AccordionSection
-          title="Фильтры"
-          subtitle="Місто, получатель и период отправки"
+          title="Фільтри"
+          subtitle="Місто, отримувач і період надсилання"
           open={openedSections.filters}
           onToggle={() => toggleSection("filters")}
         >
@@ -325,7 +325,7 @@ export function NotificationsHistoryPage() {
                   updateFilter("cityId", Number(event.target.value))
                 }
               >
-                <option value={0}>Все доступные города</option>
+                <option value={0}>Усі доступні міста</option>
 
                 {cities.map((city) => (
                   <option key={city.id} value={city.id}>
@@ -361,7 +361,7 @@ export function NotificationsHistoryPage() {
                   updateFilter("mobileUserId", Number(event.target.value))
                 }
               >
-                <option value={0}>Все пользователи</option>
+                <option value={0}>Усі користувачі</option>
 
                 {filteredMobileUsers.map((user) => (
                   <option key={user.id} value={user.id}>
@@ -392,27 +392,27 @@ export function NotificationsHistoryPage() {
             </label>
 
             <label className="field">
-              <span>Строк на странице</span>
+              <span>Рядків на сторінці</span>
               <select
                 value={filters.pageSize}
                 onChange={(event) =>
                   updateFilter("pageSize", Number(event.target.value))
                 }
               >
-                <option value={20}>20 строк</option>
-                <option value={50}>50 строк</option>
-                <option value={100}>100 строк</option>
+                <option value={20}>20 рядків</option>
+                <option value={50}>50 рядків</option>
+                <option value={100}>100 рядків</option>
               </select>
             </label>
           </div>
 
           <div className="form-actions">
             <button className="primary-button" onClick={applyFilters}>
-              Применить
+              Застосувати
             </button>
 
             <button className="secondary-button" onClick={resetFilters}>
-              Сбросить
+              Скинути
             </button>
           </div>
         </AccordionSection>
@@ -421,7 +421,7 @@ export function NotificationsHistoryPage() {
       <div className="panel-card table-card">
         <AccordionSection
           title="Список сповіщень"
-          subtitle={`Усього: ${pagination.total} · Страница ${pagination.page} из ${pagination.totalPages}`}
+          subtitle={`Усього: ${pagination.total} · Сторінка ${pagination.page} з ${pagination.totalPages}`}
           open={openedSections.list}
           onToggle={() => toggleSection("list")}
         >
@@ -439,11 +439,11 @@ export function NotificationsHistoryPage() {
                       <th>Дата</th>
                       <th>Місто</th>
                       <th>Підрозділ</th>
-                      <th>Кто отправил</th>
-                      <th>Получатели</th>
+                      <th>Хто надіслав</th>
+                      <th>Отримувачі</th>
                       <th>Доставлено</th>
-                      <th>Ознакомились</th>
-                      <th>Ответили</th>
+                      <th>Ознайомилися</th>
+                      <th>Відповіли</th>
                       <th>Статус</th>
                       <th>Заголовок</th>
                     </tr>
@@ -463,7 +463,7 @@ export function NotificationsHistoryPage() {
                         </td>
                         <td>{formatDateTime(notification.createdAt)}</td>
                         <td>{notification.city.name}</td>
-                        <td>{notification.department ? formatDepartmentOption(notification.department, { showCity: false }) : "Все"}</td>
+                        <td>{notification.department ? formatDepartmentOption(notification.department, { showCity: false }) : "Усі"}</td>
                         <td>
                           {notification.senderUser?.name ||
                             notification.senderUser?.login ||
@@ -483,7 +483,6 @@ export function NotificationsHistoryPage() {
                           </span>
                         </td>
                         <td>{notification.title}</td>
-                    
                       </tr>
                     ))}
                   </tbody>
@@ -500,7 +499,7 @@ export function NotificationsHistoryPage() {
                 </button>
 
                 <span>
-                  Страница {pagination.page} из {pagination.totalPages}
+                  Сторінка {pagination.page} з {pagination.totalPages}
                 </span>
 
                 <button
@@ -531,7 +530,7 @@ export function NotificationsHistoryPage() {
           >
             <div className="table-header">
               <div>
-                <h2>Карточка сповіщення</h2>
+                <h2>Картка сповіщення</h2>
                 <p>#{selectedNotification.id}</p>
               </div>
 
@@ -539,7 +538,7 @@ export function NotificationsHistoryPage() {
                 className="small-button"
                 onClick={() => setSelectedNotification(null)}
               >
-                Закрыть
+                Закрити
               </button>
             </div>
 
@@ -547,10 +546,10 @@ export function NotificationsHistoryPage() {
               <div className="empty-state">Завантаження...</div>
             ) : (
               <>
-               <div className="notification-detail-message">
-  <strong>{selectedNotification.title}</strong>
-  <p>{selectedNotification.message}</p>
-</div>
+                <div className="notification-detail-message">
+                  <strong>{selectedNotification.title}</strong>
+                  <p>{selectedNotification.message}</p>
+                </div>
 
                 <div className="notification-detail-grid">
                   <span>Місто</span>
@@ -559,44 +558,44 @@ export function NotificationsHistoryPage() {
                   <span>Підрозділ</span>
                   <strong>{selectedNotification.department ? formatDepartmentOption(selectedNotification.department, { showCity: false }) : "Усі підрозділи"}</strong>
 
-                  <span>Отправил</span>
+                  <span>Надіслав</span>
                   <strong>
                     {selectedNotification.senderUser?.name ||
                       selectedNotification.senderUser?.login ||
                       "—"}
                   </strong>
 
-                  <span>Время отправки</span>
+                  <span>Час надсилання</span>
                   <strong>
                     {formatDateTime(selectedNotification.createdAt)}
                   </strong>
 
-                  <span>Получателей</span>
+                  <span>Отримувачів</span>
                   <strong>{selectedNotification.recipientsCount}</strong>
 
                   <span>Push</span>
                   <strong>
-                    {selectedNotification.push.enabled ? "Включен" : "Выключен"}
+                    {selectedNotification.push.enabled ? "Увімкнено" : "Вимкнено"}
                   </strong>
 
-                  <span>Push токенов</span>
+                  <span>Push-токенів</span>
                   <strong>{selectedNotification.push.tokensCount}</strong>
 
-                  <span>Успешно відправленоо</span>
+                  <span>Успішно надіслано</span>
                   <strong>{selectedNotification.push.successCount}</strong>
 
-                  <span>Ошибок отправки</span>
+                  <span>Помилок надсилання</span>
                   <strong>{selectedNotification.push.failureCount}</strong>
 
-                  <span>Удалено невалидных токенов</span>
+                  <span>Видалено невалідних токенів</span>
                   <strong>
                     {selectedNotification.push.removedInvalidTokens}
                   </strong>
 
-                  <span>Push статус</span>
+                  <span>Push-статус</span>
                   <strong>{selectedNotification.push.message || "—"}</strong>
 
-                  <span>Push обработан</span>
+                  <span>Push оброблено</span>
                   <strong>
                     {formatDateTime(selectedNotification.push.processedAt)}
                   </strong>
@@ -649,7 +648,7 @@ export function NotificationsHistoryPage() {
 
                           {recipient.replyText && (
                             <p className="notification-reply-text">
-                              Ответ: {recipient.replyText}
+                              Відповідь: {recipient.replyText}
                             </p>
                           )}
                         </div>

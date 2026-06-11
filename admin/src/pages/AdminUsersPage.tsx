@@ -41,14 +41,14 @@ const initialForm: AdminUserForm = {
 
 const roleLabels: Record<string, string> = {
   admin: "Адміністратор",
-  viewer: "Наблюдатель",
-  super_admin: "Супер администратор",
+  viewer: "Спостерігач",
+  super_admin: "Супер адміністратор",
 };
 
 function formatDateTime(value: string | null) {
   if (!value) return "—";
 
-  return new Date(value).toLocaleString("ru-RU", {
+  return new Date(value).toLocaleString("uk-UA", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -94,7 +94,7 @@ export function AdminUsersPage() {
       const citiesData = await getCities(false);
       setCities(citiesData);
     } catch {
-      setError("Не удалось загрузить города");
+      setError("Не вдалося завантажити міста");
     } finally {
       setReferencesLoading(false);
     }
@@ -108,7 +108,7 @@ export function AdminUsersPage() {
       const data = await getAdminUsers(nextFilters);
       setReport(data);
     } catch {
-      setError("Не удалось загрузить користувачів");
+      setError("Не вдалося завантажити користувачів");
     } finally {
       setLoading(false);
     }
@@ -158,12 +158,12 @@ export function AdminUsersPage() {
 
   function startEdit(user: AdminUserRow) {
     if (user.role.code === "super_admin") {
-      setError("Супер администратора нельзя редагувати через этот раздел");
+      setError("Супер адміністратора не можна редагувати через цей розділ");
       return;
     }
 
     if (user.deletedAt) {
-      setError("Удаленного пользователя нельзя редагувати");
+      setError("Видаленого користувача не можна редагувати");
       return;
     }
 
@@ -187,19 +187,19 @@ export function AdminUsersPage() {
   }
 
   function validateForm() {
-    if (!form.name.trim()) return "Укажите имя пользователя";
-    if (!form.login.trim()) return "Укажите логин";
+    if (!form.name.trim()) return "Вкажіть ім’я користувача";
+    if (!form.login.trim()) return "Вкажіть логін";
 
     if (!editingUserId && form.password.length < 6) {
-      return "Пароль должен быть минимум 6 символов";
+      return "Пароль має містити щонайменше 6 символів";
     }
 
     if (editingUserId && form.password && form.password.length < 6) {
-      return "Новий пароль должен быть минимум 6 символов";
+      return "Новий пароль має містити щонайменше 6 символів";
     }
 
     if (selectedCityIds.length === 0) {
-      return "Выберите хотя бы один город доступа";
+      return "Оберіть хоча б одне місто доступу";
     }
 
     return "";
@@ -232,7 +232,7 @@ export function AdminUsersPage() {
           isActive: form.isActive,
         });
 
-        setSuccess("Користувач оновлено");
+        setSuccess("Користувача оновлено");
       } else {
         await createAdminUser({
           name: form.name.trim(),
@@ -243,13 +243,13 @@ export function AdminUsersPage() {
           cityIds: selectedCityIds,
         });
 
-        setSuccess("Користувач создан");
+        setSuccess("Користувача створено");
       }
 
       resetForm();
       await loadUsers(filters);
     } catch (err: any) {
-      setError(err.response?.data?.message || "Не удалось зберегти пользователя");
+      setError(err.response?.data?.message || "Не вдалося зберегти користувача");
     } finally {
       setSaving(false);
     }
@@ -257,7 +257,7 @@ export function AdminUsersPage() {
 
   async function handleDelete(user: AdminUserRow) {
     const confirmed = window.confirm(
-      `Удалить пользователя ${user.name} (${user.login})?`
+      `Видалити користувача ${user.name} (${user.login})?`
     );
 
     if (!confirmed) {
@@ -270,10 +270,10 @@ export function AdminUsersPage() {
 
     try {
       await deleteAdminUser(user.id);
-      setSuccess("Користувач удален");
+      setSuccess("Користувача видалено");
       await loadUsers(filters);
     } catch (err: any) {
-      setError(err.response?.data?.message || "Не удалось удалить пользователя");
+      setError(err.response?.data?.message || "Не вдалося видалити користувача");
     } finally {
       setDeletingUserId(null);
     }
@@ -321,8 +321,8 @@ export function AdminUsersPage() {
         <div>
           <h1>Адміністратори</h1>
           <p>
-            Управление администраторами и наблюдателями, назначение городов
-            доступа
+            Керування адміністраторами та спостерігачами, призначення міст
+            доступу
           </p>
         </div>
       </div>
@@ -331,7 +331,7 @@ export function AdminUsersPage() {
         <form className="panel-card" onSubmit={handleSubmit}>
           <div className="form-title-row">
             <h2>
-              {editingUserId ? "Редагувати пользователя" : "Новий користувач"}
+              {editingUserId ? "Редагувати користувача" : "Новий користувач"}
             </h2>
 
             {editingUserId && (
@@ -346,11 +346,11 @@ export function AdminUsersPage() {
           </div>
 
           <label className="field">
-            <span>Имя</span>
+            <span>Ім’я</span>
             <input
               value={form.name}
               onChange={(event) => updateForm("name", event.target.value)}
-              placeholder="Например: Адміністратор Запорожье"
+              placeholder="Наприклад: Адміністратор Запоріжжя"
             />
           </label>
 
@@ -368,19 +368,19 @@ export function AdminUsersPage() {
             <input
               value={form.email}
               onChange={(event) => updateForm("email", event.target.value)}
-              placeholder="Необязательно"
+              placeholder="Необов’язково"
             />
           </label>
 
           <label className="field">
             <span>
-              Пароль {editingUserId ? "(оставь пустым, если не менять)" : ""}
+              Пароль {editingUserId ? "(залиште порожнім, якщо не змінювати)" : ""}
             </span>
             <input
               type="password"
               value={form.password}
               onChange={(event) => updateForm("password", event.target.value)}
-              placeholder={editingUserId ? "Новий пароль" : "Минимум 6 символов"}
+              placeholder={editingUserId ? "Новий пароль" : "Мінімум 6 символів"}
             />
           </label>
 
@@ -393,7 +393,7 @@ export function AdminUsersPage() {
               }
             >
               <option value="admin">Адміністратор</option>
-              <option value="viewer">Наблюдатель</option>
+              <option value="viewer">Спостерігач</option>
             </select>
           </label>
 
@@ -406,17 +406,17 @@ export function AdminUsersPage() {
                   updateForm("isActive", event.target.checked)
                 }
               />
-              <span>Користувач активен</span>
+              <span>Користувач активний</span>
             </label>
           )}
 
           <div className="field">
-            <span>Міста доступа</span>
+            <span>Міста доступу</span>
 
             {referencesLoading ? (
-              <div className="empty-state">Загрузка городов...</div>
+              <div className="empty-state">Завантаження міст...</div>
             ) : activeCities.length === 0 ? (
-              <div className="empty-state">Немає активных городов</div>
+              <div className="empty-state">Немає активних міст</div>
             ) : (
               <div className="city-checkbox-list">
                 {activeCities.map((city) => (
@@ -437,16 +437,16 @@ export function AdminUsersPage() {
             <div className="role-help-card">
               <strong>Адміністратор</strong>
               <span>
-                Может управлять співробітниками, машинами, нарядамии и змінамии в
-                вибраних городах.
+                Може керувати співробітниками, машинами, нарядами та змінами в
+                обраних містах.
               </span>
             </div>
           ) : (
             <div className="role-help-card">
-              <strong>Наблюдатель</strong>
+              <strong>Спостерігач</strong>
               <span>
-                Может только просматривать звіти и справочники по вибраними
-                городам.
+                Може лише переглядати звіти та довідники за обраними
+                містами.
               </span>
             </div>
           )}
@@ -458,8 +458,8 @@ export function AdminUsersPage() {
             {saving
               ? "Зберігаємо..."
               : editingUserId
-                ? "Зберегти изменения"
-                : "Создать пользователя"}
+                ? "Зберегти зміни"
+                : "Створити користувача"}
           </button>
         </form>
 
@@ -468,8 +468,8 @@ export function AdminUsersPage() {
             <div>
               <h2>Список користувачів</h2>
               <p>
-                Усього рядків: {(pagination?.total ?? 0).toLocaleString("ru-RU")} ·
-                Страница {pagination?.page ?? 1} из{" "}
+                Усього рядків: {(pagination?.total ?? 0).toLocaleString("uk-UA")} ·
+                Сторінка {pagination?.page ?? 1} з{" "}
                 {pagination?.totalPages ?? 1}
               </p>
             </div>
@@ -482,9 +482,9 @@ export function AdminUsersPage() {
                   handlePageSizeChange(Number(event.target.value))
                 }
               >
-                <option value={20}>20 строк</option>
-                <option value={50}>50 строк</option>
-                <option value={100}>100 строк</option>
+                <option value={20}>20 рядків</option>
+                <option value={50}>50 рядків</option>
+                <option value={100}>100 рядків</option>
               </select>
             </div>
           </div>
@@ -498,9 +498,9 @@ export function AdminUsersPage() {
                   updateFilter("roleCode", event.target.value || undefined)
                 }
               >
-                <option value="">Все роли</option>
+                <option value="">Усі ролі</option>
                 <option value="admin">Адміністратор</option>
-                <option value="viewer">Наблюдатель</option>
+                <option value="viewer">Спостерігач</option>
               </select>
             </label>
 
@@ -527,7 +527,7 @@ export function AdminUsersPage() {
               <input
                 value={filters.search ?? ""}
                 onChange={(event) => updateFilter("search", event.target.value)}
-                placeholder="Имя, логин, email..."
+                placeholder="Ім’я, логін, email..."
               />
             </label>
 
@@ -539,7 +539,7 @@ export function AdminUsersPage() {
                   updateFilter("includeArchived", event.target.checked)
                 }
               />
-              <span>Показывать удаленных</span>
+              <span>Показувати видалених</span>
             </label>
           </div>
 
@@ -549,18 +549,18 @@ export function AdminUsersPage() {
               onClick={handleApply}
               disabled={loading}
             >
-              {loading ? "Завантаження..." : "Сформировать"}
+              {loading ? "Завантаження..." : "Сформувати"}
             </button>
 
             <button className="secondary-button" onClick={handleResetFilters}>
-              Сбросить
+              Скинути
             </button>
           </div>
 
           {loading ? (
-            <div className="empty-state">Загрузка користувачів...</div>
+            <div className="empty-state">Завантаження користувачів...</div>
           ) : rows.length === 0 ? (
-            <div className="empty-state">Користувачі не знайдені</div>
+            <div className="empty-state">Користувачів не знайдено</div>
           ) : (
             <>
               <div className="table-wrap">
@@ -571,8 +571,8 @@ export function AdminUsersPage() {
                       <th>Роль</th>
                       <th>Міста</th>
                       <th>Статус</th>
-                      <th>Создан</th>
-                      <th>Действия</th>
+                      <th>Створено</th>
+                      <th>Дії</th>
                     </tr>
                   </thead>
 
@@ -616,7 +616,7 @@ export function AdminUsersPage() {
                           <td>
                             {isDeleted ? (
                               <span className="status-badge status-inactive">
-                                Удален
+                                Видалений
                               </span>
                             ) : user.isActive ? (
                               <span className="status-badge status-active">
@@ -635,7 +635,7 @@ export function AdminUsersPage() {
                             {isSuperAdmin ? (
                               <span className="muted-text">Недоступно</span>
                             ) : isDeleted ? (
-                              <span className="muted-text">Удален</span>
+                              <span className="muted-text">Видалений</span>
                             ) : (
                               <div className="table-actions">
                                 <button
@@ -651,8 +651,8 @@ export function AdminUsersPage() {
                                   disabled={deletingUserId === user.id}
                                 >
                                   {deletingUserId === user.id
-                                    ? "Удаляем..."
-                                    : "Удалить"}
+                                    ? "Видаляємо..."
+                                    : "Видалити"}
                                 </button>
                               </div>
                             )}
@@ -674,7 +674,7 @@ export function AdminUsersPage() {
                 </button>
 
                 <span>
-                  Страница {pagination?.page ?? 1} из{" "}
+                  Сторінка {pagination?.page ?? 1} з{" "}
                   {pagination?.totalPages ?? 1}
                 </span>
 

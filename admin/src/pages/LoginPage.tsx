@@ -47,7 +47,7 @@ export function LoginPage() {
   return (
     <div className="login-page">
       <form className="login-card" onSubmit={handleSubmit}>
-        <div className="login-logo">Ж</div>
+        <div className="login-logo">ОХ</div>
 
         <h1>Бортовий журнал</h1>
         <p>Вхід до адмін-панелі</p>

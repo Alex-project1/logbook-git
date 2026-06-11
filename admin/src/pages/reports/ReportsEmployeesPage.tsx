@@ -29,7 +29,7 @@ const defaultFilters: EmployeesTableFilters = {
 };
 
 function formatNumber(value: number) {
-  return value.toLocaleString("ru-RU");
+  return value.toLocaleString("uk-UA");
 }
 
 function formatKm(value: number) {
@@ -44,12 +44,14 @@ function getAdditionalRows(row: EmployeeTableRow) {
     })
   );
 }
+
 function getPostDutyRows(row: EmployeeTableRow) {
   return Object.entries(row.postDutyByPost ?? {}).map(([postName, stats]) => ({
     postName,
     ...stats,
   }));
 }
+
 export function ReportsEmployeesPage() {
   const [filters, setFilters] =
     useState<EmployeesTableFilters>(defaultFilters);
@@ -140,7 +142,7 @@ export function ReportsEmployeesPage() {
       setReport(data);
       setExpandedRows({});
     } catch {
-      setError("Не удалось загрузить звіт по співробітникам");
+      setError("Не вдалося завантажити звіт за співробітниками");
     } finally {
       setLoading(false);
     }
@@ -238,7 +240,7 @@ export function ReportsEmployeesPage() {
     try {
       await downloadEmployeesTableExcel(filters);
     } catch {
-      setError("Не удалось скачать Excel");
+      setError("Не вдалося завантажити Excel");
     } finally {
       setExcelLoading(false);
     }
@@ -250,8 +252,8 @@ export function ReportsEmployeesPage() {
         <div>
           <h1>За співробітниками</h1>
           <p>
-            Статистика по змінами, ролям, оружию, спрацюваннями, нагрузке и
-            задержаниям
+            Статистика за змінами, ролями, зброєю, спрацюваннями, навантаженням і
+            затриманнями
           </p>
         </div>
       </div>
@@ -326,7 +328,7 @@ export function ReportsEmployeesPage() {
                 updateFilter("crewId", Number(event.target.value) || undefined)
               }
             >
-              <option value={0}>Все наряди</option>
+              <option value={0}>Усі наряди</option>
 
               {visibleCrews.map((crew) => (
                 <option key={crew.id} value={crew.id}>
@@ -344,7 +346,7 @@ export function ReportsEmployeesPage() {
                 updateFilter("vehicleId", Number(event.target.value) || undefined)
               }
             >
-              <option value={0}>Все автомобілі</option>
+              <option value={0}>Усі автомобілі</option>
 
               {visibleVehicles.map((vehicle) => (
                 <option key={vehicle.id} value={vehicle.id}>
@@ -363,7 +365,7 @@ export function ReportsEmployeesPage() {
                 updateFilter("employeeId", Number(event.target.value) || undefined)
               }
             >
-              <option value={0}>Все співробітники</option>
+              <option value={0}>Усі співробітники</option>
 
               {visibleEmployees.map((employee) => (
                 <option key={employee.id} value={employee.id}>
@@ -378,18 +380,18 @@ export function ReportsEmployeesPage() {
             <input
               value={filters.search ?? ""}
               onChange={(event) => updateFilter("search", event.target.value)}
-              placeholder="ФИО, город, наряд, авто..."
+              placeholder="ПІБ, місто, наряд, авто..."
             />
           </label>
         </div>
 
         <div className="report-filter-actions">
           <button className="primary-button" onClick={handleApply} disabled={loading}>
-            {loading ? "Завантаження..." : "Сформировать"}
+            {loading ? "Завантаження..." : "Сформувати"}
           </button>
 
           <button className="secondary-button" onClick={handleReset}>
-            Сбросить
+            Скинути
           </button>
 
           <button
@@ -397,7 +399,7 @@ export function ReportsEmployeesPage() {
             onClick={handleExcel}
             disabled={excelLoading}
           >
-            {excelLoading ? "Скачивание..." : "Скачать Excel"}
+            {excelLoading ? "Завантаження..." : "Завантажити Excel"}
           </button>
         </div>
       </div>
@@ -406,7 +408,7 @@ export function ReportsEmployeesPage() {
 
       <div className="stats-grid report-stats-grid">
         <div className="stat-card">
-          <span>Співробітников</span>
+          <span>Співробітників</span>
           <strong>{formatNumber(report?.summary.totalEmployees ?? 0)}</strong>
         </div>
 
@@ -416,7 +418,7 @@ export function ReportsEmployeesPage() {
         </div>
 
         <div className="stat-card">
-          <span>Водителем / Старшим</span>
+          <span>Водієм / Старшим</span>
           <strong>
             {formatNumber(report?.summary.driverShifts ?? 0)} /{" "}
             {formatNumber(report?.summary.seniorShifts ?? 0)}
@@ -424,26 +426,28 @@ export function ReportsEmployeesPage() {
         </div>
 
         <div className="stat-card">
-          <span>С оружием</span>
+          <span>Зі зброєю</span>
           <strong>{formatNumber(report?.summary.weaponShifts ?? 0)}</strong>
         </div>
+
         <div className="stat-card">
-          <span>Дополнительно</span>
+          <span>Додатково</span>
           <strong>
             {formatNumber(report?.summary.postDutyShiftEquivalent ?? 0)}
           </strong>
           <small>
-            {formatNumber(report?.summary.postDutyHours ?? 0)} ч ·{" "}
-            {formatNumber(report?.summary.postDutyCount ?? 0)} выходов
+            {formatNumber(report?.summary.postDutyHours ?? 0)} год ·{" "}
+            {formatNumber(report?.summary.postDutyCount ?? 0)} виходів
           </small>
         </div>
+
         <div className="stat-card">
-          <span>Сработок</span>
+          <span>Спрацювань</span>
           <strong>{formatNumber(report?.summary.totalAlarms ?? 0)}</strong>
         </div>
 
         <div className="stat-card">
-          <span>ОХ / Партнеры</span>
+          <span>ОХ / Партнери</span>
           <strong>
             {formatNumber(report?.summary.totalOh ?? 0)} /{" "}
             {formatNumber(report?.summary.totalPartner ?? 0)}
@@ -459,7 +463,7 @@ export function ReportsEmployeesPage() {
         </div>
 
         <div className="stat-card">
-          <span>Задержано / Передано</span>
+          <span>Затримано / Передано</span>
           <strong>
             {formatNumber(report?.summary.detained ?? 0)} /{" "}
             {formatNumber(report?.summary.transferred ?? 0)}
@@ -472,8 +476,8 @@ export function ReportsEmployeesPage() {
           <div>
             <h2>Співробітники</h2>
             <p>
-              Усього рядків: {formatNumber(pagination?.total ?? 0)} · Страница{" "}
-              {pagination?.page ?? 1} из {pagination?.totalPages ?? 1}
+              Усього рядків: {formatNumber(pagination?.total ?? 0)} · Сторінка{" "}
+              {pagination?.page ?? 1} з {pagination?.totalPages ?? 1}
             </p>
           </div>
 
@@ -483,18 +487,18 @@ export function ReportsEmployeesPage() {
               value={filters.pageSize ?? 20}
               onChange={(event) => handlePageSizeChange(Number(event.target.value))}
             >
-              <option value={20}>20 строк</option>
-              <option value={50}>50 строк</option>
-              <option value={100}>100 строк</option>
+              <option value={20}>20 рядків</option>
+              <option value={50}>50 рядків</option>
+              <option value={100}>100 рядків</option>
             </select>
           </div>
         </div>
 
         {loading ? (
-          <div className="empty-state">Загрузка співробітников...</div>
+          <div className="empty-state">Завантаження співробітників...</div>
         ) : rows.length === 0 ? (
           <div className="empty-state">
-            Співробітники за вибраними фільтрами не знайдені
+            Співробітників за вибраними фільтрами не знайдено
           </div>
         ) : (
           <>
@@ -503,25 +507,25 @@ export function ReportsEmployeesPage() {
                 <thead>
                   <tr>
                     <th></th>
-                    <th onClick={() => handleSort("fullName")}>ФИО</th>
+                    <th onClick={() => handleSort("fullName")}>ПІБ</th>
                     <th>Місто</th>
                     <th onClick={() => handleSort("totalShifts")}>Змін</th>
-                    <th onClick={() => handleSort("driverShifts")}>Водителем</th>
+                    <th onClick={() => handleSort("driverShifts")}>Водієм</th>
                     <th onClick={() => handleSort("seniorShifts")}>Старшим</th>
-                    <th onClick={() => handleSort("weaponShifts")}>С оружием</th>
-                    <th>Дополнительно</th>
-                    <th onClick={() => handleSort("totalAlarms")}>Сработок</th>
+                    <th onClick={() => handleSort("weaponShifts")}>Зі зброєю</th>
+                    <th>Додатково</th>
+                    <th onClick={() => handleSort("totalAlarms")}>Спрацювань</th>
                     <th onClick={() => handleSort("averageAlarmsPerShift")}>
-                      Средняя
+                      Середня
                     </th>
                     <th>ОХ</th>
-                    <th>Партнеры</th>
+                    <th>Партнери</th>
                     <th>Бойові</th>
                     <th>Хибні</th>
                     <th>Дод.</th>
-                    <th onClick={() => handleSort("detained")}>Задержано</th>
+                    <th onClick={() => handleSort("detained")}>Затримано</th>
                     <th onClick={() => handleSort("transferred")}>Передано</th>
-                    <th onClick={() => handleSort("totalDistanceKm")}>Пробег</th>
+                    <th onClick={() => handleSort("totalDistanceKm")}>Пробіг</th>
                   </tr>
                 </thead>
 
@@ -568,32 +572,33 @@ export function ReportsEmployeesPage() {
                           <tr className="expanded-row">
                             <td colSpan={18}>
                               <div className="expanded-content">
-                                <h3>Детализация співробітника</h3>
+                                <h3>Деталізація співробітника</h3>
 
                                 <div className="event-list">
                                   <div className="event-card">
-                                    <strong>Роли и нагрузка</strong>
+                                    <strong>Ролі та навантаження</strong>
 
                                     <div className="event-grid">
                                       <span>Усього змін: {row.totalShifts}</span>
-                                      <span>Водителем: {row.driverShifts}</span>
+                                      <span>Водієм: {row.driverShifts}</span>
                                       <span>Старшим: {row.seniorShifts}</span>
-                                      <span>С оружием: {row.weaponShifts}</span>
-                                      <span>Дополнительно: {row.postDutyShiftEquivalent}</span>
-                                      <span>Постовые часы: {row.postDutyHours}</span>
-                                      <span>Выходов на посты: {row.postDutyCount}</span>
+                                      <span>Зі зброєю: {row.weaponShifts}</span>
+                                      <span>Додатково: {row.postDutyShiftEquivalent}</span>
+                                      <span>Години на постах: {row.postDutyHours}</span>
+                                      <span>Виходів на пости: {row.postDutyCount}</span>
                                       <span>
-                                        Средняя нагрузка: {row.averageAlarmsPerShift}
+                                        Середнє навантаження: {row.averageAlarmsPerShift}
                                       </span>
-                                      <span>Пробег: {formatKm(row.totalDistanceKm)}</span>
+                                      <span>Пробіг: {formatKm(row.totalDistanceKm)}</span>
                                     </div>
                                   </div>
+
                                   <div className="event-card">
-                                    <strong>Додаткові посты</strong>
+                                    <strong>Додаткові пости</strong>
 
                                     {postDutyRows.length === 0 ? (
                                       <div className="muted-text">
-                                        Немає постовых дежурств
+                                        Немає чергувань на постах
                                       </div>
                                     ) : (
                                       <div className="mini-table-wrap">
@@ -602,15 +607,15 @@ export function ReportsEmployeesPage() {
                                             <tr>
                                               <th>Пост</th>
                                               <th>Змін</th>
-                                              <th>Часы</th>
-                                              <th>Выходов</th>
+                                              <th>Години</th>
+                                              <th>Виходів</th>
                                             </tr>
                                           </thead>
 
                                           <tbody>
                                             <tr>
                                               <td>
-                                                <strong>Дополнительно</strong>
+                                                <strong>Додатково</strong>
                                               </td>
                                               <td>{row.postDutyShiftEquivalent}</td>
                                               <td>{row.postDutyHours}</td>
@@ -630,12 +635,13 @@ export function ReportsEmployeesPage() {
                                       </div>
                                     )}
                                   </div>
+
                                   <div className="event-card">
                                     <strong>Додаткові спрацювання</strong>
 
                                     {additionalRows.length === 0 ? (
                                       <div className="muted-text">
-                                        Немає дополнительных спрацювань
+                                        Немає додаткових спрацювань
                                       </div>
                                     ) : (
                                       <div className="mini-table-wrap">
@@ -645,14 +651,14 @@ export function ReportsEmployeesPage() {
                                               <th>Причина</th>
                                               <th>Усього</th>
                                               <th>ОХ</th>
-                                              <th>Партнеры</th>
+                                              <th>Партнери</th>
                                             </tr>
                                           </thead>
 
                                           <tbody>
                                             <tr>
                                               <td>
-                                                <strong>Дополнительно</strong>
+                                                <strong>Додатково</strong>
                                               </td>
                                               <td>{row.additionalTotal}</td>
                                               <td>{row.additionalOh}</td>
@@ -694,7 +700,7 @@ export function ReportsEmployeesPage() {
               </button>
 
               <span>
-                Страница {pagination?.page ?? 1} из{" "}
+                Сторінка {pagination?.page ?? 1} з{" "}
                 {pagination?.totalPages ?? 1}
               </span>
 

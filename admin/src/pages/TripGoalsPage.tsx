@@ -10,12 +10,15 @@ import {
 import type { TripGoal } from "../api/trip-goals.api";
 import { RowActionMenu } from "../components/RowActionMenu";
 import { AccordionSection } from "../components/AccordionSection";
+
 type FormState = {
   name: string;
   sortOrder: string;
   isActive: boolean;
 };
+
 type TripGoalsSectionId = "form" | "list";
+
 const initialForm: FormState = {
   name: "",
   sortOrder: "100",
@@ -23,13 +26,13 @@ const initialForm: FormState = {
 };
 
 function getSystemGoalLabel(systemCode: string | null) {
-  if (!systemCode) return "Обычная цель";
+  if (!systemCode) return "Звичайна ціль";
 
   const labels: Record<string, string> = {
     alarm_oh: "Спрацювання ОХ",
-    alarm_partner: "Спрацювання Партнери",
+    alarm_partner: "Спрацювання партнерів",
     additional_alarm_list: "Список спрацювань",
-    wash: "Мойка",
+    wash: "Мийка",
     shift_change: "Перезмінка",
     check: "Перевірка",
   };
@@ -63,12 +66,14 @@ export function TripGoalsPage() {
     (page - 1) * pageSize,
     page * pageSize,
   );
+
   function toggleSection(sectionId: TripGoalsSectionId) {
     setOpenedSections((prev) => ({
       ...prev,
       [sectionId]: !prev[sectionId],
     }));
   }
+
   async function loadTripGoals(archive = showArchive) {
     setLoading(true);
     setError("");
@@ -78,11 +83,12 @@ export function TripGoalsPage() {
       setTripGoals(data);
       setPage(1);
     } catch {
-      setError("Не удалось загрузить цели поїздок");
+      setError("Не вдалося завантажити цілі поїздок");
     } finally {
       setLoading(false);
     }
   }
+
   useEffect(() => {
     loadTripGoals();
   }, []);
@@ -109,6 +115,7 @@ export function TripGoalsPage() {
     setForm(initialForm);
     setError("");
   }
+
   async function handleArchiveFilterChange(value: string) {
     const archive = value === "archive";
 
@@ -121,6 +128,7 @@ export function TripGoalsPage() {
 
     await loadTripGoals(archive);
   }
+
   function getSortOrderValue() {
     const value = Number(form.sortOrder);
 
@@ -130,6 +138,7 @@ export function TripGoalsPage() {
 
     return value;
   }
+
   function openFormWithError(message: string) {
     setError(message);
     setSuccess("");
@@ -139,17 +148,19 @@ export function TripGoalsPage() {
       form: true,
     }));
   }
+
   async function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!form.name.trim()) {
-      openFormWithError("Введите название цели поїздки");
+      openFormWithError("Введіть назву цілі поїздки");
       return;
     }
+
     const sortOrder = getSortOrderValue();
 
     if (Number.isNaN(sortOrder)) {
-      openFormWithError("Порядок должен быть целым числом");
+      openFormWithError("Порядок має бути цілим числом");
       return;
     }
 
@@ -165,7 +176,7 @@ export function TripGoalsPage() {
           isActive: form.isActive,
         });
 
-        setSuccess("Ціль поїздки оновленоа");
+        setSuccess("Ціль поїздки оновлено");
       } else {
         await createTripGoal({
           name: form.name.trim(),
@@ -173,7 +184,7 @@ export function TripGoalsPage() {
           isActive: form.isActive,
         });
 
-        setSuccess("Ціль поїздки доданоа");
+        setSuccess("Ціль поїздки додано");
       }
 
       resetForm();
@@ -187,9 +198,9 @@ export function TripGoalsPage() {
       await loadTripGoals(showArchive);
     } catch (err: any) {
       if (err.response?.status === 409) {
-        setError("Цель с таким названием уже существует");
+        setError("Ціль із такою назвою вже існує");
       } else {
-        setError("Не удалось зберегти цель поїздки");
+        setError("Не вдалося зберегти ціль поїздки");
       }
     } finally {
       setSaving(false);
@@ -205,38 +216,40 @@ export function TripGoalsPage() {
         isActive: !goal.isActive,
       });
 
-      setSuccess(goal.isActive ? "Цель отключена" : "Цель включена");
+      setSuccess(goal.isActive ? "Ціль вимкнено" : "Ціль увімкнено");
       await loadTripGoals(showArchive);
     } catch {
-      setError("Не удалось изменить статус цели");
+      setError("Не вдалося змінити статус цілі");
     }
   }
+
   async function handleRestore(goal: TripGoal) {
     setError("");
     setSuccess("");
 
     try {
       await restoreTripGoal(goal.id);
-      setSuccess("Цель відновленоа");
+      setSuccess("Ціль відновлено");
       await loadTripGoals(showArchive);
     } catch (err: any) {
       if (err.response?.status === 409) {
         setError(
-          "Нельзя восстановить: активная цель с таким названием уже существует",
+          "Не можна відновити: активна ціль із такою назвою вже існує",
         );
       } else {
-        setError("Не удалось восстановить цель");
+        setError("Не вдалося відновити ціль");
       }
     }
   }
+
   async function handleDelete(goal: TripGoal) {
     if (goal.isSystem) {
-      setError("Системную цель нельзя удалить. Ее можно только отключить.");
+      setError("Системну ціль не можна видалити. Її можна лише вимкнути.");
       return;
     }
 
     const confirmed = window.confirm(
-      `Удалить цель "${goal.name}"? Она будет скрыта из системы.`,
+      `Видалити ціль "${goal.name}"? Її буде приховано в системі.`,
     );
 
     if (!confirmed) return;
@@ -246,10 +259,10 @@ export function TripGoalsPage() {
 
     try {
       await deleteTripGoal(goal.id);
-      setSuccess("Цель удалена");
+      setSuccess("Ціль видалено");
       await loadTripGoals(showArchive);
     } catch {
-      setError("Не удалось удалить цель");
+      setError("Не вдалося видалити ціль");
     }
   }
 
@@ -258,7 +271,7 @@ export function TripGoalsPage() {
       <div className="page-header">
         <div>
           <h1>Цілі поїздок</h1>
-          <p>Глобальный справочник целей для всех городов</p>
+          <p>Глобальний довідник цілей для всіх міст</p>
         </div>
       </div>
 
@@ -267,21 +280,21 @@ export function TripGoalsPage() {
           <form className="panel-card" onSubmit={handleSubmit}>
             <AccordionSection
               title={
-                editingGoal ? "Редагувати цель" : "Додати цель поїздки"
+                editingGoal ? "Редагувати ціль" : "Додати ціль поїздки"
               }
-              subtitle="Назва, порядок отображения и статус цели"
+              subtitle="Назва, порядок відображення та статус цілі"
               open={openedSections.form}
               onToggle={() => toggleSection("form")}
             >
               {editingGoal?.isSystem && (
                 <div className="info-box">
-                  Это системная цель. Можно изменить название, порядок и статус,
-                  но нельзя изменить системный код или удалить цель.
+                  Це системна ціль. Можна змінити назву, порядок і статус,
+                  але не можна змінити системний код або видалити ціль.
                 </div>
               )}
 
               <label className="field">
-                <span>Назва цели</span>
+                <span>Назва цілі</span>
                 <input
                   value={form.name}
                   onChange={(event) =>
@@ -290,12 +303,12 @@ export function TripGoalsPage() {
                       name: event.target.value,
                     }))
                   }
-                  placeholder="Например: Патруль"
+                  placeholder="Наприклад: Патруль"
                 />
               </label>
 
               <label className="field">
-                <span>Порядок отображения</span>
+                <span>Порядок відображення</span>
                 <input
                   value={form.sortOrder}
                   onChange={(event) =>
@@ -305,7 +318,7 @@ export function TripGoalsPage() {
                     }))
                   }
                   inputMode="numeric"
-                  placeholder="Например: 100"
+                  placeholder="Наприклад: 100"
                 />
               </label>
 
@@ -320,7 +333,7 @@ export function TripGoalsPage() {
                     }))
                   }
                 />
-                <span>Цель активна</span>
+                <span>Ціль активна</span>
               </label>
 
               {error && <div className="form-error">{error}</div>}
@@ -351,18 +364,19 @@ export function TripGoalsPage() {
 
         {showArchive && (
           <div className="panel-card">
-            <h2>Архів целей</h2>
+            <h2>Архів цілей</h2>
             <div className="info-box">
-              Здесь отображаются удаленные обычные цели поїздок. Системные цели
-              в архив не попадают — их можно только включать или отключать.
+              Тут відображаються видалені звичайні цілі поїздок. Системні цілі
+              до архіву не потрапляють — їх можна лише вмикати або вимикати.
             </div>
 
             {error && <div className="form-error">{error}</div>}
             {success && <div className="form-success">{success}</div>}
           </div>
         )}
+
         <AccordionSection
-          title="Список целей"
+          title="Список цілей"
           subtitle={`Усього: ${tripGoals.length}`}
           open={openedSections.list}
           onToggle={() => toggleSection("list")}
@@ -378,10 +392,10 @@ export function TripGoalsPage() {
                     setPage(1);
                   }}
                 >
-                  <option value={10}>10 строк</option>
-                  <option value={20}>20 строк</option>
-                  <option value={50}>50 строк</option>
-                  <option value={100}>100 строк</option>
+                  <option value={10}>10 рядків</option>
+                  <option value={20}>20 рядків</option>
+                  <option value={50}>50 рядків</option>
+                  <option value={100}>100 рядків</option>
                 </select>
                 <select
                   className="compact-select"
@@ -390,7 +404,7 @@ export function TripGoalsPage() {
                     handleArchiveFilterChange(event.target.value)
                   }
                 >
-                  <option value="active">Рабочие</option>
+                  <option value="active">Активні</option>
                   <option value="archive">Архів</option>
                 </select>
 
@@ -408,8 +422,8 @@ export function TripGoalsPage() {
             ) : tripGoals.length === 0 ? (
               <div className="empty-state">
                 {showArchive
-                  ? "В архіве нет целей поїздок"
-                  : "Цілі поїздок еще не доданоы"}
+                  ? "В архіві немає цілей поїздок"
+                  : "Цілі поїздок ще не додано"}
               </div>
             ) : (
               <>
@@ -442,7 +456,7 @@ export function TripGoalsPage() {
                                   : "status-badge status-custom"
                               }
                             >
-                              {goal.isSystem ? "Системная" : "Обычная"}
+                              {goal.isSystem ? "Системна" : "Звичайна"}
                             </span>
                           </td>
                           <td>
@@ -457,7 +471,7 @@ export function TripGoalsPage() {
                           <td>
                             {showArchive ? (
                               <span className="status-badge status-inactive">
-                                В архіве
+                                В архіві
                               </span>
                             ) : (
                               <span
@@ -491,14 +505,14 @@ export function TripGoalsPage() {
                                   },
                                   {
                                     label: goal.isActive
-                                      ? "Отключить"
-                                      : "Включить",
+                                      ? "Вимкнути"
+                                      : "Увімкнути",
                                     onClick: () => handleToggleActive(goal),
                                   },
                                   ...(!goal.isSystem
                                     ? [
                                         {
-                                          label: "Удалить",
+                                          label: "Видалити",
                                           variant: "danger" as const,
                                           onClick: () => handleDelete(goal),
                                         },
@@ -512,6 +526,7 @@ export function TripGoalsPage() {
                       ))}
                     </tbody>
                   </table>
+
                   <div className="pagination-bar">
                     <button
                       className="secondary-button"
@@ -524,7 +539,7 @@ export function TripGoalsPage() {
                     </button>
 
                     <span>
-                      Страница {page} из {totalPages}
+                      Сторінка {page} з {totalPages}
                     </span>
 
                     <button

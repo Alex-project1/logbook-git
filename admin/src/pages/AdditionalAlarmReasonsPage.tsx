@@ -44,6 +44,7 @@ export function AdditionalAlarmReasonsPage() {
     form: false,
     list: true,
   });
+
   function toggleSection(section: SectionId) {
     setOpenedSections((prev) => ({
       ...prev,
@@ -59,7 +60,7 @@ export function AdditionalAlarmReasonsPage() {
       const data = await getAdditionalAlarmReasons(archive);
       setReasons(data);
     } catch {
-      setError("Не удалось загрузить причины дод. спрацювань");
+      setError("Не вдалося завантажити причини додаткових спрацювань");
     } finally {
       setLoading(false);
     }
@@ -87,6 +88,7 @@ export function AdditionalAlarmReasonsPage() {
     setForm(initialForm);
     setError("");
   }
+
   async function handleArchiveFilterChange(value: string) {
     const archive = value === "archive";
 
@@ -98,6 +100,7 @@ export function AdditionalAlarmReasonsPage() {
 
     await loadReasons(archive);
   }
+
   function getSortOrderValue() {
     const value = Number(form.sortOrder);
 
@@ -112,14 +115,14 @@ export function AdditionalAlarmReasonsPage() {
     event.preventDefault();
 
     if (!form.name.trim()) {
-      setError("Введите название причины");
+      setError("Введіть назву причини");
       return;
     }
 
     const sortOrder = getSortOrderValue();
 
     if (Number.isNaN(sortOrder)) {
-      setError("Порядок должен быть целым числом");
+      setError("Порядок має бути цілим числом");
       return;
     }
 
@@ -135,7 +138,7 @@ export function AdditionalAlarmReasonsPage() {
           isActive: form.isActive,
         });
 
-        setSuccess("Причина оновленоа");
+        setSuccess("Причину оновлено");
       } else {
         await createAdditionalAlarmReason({
           name: form.name.trim(),
@@ -143,16 +146,16 @@ export function AdditionalAlarmReasonsPage() {
           isActive: form.isActive,
         });
 
-        setSuccess("Причина доданоа");
+        setSuccess("Причину додано");
       }
 
       resetForm();
       await loadReasons(showArchive);
     } catch (err: any) {
       if (err.response?.status === 409) {
-        setError("Причина с таким названием уже существует");
+        setError("Причина з такою назвою вже існує");
       } else {
-        setError("Не удалось зберегти причину");
+        setError("Не вдалося зберегти причину");
       }
     } finally {
       setSaving(false);
@@ -168,38 +171,40 @@ export function AdditionalAlarmReasonsPage() {
         isActive: !reason.isActive,
       });
 
-      setSuccess(reason.isActive ? "Причина отключена" : "Причина включена");
+      setSuccess(reason.isActive ? "Причину вимкнено" : "Причину увімкнено");
       await loadReasons(showArchive);
     } catch {
-      setError("Не удалось изменить статус причины");
+      setError("Не вдалося змінити статус причини");
     }
   }
+
   async function handleRestore(reason: AdditionalAlarmReason) {
     setError("");
     setSuccess("");
 
     try {
       await restoreAdditionalAlarmReason(reason.id);
-      setSuccess("Причина відновленоа");
+      setSuccess("Причину відновлено");
       await loadReasons(showArchive);
     } catch (err: any) {
       if (err.response?.status === 409) {
         setError(
-          "Нельзя восстановить: активная причина с таким названием уже существует",
+          "Не можна відновити: активна причина з такою назвою вже існує",
         );
       } else {
-        setError("Не удалось восстановить причину");
+        setError("Не вдалося відновити причину");
       }
     }
   }
+
   async function handleDelete(reason: AdditionalAlarmReason) {
     if (reason.isSystem) {
-      setError("Системную причину нельзя удалить. Ее можно только отключить.");
+      setError("Системну причину не можна видалити. Її можна лише вимкнути.");
       return;
     }
 
     const confirmed = window.confirm(
-      `Удалить причину "${reason.name}"? Она будет скрыта из системы.`,
+      `Видалити причину "${reason.name}"? Її буде приховано в системі.`,
     );
 
     if (!confirmed) return;
@@ -209,10 +214,10 @@ export function AdditionalAlarmReasonsPage() {
 
     try {
       await deleteAdditionalAlarmReason(reason.id);
-      setSuccess("Причина удалена");
+      setSuccess("Причину видалено");
       await loadReasons(showArchive);
     } catch {
-      setError("Не удалось удалить причину");
+      setError("Не вдалося видалити причину");
     }
   }
 
@@ -220,20 +225,21 @@ export function AdditionalAlarmReasonsPage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Причини дод. спрацювань</h1>
-          <p>Справочник причин для массовых и дополнительных спрацювань</p>
+          <h1>Причини додаткових спрацювань</h1>
+          <p>Довідник причин для масових і додаткових спрацювань</p>
         </div>
       </div>
 
       <div className="content-grid">
         {!showArchive && (
           <AccordionSection
-          title={editingReason ? "Редагувати причину" : "Додати причину"}
-          subtitle=""
-          open={openedSections.form}
-          onToggle={()=>{
-            toggleSection('form')
-          }}>
+            title={editingReason ? "Редагувати причину" : "Додати причину"}
+            subtitle=""
+            open={openedSections.form}
+            onToggle={() => {
+              toggleSection("form");
+            }}
+          >
             <form className="panel-card" onSubmit={handleSubmit}>
               <h2>
                 
@@ -241,13 +247,13 @@ export function AdditionalAlarmReasonsPage() {
 
               {editingReason?.isSystem && (
                 <div className="info-box">
-                  Это системная причина. Можно изменить название, порядок и
-                  статус, но нельзя удалить причину.
+                  Це системна причина. Можна змінити назву, порядок і
+                  статус, але не можна видалити причину.
                 </div>
               )}
 
               <label className="field">
-                <span>Назва причины</span>
+                <span>Назва причини</span>
                 <input
                   value={form.name}
                   onChange={(event) =>
@@ -256,12 +262,12 @@ export function AdditionalAlarmReasonsPage() {
                       name: event.target.value,
                     }))
                   }
-                  placeholder="Например: Военные действия"
+                  placeholder="Наприклад: Воєнні дії"
                 />
               </label>
 
               <label className="field">
-                <span>Порядок отображения</span>
+                <span>Порядок відображення</span>
                 <input
                   value={form.sortOrder}
                   onChange={(event) =>
@@ -271,7 +277,7 @@ export function AdditionalAlarmReasonsPage() {
                     }))
                   }
                   inputMode="numeric"
-                  placeholder="Например: 100"
+                  placeholder="Наприклад: 100"
                 />
               </label>
 
@@ -319,147 +325,147 @@ export function AdditionalAlarmReasonsPage() {
           <div className="panel-card">
             <h2>Архів причин</h2>
             <div className="info-box">
-              Здесь отображаются удаленные обычные причины дод. спрацювань.
-              Системные причины в архив не попадают — их можно только включать
-              или отключать.
+              Тут відображаються видалені звичайні причини додаткових спрацювань.
+              Системні причини до архіву не потрапляють — їх можна лише вмикати
+              або вимикати.
             </div>
 
             {error && <div className="form-error">{error}</div>}
             {success && <div className="form-success">{success}</div>}
           </div>
         )}
+
         <AccordionSection
-        title="Список причин"
-        subtitle={`Усього: ${reasons.length}`}
-        open={openedSections.list}
-        onToggle={()=>{
-            toggleSection('list')
-        }}>
-        <div className="panel-card table-card">
-          <div className="table-header">
-           
+          title="Список причин"
+          subtitle={`Усього: ${reasons.length}`}
+          open={openedSections.list}
+          onToggle={() => {
+            toggleSection("list");
+          }}
+        >
+          <div className="panel-card table-card">
+            <div className="table-header">
+              <div className="table-header-actions">
+                <select
+                  className="compact-select"
+                  value={showArchive ? "archive" : "active"}
+                  onChange={(event) =>
+                    handleArchiveFilterChange(event.target.value)
+                  }
+                >
+                  <option value="active">Активні</option>
+                  <option value="archive">Архів</option>
+                </select>
 
-            <div className="table-header-actions">
-              <select
-                className="compact-select"
-                value={showArchive ? "archive" : "active"}
-                onChange={(event) =>
-                  handleArchiveFilterChange(event.target.value)
-                }
-              >
-                <option value="active">Рабочие</option>
-                <option value="archive">Архів</option>
-              </select>
-
-              <button
-                className="secondary-button"
-                onClick={() => loadReasons(showArchive)}
-              >
-                Оновити
-              </button>
+                <button
+                  className="secondary-button"
+                  onClick={() => loadReasons(showArchive)}
+                >
+                  Оновити
+                </button>
+              </div>
             </div>
-          </div>
 
-          {loading ? (
-            <div className="empty-state">Завантаження...</div>
-          ) : reasons.length === 0 ? (
-            <div className="empty-state">
-              {showArchive ? "В архіві немає причин" : "Причини ще не додані"}
-            </div>
-          ) : (
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Назва</th>
-                    <th>Тип</th>
-                    <th>Порядок</th>
-                    <th>Статус</th>
-                    <th></th>
-                  </tr>
-                </thead>
+            {loading ? (
+              <div className="empty-state">Завантаження...</div>
+            ) : reasons.length === 0 ? (
+              <div className="empty-state">
+                {showArchive ? "В архіві немає причин" : "Причини ще не додано"}
+              </div>
+            ) : (
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Назва</th>
+                      <th>Тип</th>
+                      <th>Порядок</th>
+                      <th>Статус</th>
+                      <th></th>
+                    </tr>
+                  </thead>
 
-                <tbody>
-                  {reasons.map((reason) => (
-                    <tr key={reason.id}>
-                      <td>{reason.id}</td>
-                      <td>
-                        <strong>{reason.name}</strong>
-                      </td>
-                      <td>
-                        <span
-                          className={
-                            reason.isSystem
-                              ? "status-badge status-system"
-                              : "status-badge status-custom"
-                          }
-                        >
-                          {reason.isSystem ? "Системная" : "Обычная"}
-                        </span>
-                      </td>
-                      <td>{reason.sortOrder}</td>
-                      <td>
-                        {showArchive ? (
-                          <span className="status-badge status-inactive">
-                            В архіве
-                          </span>
-                        ) : (
+                  <tbody>
+                    {reasons.map((reason) => (
+                      <tr key={reason.id}>
+                        <td>{reason.id}</td>
+                        <td>
+                          <strong>{reason.name}</strong>
+                        </td>
+                        <td>
                           <span
                             className={
-                              reason.isActive
-                                ? "status-badge status-active"
-                                : "status-badge status-inactive"
+                              reason.isSystem
+                                ? "status-badge status-system"
+                                : "status-badge status-custom"
                             }
                           >
-                            {reason.isActive ? "Активна" : "Вимкнена"}
+                            {reason.isSystem ? "Системна" : "Звичайна"}
                           </span>
-                        )}
-                      </td>
-                      <td className="actions-cell">
-                        {showArchive ? (
-                          <RowActionMenu
-                            items={[
-                              {
-                                label: "Відновити",
-                                onClick: () => handleRestore(reason),
-                              },
-                            ]}
-                          />
-                        ) : (
-                          <RowActionMenu
-                            items={[
-                              {
-                                label: "Редагувати",
-                                variant: "edit",
-                                onClick: () => startEdit(reason),
-                              },
-                              {
-                                label: reason.isActive
-                                  ? "Отключить"
-                                  : "Включить",
-                                onClick: () => handleToggleActive(reason),
-                              },
-                              ...(!reason.isSystem
-                                ? [
-                                    {
-                                      label: "Удалить",
-                                      variant: "danger" as const,
-                                      onClick: () => handleDelete(reason),
-                                    },
-                                  ]
-                                : []),
-                            ]}
-                          />
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                        </td>
+                        <td>{reason.sortOrder}</td>
+                        <td>
+                          {showArchive ? (
+                            <span className="status-badge status-inactive">
+                              В архіві
+                            </span>
+                          ) : (
+                            <span
+                              className={
+                                reason.isActive
+                                  ? "status-badge status-active"
+                                  : "status-badge status-inactive"
+                              }
+                            >
+                              {reason.isActive ? "Активна" : "Вимкнена"}
+                            </span>
+                          )}
+                        </td>
+                        <td className="actions-cell">
+                          {showArchive ? (
+                            <RowActionMenu
+                              items={[
+                                {
+                                  label: "Відновити",
+                                  onClick: () => handleRestore(reason),
+                                },
+                              ]}
+                            />
+                          ) : (
+                            <RowActionMenu
+                              items={[
+                                {
+                                  label: "Редагувати",
+                                  variant: "edit",
+                                  onClick: () => startEdit(reason),
+                                },
+                                {
+                                  label: reason.isActive
+                                    ? "Вимкнути"
+                                    : "Увімкнути",
+                                  onClick: () => handleToggleActive(reason),
+                                },
+                                ...(!reason.isSystem
+                                  ? [
+                                      {
+                                        label: "Видалити",
+                                        variant: "danger" as const,
+                                        onClick: () => handleDelete(reason),
+                                      },
+                                    ]
+                                  : []),
+                              ]}
+                            />
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </AccordionSection>
       </div>
     </div>

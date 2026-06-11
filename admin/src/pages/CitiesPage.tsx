@@ -40,12 +40,14 @@ export function CitiesPage() {
     form: false,
     list: true,
   });
+
   function toggleSection(section: SectionId) {
     setOpenedSections((prev) => ({
       ...prev,
       [section]: !prev[section],
     }));
   }
+
   async function loadCities(archive = showArchive) {
     setLoading(true);
     setError("");
@@ -54,7 +56,7 @@ export function CitiesPage() {
       const data = await getCities(archive);
       setCities(data);
     } catch {
-      setError("Не удалось загрузить города");
+      setError("Не вдалося завантажити міста");
     } finally {
       setLoading(false);
     }
@@ -97,7 +99,7 @@ export function CitiesPage() {
     event.preventDefault();
 
     if (!form.name.trim()) {
-      setError("Введите название города");
+      setError("Введіть назву міста");
       return;
     }
 
@@ -126,9 +128,9 @@ export function CitiesPage() {
       await loadCities(showArchive);
     } catch (err: any) {
       if (err.response?.status === 409) {
-        setError("Місто с таким названием уже существует");
+        setError("Місто з такою назвою вже існує");
       } else {
-        setError("Не удалось зберегти город");
+        setError("Не вдалося зберегти місто");
       }
     } finally {
       setSaving(false);
@@ -144,10 +146,10 @@ export function CitiesPage() {
         isActive: !city.isActive,
       });
 
-      setSuccess(city.isActive ? "Місто отключен" : "Місто включен");
+      setSuccess(city.isActive ? "Місто вимкнено" : "Місто увімкнено");
       await loadCities(showArchive);
     } catch {
-      setError("Не удалось изменить статус города");
+      setError("Не вдалося змінити статус міста");
     }
   }
 
@@ -162,17 +164,17 @@ export function CitiesPage() {
     } catch (err: any) {
       if (err.response?.status === 409) {
         setError(
-          "Нельзя восстановить: активный город с таким названием уже существует",
+          "Не можна відновити: активне місто з такою назвою вже існує",
         );
       } else {
-        setError("Не удалось восстановить город");
+        setError("Не вдалося відновити місто");
       }
     }
   }
 
   async function handleDelete(city: City) {
     const confirmed = window.confirm(
-      `Удалить город "${city.name}"? Он будет перемещен в архив.`,
+      `Видалити місто "${city.name}"? Його буде переміщено до архіву.`,
     );
 
     if (!confirmed) return;
@@ -182,10 +184,10 @@ export function CitiesPage() {
 
     try {
       await deleteCity(city.id);
-      setSuccess("Місто перемещен в архив");
+      setSuccess("Місто переміщено до архіву");
       await loadCities(showArchive);
     } catch {
-      setError("Не удалось удалить город");
+      setError("Не вдалося видалити місто");
     }
   }
 
@@ -194,21 +196,21 @@ export function CitiesPage() {
       <div className="page-header">
         <div>
           <h1>Міста</h1>
-          <p>Управление городами системы</p>
+          <p>Керування містами системи</p>
         </div>
       </div>
 
       <div className="content-grid">
         {!showArchive && (
           <AccordionSection
-            title={editingCity ? "Редагувати город" : "Додати город"}
-            subtitle="Создание и редактирование городов"
+            title={editingCity ? "Редагувати місто" : "Додати місто"}
+            subtitle="Створення та редагування міст"
             open={openedSections.form}
             onToggle={() => toggleSection("form")}
           >
             <form onSubmit={handleSubmit}>
               <label className="field">
-                <span>Назва города</span>
+                <span>Назва міста</span>
                 <input
                   value={form.name}
                   onChange={(event) =>
@@ -217,7 +219,7 @@ export function CitiesPage() {
                       name: event.target.value,
                     }))
                   }
-                  placeholder="Например: Харьков"
+                  placeholder="Наприклад: Харків"
                 />
               </label>
 
@@ -232,7 +234,7 @@ export function CitiesPage() {
                     }))
                   }
                 />
-                <span>Місто активен</span>
+                <span>Місто активне</span>
               </label>
 
               {error && <div className="form-error">{error}</div>}
@@ -263,10 +265,10 @@ export function CitiesPage() {
 
         {showArchive && (
           <div className="panel-card">
-            <h2>Архів городов</h2>
+            <h2>Архів міст</h2>
             <div className="info-box">
-              Здесь отображаются удаленные города. Их можно восстановить, если
-              нужно вернуть связанные справочники и доступы.
+              Тут відображаються видалені міста. Їх можна відновити, якщо
+              потрібно повернути пов’язані довідники та доступи.
             </div>
 
             {error && <div className="form-error">{error}</div>}
@@ -275,7 +277,7 @@ export function CitiesPage() {
         )}
 
         <AccordionSection
-          title={showArchive ? "Архів городов" : "Список городов"}
+          title={showArchive ? "Архів міст" : "Список міст"}
           subtitle={`Усього: ${cities.length}`}
           open={openedSections.list}
           onToggle={() => toggleSection("list")}
@@ -283,7 +285,7 @@ export function CitiesPage() {
           <div className="table-card">
             <div className="table-header">
               <div>
-                <h2>{showArchive ? "Архів городов" : "Список городов"}</h2>
+                <h2>{showArchive ? "Архів міст" : "Список міст"}</h2>
                 <p>Усього: {cities.length}</p>
               </div>
 
@@ -295,7 +297,7 @@ export function CitiesPage() {
                     handleArchiveFilterChange(event.target.value)
                   }
                 >
-                  <option value="active">Рабочие</option>
+                  <option value="active">Активні</option>
                   <option value="archive">Архів</option>
                 </select>
 
@@ -313,8 +315,8 @@ export function CitiesPage() {
             ) : cities.length === 0 ? (
               <div className="empty-state">
                 {showArchive
-                  ? "В архіве нет городов"
-                  : "Міста еще не доданоы"}
+                  ? "В архіві немає міст"
+                  : "Міста ще не додано"}
               </div>
             ) : (
               <div className="table-wrap">
@@ -324,7 +326,7 @@ export function CitiesPage() {
                       <th>ID</th>
                       <th>Назва</th>
                       <th>Статус</th>
-                      <th>{showArchive ? "Удален" : "Создан"}</th>
+                      <th>{showArchive ? "Видалено" : "Створено"}</th>
                       <th></th>
                     </tr>
                   </thead>
@@ -339,7 +341,7 @@ export function CitiesPage() {
                         <td>
                           {showArchive ? (
                             <span className="status-badge status-inactive">
-                              В архіве
+                              В архіві
                             </span>
                           ) : (
                             <span
@@ -349,7 +351,7 @@ export function CitiesPage() {
                                   : "status-badge status-inactive"
                               }
                             >
-                              {city.isActive ? "Активний" : "Вимкнений"}
+                              {city.isActive ? "Активне" : "Вимкнене"}
                             </span>
                           )}
                         </td>
@@ -358,7 +360,7 @@ export function CitiesPage() {
                             showArchive && city.deletedAt
                               ? city.deletedAt
                               : city.createdAt,
-                          ).toLocaleDateString()}
+                          ).toLocaleDateString("uk-UA")}
                         </td>
                         <td className="actions-cell">
                           {showArchive ? (
@@ -380,12 +382,12 @@ export function CitiesPage() {
                                 },
                                 {
                                   label: city.isActive
-                                    ? "Отключить"
-                                    : "Включить",
+                                    ? "Вимкнути"
+                                    : "Увімкнути",
                                   onClick: () => handleToggleActive(city),
                                 },
                                 {
-                                  label: "Удалить",
+                                  label: "Видалити",
                                   variant: "danger",
                                   onClick: () => handleDelete(city),
                                 },

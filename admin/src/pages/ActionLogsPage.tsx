@@ -13,30 +13,30 @@ const defaultFilters: AdminActionLogFilters = {
 };
 
 const actionLabels: Record<string, string> = {
-  CREATE_SHIFT: "Создание зміни",
-  UPDATE_SHIFT: "Редактирование зміни",
-  DELETE_SHIFT: "Удаление зміни",
-  RESTORE_SHIFT: "Восстановление зміни",
+  CREATE_SHIFT: "Створення зміни",
+  UPDATE_SHIFT: "Редагування зміни",
+  DELETE_SHIFT: "Видалення зміни",
+  RESTORE_SHIFT: "Відновлення зміни",
 
-  CREATE_DUTY_POST: "Создание поста",
-  UPDATE_DUTY_POST: "Редактирование поста",
-  DELETE_DUTY_POST: "Удаление поста",
-  RESTORE_DUTY_POST: "Восстановление поста",
+  CREATE_DUTY_POST: "Створення поста",
+  UPDATE_DUTY_POST: "Редагування поста",
+  DELETE_DUTY_POST: "Видалення поста",
+  RESTORE_DUTY_POST: "Відновлення поста",
 
-  CREATE_POST_DUTY: "Создание постового дежурства",
-  UPDATE_POST_DUTY: "Редактирование постового дежурства",
-  DELETE_POST_DUTY: "Удаление постового дежурства",
-  RESTORE_POST_DUTY: "Восстановление постового дежурства",
+  CREATE_POST_DUTY: "Створення чергування на посту",
+  UPDATE_POST_DUTY: "Редагування чергування на посту",
+  DELETE_POST_DUTY: "Видалення чергування на посту",
+  RESTORE_POST_DUTY: "Відновлення чергування на посту",
 };
 
 const entityTypeLabels: Record<string, string> = {
   SHIFT: "Зміна",
   DUTY_POST: "Пост",
-  POST_DUTY: "Постовое чергування",
+  POST_DUTY: "Чергування на посту",
 };
 
 function formatDateTime(value: string) {
-  return new Date(value).toLocaleString("ru-RU", {
+  return new Date(value).toLocaleString("uk-UA", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -48,9 +48,11 @@ function formatDateTime(value: string) {
 function getActionLabel(action: string) {
   return actionLabels[action] ?? action;
 }
+
 function getEntityTypeLabel(entityType: string) {
   return entityTypeLabels[entityType] ?? entityType;
 }
+
 export function ActionLogsPage() {
   const [filters, setFilters] =
     useState<AdminActionLogFilters>(defaultFilters);
@@ -71,7 +73,7 @@ export function ActionLogsPage() {
       const data = await getAdminActionLogs(nextFilters);
       setReport(data);
     } catch {
-      setError("Не удалось загрузить журнал действий");
+      setError("Не вдалося завантажити журнал дій");
     } finally {
       setLoading(false);
     }
@@ -133,7 +135,7 @@ export function ActionLogsPage() {
       <div className="page-header">
         <div>
           <h1>Журнал дій</h1>
-          <p>Історія действий по змінами, постам и постовым дежурствам</p>
+          <p>Історія дій зі змінами, постами та чергуваннями на постах</p>
         </div>
       </div>
 
@@ -162,54 +164,56 @@ export function ActionLogsPage() {
           </label>
 
           <label className="field">
-            <span>Действие</span>
+            <span>Дія</span>
             <select
               value={filters.action ?? ""}
               onChange={(event) =>
                 updateFilter("action", event.target.value || undefined)
               }
             >
-              <option value="">Все действия</option>
+              <option value="">Усі дії</option>
 
-              <option value="CREATE_SHIFT">Создание зміни</option>
-              <option value="UPDATE_SHIFT">Редактирование зміни</option>
-              <option value="DELETE_SHIFT">Удаление зміни</option>
-              <option value="RESTORE_SHIFT">Восстановление зміни</option>
+              <option value="CREATE_SHIFT">Створення зміни</option>
+              <option value="UPDATE_SHIFT">Редагування зміни</option>
+              <option value="DELETE_SHIFT">Видалення зміни</option>
+              <option value="RESTORE_SHIFT">Відновлення зміни</option>
 
-              <option value="CREATE_DUTY_POST">Создание поста</option>
-              <option value="UPDATE_DUTY_POST">Редактирование поста</option>
-              <option value="DELETE_DUTY_POST">Удаление поста</option>
-              <option value="RESTORE_DUTY_POST">Восстановление поста</option>
+              <option value="CREATE_DUTY_POST">Створення поста</option>
+              <option value="UPDATE_DUTY_POST">Редагування поста</option>
+              <option value="DELETE_DUTY_POST">Видалення поста</option>
+              <option value="RESTORE_DUTY_POST">Відновлення поста</option>
 
-              <option value="CREATE_POST_DUTY">Создание постового дежурства</option>
-              <option value="UPDATE_POST_DUTY">Редактирование постового дежурства</option>
-              <option value="DELETE_POST_DUTY">Удаление постового дежурства</option>
-              <option value="RESTORE_POST_DUTY">Восстановление постового дежурства</option>
+              <option value="CREATE_POST_DUTY">Створення чергування на посту</option>
+              <option value="UPDATE_POST_DUTY">Редагування чергування на посту</option>
+              <option value="DELETE_POST_DUTY">Видалення чергування на посту</option>
+              <option value="RESTORE_POST_DUTY">Відновлення чергування на посту</option>
             </select>
           </label>
+
           <label className="field">
-            <span>Тип объекта</span>
+            <span>Тип об’єкта</span>
             <select
               value={filters.entityType ?? ""}
               onChange={(event) =>
                 updateFilter("entityType", event.target.value || undefined)
               }
             >
-              <option value="">Все объекты</option>
+              <option value="">Усі об’єкти</option>
               <option value="SHIFT">Зміни</option>
-              <option value="DUTY_POST">Посты</option>
-              <option value="POST_DUTY">Постові чергування</option>
+              <option value="DUTY_POST">Пости</option>
+              <option value="POST_DUTY">Чергування на постах</option>
             </select>
           </label>
+
           <label className="field">
-            <span>ID объекта</span>
+            <span>ID об’єкта</span>
             <input
               type="number"
               value={filters.entityId ?? ""}
               onChange={(event) =>
                 updateFilter("entityId", Number(event.target.value) || undefined)
               }
-              placeholder="Например 125"
+              placeholder="Наприклад 125"
             />
           </label>
 
@@ -218,18 +222,18 @@ export function ActionLogsPage() {
             <input
               value={filters.search ?? ""}
               onChange={(event) => updateFilter("search", event.target.value)}
-              placeholder="Админ, описание, действие..."
+              placeholder="Адмін, опис, дія..."
             />
           </label>
         </div>
 
         <div className="report-filter-actions">
           <button className="primary-button" onClick={handleApply} disabled={loading}>
-            {loading ? "Завантаження..." : "Сформировать"}
+            {loading ? "Завантаження..." : "Сформувати"}
           </button>
 
           <button className="secondary-button" onClick={handleReset}>
-            Сбросить
+            Скинути
           </button>
         </div>
       </div>
@@ -239,10 +243,10 @@ export function ActionLogsPage() {
       <div className="panel-card table-card">
         <div className="table-header">
           <div>
-            <h2>События</h2>
+            <h2>Події</h2>
             <p>
-              Усього рядків: {(pagination?.total ?? 0).toLocaleString("ru-RU")} ·
-              Страница {pagination?.page ?? 1} из {pagination?.totalPages ?? 1}
+              Усього рядків: {(pagination?.total ?? 0).toLocaleString("uk-UA")} ·
+              Сторінка {pagination?.page ?? 1} з {pagination?.totalPages ?? 1}
             </p>
           </div>
 
@@ -252,29 +256,29 @@ export function ActionLogsPage() {
               value={filters.pageSize ?? 20}
               onChange={(event) => handlePageSizeChange(Number(event.target.value))}
             >
-              <option value={20}>20 строк</option>
-              <option value={50}>50 строк</option>
-              <option value={100}>100 строк</option>
+              <option value={20}>20 рядків</option>
+              <option value={50}>50 рядків</option>
+              <option value={100}>100 рядків</option>
             </select>
           </div>
         </div>
 
         {loading ? (
-          <div className="empty-state">Загрузка журнала...</div>
+          <div className="empty-state">Завантаження журналу...</div>
         ) : rows.length === 0 ? (
-          <div className="empty-state">Записей журнала пока нет</div>
+          <div className="empty-state">Записів журналу поки немає</div>
         ) : (
           <>
             <div className="table-wrap">
               <table className="data-table action-logs-table">
                 <thead>
                   <tr>
-                    <th>Дата/время</th>
+                    <th>Дата/час</th>
                     <th>Адміністратор</th>
-                    <th>Действие</th>
-                    <th>Объект</th>
+                    <th>Дія</th>
+                    <th>Об’єкт</th>
                     <th>ID</th>
-                    <th>Описание</th>
+                    <th>Опис</th>
                   </tr>
                 </thead>
 
@@ -312,7 +316,7 @@ export function ActionLogsPage() {
               </button>
 
               <span>
-                Страница {pagination?.page ?? 1} из{" "}
+                Сторінка {pagination?.page ?? 1} з{" "}
                 {pagination?.totalPages ?? 1}
               </span>
 

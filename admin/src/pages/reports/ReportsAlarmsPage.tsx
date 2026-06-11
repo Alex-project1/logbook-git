@@ -26,7 +26,7 @@ import { filterByReportScope, resetDependentReportFilters } from "../../utils/re
 const defaultFilters: AlarmsReportFilters = {};
 
 function formatNumber(value: number | undefined) {
-  return (value ?? 0).toLocaleString("ru-RU");
+  return (value ?? 0).toLocaleString("uk-UA");
 }
 
 function formatKm(value: number | undefined) {
@@ -138,7 +138,7 @@ export function ReportsAlarmsPage() {
       const data = await getAlarmsReport(nextFilters);
       setReport(data);
     } catch {
-      setError("Не удалось загрузить звіт по спрацюваннями");
+      setError("Не вдалося завантажити звіт за спрацюваннями");
     } finally {
       setLoading(false);
     }
@@ -201,7 +201,7 @@ export function ReportsAlarmsPage() {
 
         <tr className="summary-row">
           <td>
-            <strong>Дополнительно</strong>
+            <strong>Додатково</strong>
           </td>
           <td>{formatNumber(totals?.additionalTotal)}</td>
           <td>{formatNumber(totals?.additionalOh)}</td>
@@ -218,7 +218,7 @@ export function ReportsAlarmsPage() {
         ))}
 
         <tr>
-          <td>Задержано</td>
+          <td>Затримано</td>
           <td>{formatNumber(totals?.detained)}</td>
           <td>—</td>
           <td>—</td>
@@ -233,6 +233,7 @@ export function ReportsAlarmsPage() {
       </>
     );
   }
+
   async function handleExcel() {
     setExcelLoading(true);
     setError("");
@@ -240,17 +241,18 @@ export function ReportsAlarmsPage() {
     try {
       await downloadAlarmsReportExcel(filters);
     } catch {
-      setError("Не удалось скачать Excel");
+      setError("Не вдалося завантажити Excel");
     } finally {
       setExcelLoading(false);
     }
   }
+
   return (
     <div className="page">
       <div className="page-header">
         <div>
           <h1>За спрацюваннями</h1>
-          <p>Аналитика ОХ / Партнеры, бойові / хибні и додаткові причины</p>
+          <p>Аналітика ОХ / Партнери, бойові / хибні та додаткові причини</p>
         </div>
       </div>
 
@@ -324,7 +326,7 @@ export function ReportsAlarmsPage() {
                 updateFilter("crewId", Number(event.target.value) || undefined)
               }
             >
-              <option value={0}>Все наряди</option>
+              <option value={0}>Усі наряди</option>
 
               {visibleCrews.map((crew) => (
                 <option key={crew.id} value={crew.id}>
@@ -342,7 +344,7 @@ export function ReportsAlarmsPage() {
                 updateFilter("vehicleId", Number(event.target.value) || undefined)
               }
             >
-              <option value={0}>Все автомобілі</option>
+              <option value={0}>Усі автомобілі</option>
 
               {visibleVehicles.map((vehicle) => (
                 <option key={vehicle.id} value={vehicle.id}>
@@ -361,7 +363,7 @@ export function ReportsAlarmsPage() {
                 updateFilter("employeeId", Number(event.target.value) || undefined)
               }
             >
-              <option value={0}>Все співробітники</option>
+              <option value={0}>Усі співробітники</option>
 
               {visibleEmployees.map((employee) => (
                 <option key={employee.id} value={employee.id}>
@@ -382,38 +384,38 @@ export function ReportsAlarmsPage() {
         </div>
 
         <div className="report-filter-actions">
-  <button className="primary-button" onClick={handleApply} disabled={loading}>
-    {loading ? "Завантаження..." : "Сформировать"}
-  </button>
+          <button className="primary-button" onClick={handleApply} disabled={loading}>
+            {loading ? "Завантаження..." : "Сформувати"}
+          </button>
 
-  <button className="secondary-button" onClick={handleReset}>
-    Сбросить
-  </button>
+          <button className="secondary-button" onClick={handleReset}>
+            Скинути
+          </button>
 
-  <button
-    className="secondary-button"
-    onClick={handleExcel}
-    disabled={excelLoading}
-  >
-    {excelLoading ? "Скачивание..." : "Скачать Excel"}
-  </button>
-</div>
+          <button
+            className="secondary-button"
+            onClick={handleExcel}
+            disabled={excelLoading}
+          >
+            {excelLoading ? "Завантаження..." : "Завантажити Excel"}
+          </button>
+        </div>
       </div>
 
       {error && <div className="form-error report-error">{error}</div>}
 
       {loading ? (
-        <div className="empty-state">Загрузка звіта...</div>
+        <div className="empty-state">Завантаження звіту...</div>
       ) : (
         <>
           <div className="stats-grid report-stats-grid">
             <div className="stat-card">
-              <span>Сработок всего</span>
+              <span>Спрацювань усього</span>
               <strong>{formatNumber(totals?.totalAlarms)}</strong>
             </div>
 
             <div className="stat-card">
-              <span>ОХ / Партнеры</span>
+              <span>ОХ / Партнери</span>
               <strong>
                 {formatNumber(totals?.totalOh)} /{" "}
                 {formatNumber(totals?.totalPartner)}
@@ -429,7 +431,7 @@ export function ReportsAlarmsPage() {
             </div>
 
             <div className="stat-card">
-              <span>Дополнительно</span>
+              <span>Додатково</span>
               <strong>
                 {formatNumber(totals?.additionalTotal)} (
                 {formatNumber(totals?.additionalOh)} /{" "}
@@ -438,7 +440,7 @@ export function ReportsAlarmsPage() {
             </div>
 
             <div className="stat-card">
-              <span>Задержано / Передано</span>
+              <span>Затримано / Передано</span>
               <strong>
                 {formatNumber(totals?.detained)} /{" "}
                 {formatNumber(totals?.transferred)}
@@ -454,7 +456,7 @@ export function ReportsAlarmsPage() {
             </div>
 
             <div className="stat-card">
-              <span>Пробег</span>
+              <span>Пробіг</span>
               <strong>{formatKm(totals?.totalDistanceKm)}</strong>
             </div>
           </div>
@@ -463,8 +465,8 @@ export function ReportsAlarmsPage() {
             <div className="panel-card table-card">
               <div className="table-header">
                 <div>
-                  <h2>Основная разбивка</h2>
-                  <p>Усього / ОХ / Партнеры</p>
+                  <h2>Основна розбивка</h2>
+                  <p>Усього / ОХ / Партнери</p>
                 </div>
               </div>
 
@@ -472,10 +474,10 @@ export function ReportsAlarmsPage() {
                 <table className="data-table compact-data-table">
                   <thead>
                     <tr>
-                      <th>Показатель</th>
+                      <th>Показник</th>
                       <th>Усього</th>
                       <th>ОХ</th>
-                      <th>Партнеры</th>
+                      <th>Партнери</th>
                     </tr>
                   </thead>
 
@@ -487,13 +489,13 @@ export function ReportsAlarmsPage() {
             <div className="panel-card">
               <div className="table-header">
                 <div>
-                  <h2>График по городам</h2>
-                  <p>Спрацювання всего</p>
+                  <h2>Графік за містами</h2>
+                  <p>Спрацювань усього</p>
                 </div>
               </div>
 
               {byCity.length === 0 ? (
-                <div className="empty-state">Немає данных</div>
+                <div className="empty-state">Немає даних</div>
               ) : (
                 <div className="bar-list">
                   {byCity.map((row) => (
@@ -521,26 +523,26 @@ export function ReportsAlarmsPage() {
             <div className="panel-card table-card">
               <div className="table-header">
                 <div>
-                  <h2>По городам</h2>
-                  <p>Сравнение городов по спрацюваннями</p>
+                  <h2>За містами</h2>
+                  <p>Порівняння міст за спрацюваннями</p>
                 </div>
               </div>
 
               {byCity.length === 0 ? (
-                <div className="empty-state">Немає данных по городам</div>
+                <div className="empty-state">Немає даних за містами</div>
               ) : (
                 <div className="table-wrap">
                   <table className="data-table alarms-table">
                     <thead>
                       <tr>
                         <th>Місто</th>
-                        <th>Сработок</th>
+                        <th>Спрацювань</th>
                         <th>ОХ</th>
-                        <th>Партнеры</th>
+                        <th>Партнери</th>
                         <th>Бойові</th>
                         <th>Хибні</th>
                         <th>Дод.</th>
-                        <th>Задержано</th>
+                        <th>Затримано</th>
                         <th>Передано</th>
                       </tr>
                     </thead>
@@ -570,26 +572,26 @@ export function ReportsAlarmsPage() {
             <div className="panel-card table-card">
               <div className="table-header">
                 <div>
-                  <h2>По месяцам</h2>
-                  <p>Динамика спрацювань</p>
+                  <h2>За місяцями</h2>
+                  <p>Динаміка спрацювань</p>
                 </div>
               </div>
 
               {byMonth.length === 0 ? (
-                <div className="empty-state">Немає данных по месяцам</div>
+                <div className="empty-state">Немає даних за місяцями</div>
               ) : (
                 <div className="table-wrap">
                   <table className="data-table alarms-table">
                     <thead>
                       <tr>
-                        <th>Месяц</th>
-                        <th>Сработок</th>
+                        <th>Місяць</th>
+                        <th>Спрацювань</th>
                         <th>ОХ</th>
-                        <th>Партнеры</th>
+                        <th>Партнери</th>
                         <th>Бойові</th>
                         <th>Хибні</th>
                         <th>Дод.</th>
-                        <th>Задержано</th>
+                        <th>Затримано</th>
                         <th>Передано</th>
                       </tr>
                     </thead>
@@ -620,13 +622,13 @@ export function ReportsAlarmsPage() {
           <div className="panel-card">
             <div className="table-header">
               <div>
-                <h2>Динамика по месяцам</h2>
-                <p>Спрацювання всего</p>
+                <h2>Динаміка за місяцями</h2>
+                <p>Спрацювань усього</p>
               </div>
             </div>
 
             {byMonth.length === 0 ? (
-              <div className="empty-state">Немає данных</div>
+              <div className="empty-state">Немає даних</div>
             ) : (
               <div className="bar-list">
                 {byMonth.map((row) => (

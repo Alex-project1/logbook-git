@@ -16,7 +16,7 @@ function numberValue(value: number | undefined) {
 }
 
 function formatNumber(value: number | undefined) {
-  return numberValue(value).toLocaleString("ru-RU");
+  return numberValue(value).toLocaleString("uk-UA");
 }
 
 function formatKm(value: number | undefined) {
@@ -60,7 +60,7 @@ export function ReportsGeneralPage() {
       const data = await getGeneralReport(nextFilters);
       setReport(data);
     } catch {
-      setError("Не удалось загрузить звіт");
+      setError("Не вдалося завантажити звіт");
     } finally {
       setLoading(false);
     }
@@ -88,7 +88,7 @@ export function ReportsGeneralPage() {
     try {
       await downloadReportsExcel(appliedFilters);
     } catch {
-      setError("Не удалось скачать Excel");
+      setError("Не вдалося завантажити Excel");
     } finally {
       setExcelLoading(false);
     }
@@ -99,7 +99,7 @@ export function ReportsGeneralPage() {
       <div className="page-header">
         <div>
           <h1>Загальна статистика</h1>
-          <p>Сводный звіт по городам, спрацюваннями, пробегу и задержаниям</p>
+          <p>Зведений звіт за містами, спрацюваннями, пробігом і затриманнями</p>
         </div>
       </div>
 
@@ -116,7 +116,7 @@ export function ReportsGeneralPage() {
       {error && <div className="form-error report-error">{error}</div>}
 
       {loading ? (
-        <div className="empty-state">Загрузка звіта...</div>
+        <div className="empty-state">Завантаження звіту...</div>
       ) : (
         <>
           <div className="stats-grid report-stats-grid">
@@ -131,17 +131,17 @@ export function ReportsGeneralPage() {
             </div>
 
             <div className="stat-card">
-              <span>Пробег</span>
+              <span>Пробіг</span>
               <strong>{formatKm(totals?.totalDistanceKm)}</strong>
             </div>
 
             <div className="stat-card">
-              <span>Сработок всего</span>
+              <span>Спрацювань усього</span>
               <strong>{formatNumber(totals?.totalAlarms)}</strong>
             </div>
 
             <div className="stat-card">
-              <span>ОХ / Партнеры</span>
+              <span>ОХ / Партнери</span>
               <strong>
                 {formatNumber(totals?.totalOh)} /{" "}
                 {formatNumber(totals?.totalPartner)}
@@ -157,12 +157,12 @@ export function ReportsGeneralPage() {
             </div>
 
             <div className="stat-card">
-              <span>Дополнительно</span>
+              <span>Додатково</span>
               <strong>{formatNumber(totals?.additionalTotal)}</strong>
             </div>
 
             <div className="stat-card">
-              <span>Задержано / Передано</span>
+              <span>Затримано / Передано</span>
               <strong>
                 {formatNumber(totals?.detained)} /{" "}
                 {formatNumber(totals?.transferred)}
@@ -170,12 +170,12 @@ export function ReportsGeneralPage() {
             </div>
 
             <div className="stat-card">
-              <span>Средняя нагрузка</span>
+              <span>Середнє навантаження</span>
               <strong>{formatNumber(totals?.averageAlarmsPerShift)}</strong>
             </div>
 
             <div className="stat-card">
-              <span>Средний пробег</span>
+              <span>Середній пробіг</span>
               <strong>{formatKm(totals?.averageDistancePerShift)}</strong>
             </div>
           </div>
@@ -184,13 +184,13 @@ export function ReportsGeneralPage() {
             <div className="panel-card table-card">
               <div className="table-header">
                 <div>
-                  <h2>Статистика по городам</h2>
-                  <p>Сравнение городов за вибраний период</p>
+                  <h2>Статистика за містами</h2>
+                  <p>Порівняння міст за вибраний період</p>
                 </div>
               </div>
 
               {byCity.length === 0 ? (
-                <div className="empty-state">Немає данных по городам</div>
+                <div className="empty-state">Немає даних за містами</div>
               ) : (
                 <div className="table-wrap">
                   <table className="data-table">
@@ -199,16 +199,16 @@ export function ReportsGeneralPage() {
                         <th>Місто</th>
                         <th>Змін</th>
                         <th>Поїздок</th>
-                        <th>Пробег</th>
-                        <th>Сработок</th>
+                        <th>Пробіг</th>
+                        <th>Спрацювань</th>
                         <th>ОХ</th>
-                        <th>Партнеры</th>
+                        <th>Партнери</th>
                         <th>Бойові</th>
                         <th>Хибні</th>
                         <th>Дод.</th>
-                        <th>Задержано</th>
+                        <th>Затримано</th>
                         <th>Передано</th>
-                        <th>Средняя</th>
+                        <th>Середня</th>
                       </tr>
                     </thead>
 
@@ -242,12 +242,12 @@ export function ReportsGeneralPage() {
               <div className="table-header">
                 <div>
                   <h2>Додаткові спрацювання</h2>
-                  <p>Разбивка по причинам: всего / ОХ / партнеры</p>
+                  <p>Розбивка за причинами: усього / ОХ / партнери</p>
                 </div>
               </div>
 
               {additionalRows.length === 0 ? (
-                <div className="empty-state">Немає дополнительных спрацювань</div>
+                <div className="empty-state">Немає додаткових спрацювань</div>
               ) : (
                 <div className="table-wrap">
                   <table className="data-table compact-data-table">
@@ -256,14 +256,14 @@ export function ReportsGeneralPage() {
                         <th>Причина</th>
                         <th>Усього</th>
                         <th>ОХ</th>
-                        <th>Партнеры</th>
+                        <th>Партнери</th>
                       </tr>
                     </thead>
 
                     <tbody>
                       <tr className="summary-row">
                         <td>
-                          <strong>Дополнительно</strong>
+                          <strong>Додатково</strong>
                         </td>
                         <td>{formatNumber(totals?.additionalTotal)}</td>
                         <td>{formatNumber(totals?.additionalOh)}</td>
