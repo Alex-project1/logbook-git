@@ -1,4 +1,4 @@
-import type { Request, Response } from "express";
+﻿import type { Request, Response } from "express";
 import { prisma } from "../../config/prisma";
 
 function parseNumberQuery(value: unknown) {
@@ -106,7 +106,7 @@ export async function getAdminActionLogs(req: Request, res: Response) {
     console.error("getAdminActionLogs error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }

@@ -10,13 +10,13 @@ import { createNotification } from "../api/notifications.api";
 import { dedupeDepartments, formatDepartmentOption } from "../utils/department-options";
 
 function getKindLabel(kind?: MobileUserKind | "") {
-  if (kind === "CREW") return "Наряди ГБР";
+  if (kind === "CREW") return "Наряди ГШР";
   if (kind === "POST") return "Пости";
   return "Усі типи";
 }
 
 function getUserKindLabel(kind?: MobileUserKind | "") {
-  if (kind === "CREW") return "Наряд ГБР";
+  if (kind === "CREW") return "Наряд ГШР";
   if (kind === "POST") return "Пост";
   return "Користувач";
 }
@@ -300,7 +300,7 @@ export function NotificationsCreatePage() {
             <span>Тип отримувачів</span>
             <select value={targetUserKind} onChange={(event) => handleKindChange(event.target.value as MobileUserKind | "")}>
               <option value="">Усі типи</option>
-              <option value="CREW">Тільки наряди ГБР</option>
+              <option value="CREW">Тільки наряди ГШР</option>
               <option value="POST">Тільки пости</option>
             </select>
           </label>

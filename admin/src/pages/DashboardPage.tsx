@@ -261,7 +261,7 @@ export function DashboardPage() {
           <span>Усього змін із постами</span>
           <strong>{formatNumber(totalShiftsWithPosts)}</strong>
           <small>
-            Машинні: {formatNumber(machineShifts)} · Пости:{" "}
+            Наряди ГШР: {formatNumber(machineShifts)} · Пости:{" "}
             {formatNumber(postDutyEquivalent)}
           </small>
         </div>

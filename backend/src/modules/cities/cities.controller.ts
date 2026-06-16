@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+﻿import { Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../../config/prisma";
 import { getAllowedCityIds } from "../../utils/admin-access";
@@ -52,7 +52,7 @@ export async function getCities(req: Request, res: Response) {
     console.error("getCities error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -93,7 +93,7 @@ export async function getCityById(req: Request, res: Response) {
     console.error("getCityById error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -145,7 +145,7 @@ export async function createCity(req: Request, res: Response) {
     console.error("createCity error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -224,7 +224,7 @@ export async function updateCity(req: Request, res: Response) {
     console.error("updateCity error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -269,7 +269,7 @@ export async function deleteCity(req: Request, res: Response) {
     console.error("deleteCity error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -344,7 +344,7 @@ export async function restoreCity(req: Request, res: Response) {
     console.error("restoreCity error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }

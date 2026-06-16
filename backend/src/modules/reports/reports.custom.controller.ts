@@ -50,14 +50,14 @@ const allowedMetrics: CustomReportMetric[] = [
 ];
 
 const metricLabels: Record<CustomReportMetric, string> = {
-  totalShifts: "Всего смен",
-  totalTrips: "Всего поездок",
-  totalDistanceKm: "Пробег, км",
-  totalAlarms: "Всего сработок",
-  falseTotal: "Ложные",
-  combatTotal: "Боевые",
-  additionalTotal: "Дополнительные",
-  detained: "Задержано",
+  totalShifts: "Усього змін",
+  totalTrips: "Усього поїздок",
+  totalDistanceKm: "Пробіг, км",
+  totalAlarms: "Усього спрацювань",
+  falseTotal: "Хибні",
+  combatTotal: "Бойові",
+  additionalTotal: "Додаткові",
+  detained: "Затримано",
 };
 
 function toNumber(value: unknown) {
@@ -219,7 +219,7 @@ function addShiftToTotals(totals: ReportTotals, shift: any) {
         totals.additionalTotal += total;
 
         const reasonName =
-          event.reason?.name ?? event.customReasonText ?? "Без причины";
+          event.reason?.name ?? event.customReasonText ?? "Без причини";
 
         addToReasonMap(totals.additionalByReason, reasonName, total);
       }
@@ -322,7 +322,7 @@ function buildTableRowDefinitions(params: {
 
     rows.push({
       key: "alarmsGroup",
-      label: "Сработки",
+      label: "Спрацювання",
       level: 0,
       metric: "totalAlarms",
       kind: "metric",
@@ -331,7 +331,7 @@ function buildTableRowDefinitions(params: {
     if (params.metrics.includes("falseTotal")) {
       rows.push({
         key: "falseTotal",
-        label: "Ложные",
+        label: "Хибні",
         level: 1,
         metric: "falseTotal",
         kind: "metric",
@@ -341,7 +341,7 @@ function buildTableRowDefinitions(params: {
     if (params.metrics.includes("combatTotal")) {
       rows.push({
         key: "combatTotal",
-        label: "Боевые",
+        label: "Бойові",
         level: 1,
         metric: "combatTotal",
         kind: "metric",
@@ -351,7 +351,7 @@ function buildTableRowDefinitions(params: {
     if (params.metrics.includes("additionalTotal")) {
       rows.push({
         key: "additionalTotal",
-        label: "Дополнительные",
+        label: "Додаткові",
         level: 1,
         metric: "additionalTotal",
         kind: "metric",
@@ -408,7 +408,7 @@ function buildTableRowDefinitions(params: {
 
       rows.push({
         key: "transferred",
-        label: "Передано в полицию",
+        label: "Передано до поліції",
         level: 1,
         kind: "transferred",
       });
@@ -621,7 +621,7 @@ function buildTable(params: {
     columns: [
       {
         key: "total",
-        label: "Всего",
+        label: "Усього",
       },
       ...params.groups.map((group) => ({
         key: String(group.id),
@@ -698,7 +698,7 @@ export async function buildCustomReportPayload(req: Request) {
 
   if (allowedCityIds !== null && cityId && !allowedCityIds.includes(cityId)) {
     throw createCustomReportAccessError(
-      "Недостаточно прав для выбранного города",
+      "Недостатньо прав для обраного міста",
     );
   }
 
@@ -827,14 +827,14 @@ export async function getCustomReport(req: Request, res: Response) {
         message:
           error instanceof Error
             ? error.message
-            : "Недостаточно прав для выбранного города",
+            : "Недостатньо прав для обраного міста",
       });
     }
 
     console.error("getCustomReport error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }

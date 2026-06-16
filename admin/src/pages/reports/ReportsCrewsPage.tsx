@@ -388,7 +388,7 @@ export function ReportsCrewsPage() {
             onClick={handleExcel}
             disabled={excelLoading}
           >
-            {excelLoading ? "Завантаження..." : "Завантажити Excel"}
+            {excelLoading ? "Завантажуємо..." : "Завантажити Excel"}
           </button>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import type { Request, Response } from "express";
+﻿import type { Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../../config/prisma";
 import {
@@ -116,7 +116,7 @@ export async function createNotification(req: Request, res: Response) {
       !allowedCityIds.includes(parsed.data.cityId)
     ) {
       return res.status(403).json({
-        message: "Недостаточно прав для выбранного города",
+        message: "Недостатньо прав для обраного міста",
       });
     }
 
@@ -157,7 +157,7 @@ export async function createNotification(req: Request, res: Response) {
         allowedDepartmentIds !== null &&
         !allowedDepartmentIds.includes(parsed.data.departmentId)
       ) {
-        return res.status(403).json({ message: "Недостаточно прав для выбранного подразделения" });
+        return res.status(403).json({ message: "Недостатньо прав для выбранного подразделения" });
       }
     }
 
@@ -349,7 +349,7 @@ export async function createNotification(req: Request, res: Response) {
     console.error("createNotification error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -373,7 +373,7 @@ export async function getNotifications(req: Request, res: Response) {
 
     if (allowedCityIds !== null && cityId && !allowedCityIds.includes(cityId)) {
       return res.status(403).json({
-        message: "Недостаточно прав для выбранного города",
+        message: "Недостатньо прав для обраного міста",
       });
     }
 
@@ -382,7 +382,7 @@ export async function getNotifications(req: Request, res: Response) {
       departmentId &&
       !allowedDepartmentIds.includes(departmentId)
     ) {
-      return res.status(403).json({ message: "Недостаточно прав для выбранного подразделения" });
+      return res.status(403).json({ message: "Недостатньо прав для выбранного подразделения" });
     }
 
     const where = {
@@ -478,7 +478,7 @@ export async function getNotifications(req: Request, res: Response) {
     console.error("getNotifications error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -563,7 +563,7 @@ export async function getNotificationById(req: Request, res: Response) {
     console.error("getNotificationById error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }

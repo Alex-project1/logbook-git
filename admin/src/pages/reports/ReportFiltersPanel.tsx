@@ -129,11 +129,11 @@ export function ReportFiltersPanel({
 
       <div className="report-filter-actions">
         <button className="primary-button" onClick={onApply} disabled={loading}>
-          {loading ? "Формируем..." : "Сформировать"}
+          {loading ? "Завантаження..." : "Сформувати"}
         </button>
 
         <button className="secondary-button" onClick={onReset}>
-          Сбросить
+          Скинути
         </button>
 
         {onExcel && (
@@ -142,7 +142,7 @@ export function ReportFiltersPanel({
             onClick={onExcel}
             disabled={excelLoading}
           >
-            {excelLoading ? "Скачивание..." : "Скачать Excel"}
+            {excelLoading ? "Завантажуємо..." : "Завантажити Excel"}
           </button>
         )}
       </div>

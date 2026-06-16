@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+﻿import { Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../../config/prisma";
 
@@ -51,7 +51,7 @@ export async function getAdditionalAlarmReasons(req: Request, res: Response) {
     console.error("getAdditionalAlarmReasons error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -94,7 +94,7 @@ export async function getAdditionalAlarmReasonById(req: Request, res: Response) 
     console.error("getAdditionalAlarmReasonById error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -148,7 +148,7 @@ export async function createAdditionalAlarmReason(req: Request, res: Response) {
     console.error("createAdditionalAlarmReason error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -230,7 +230,7 @@ export async function updateAdditionalAlarmReason(req: Request, res: Response) {
     console.error("updateAdditionalAlarmReason error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -281,7 +281,7 @@ export async function deleteAdditionalAlarmReason(req: Request, res: Response) {
     console.error("deleteAdditionalAlarmReason error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -364,7 +364,7 @@ export async function restoreAdditionalAlarmReason(req: Request, res: Response) 
     console.error("restoreAdditionalAlarmReason error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }

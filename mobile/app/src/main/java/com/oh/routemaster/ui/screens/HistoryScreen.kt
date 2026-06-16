@@ -278,7 +278,7 @@ private fun HistoryItemCard(
                 if (item.type == "SHIFT" && item.shift != null) {
                     val shift = item.shift
                     Text(
-                        text = "Наряд ГБР · 🚓 ${shift.vehicle.licensePlate.orEmpty().ifBlank { shift.vehicle.title }} · 📊 ${shift.summary.totalAlarms}",
+                        text = "Наряд ГШР · 🚓 ${shift.vehicle.licensePlate.orEmpty().ifBlank { shift.vehicle.title }} · 📊 ${shift.summary.totalAlarms}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -315,7 +315,7 @@ private fun ShiftHistoryDetails(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            text = "Наряд ГБР",
+            text = "Наряд ГШР",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold
         )

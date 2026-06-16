@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+﻿import { Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../../config/prisma";
 
@@ -52,7 +52,7 @@ export async function getTripGoals(req: Request, res: Response) {
     console.error("getTripGoals error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -97,7 +97,7 @@ export async function getTripGoalById(req: Request, res: Response) {
     console.error("getTripGoalById error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -154,7 +154,7 @@ export async function createTripGoal(req: Request, res: Response) {
     console.error("createTripGoal error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -238,7 +238,7 @@ export async function updateTripGoal(req: Request, res: Response) {
     console.error("updateTripGoal error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -289,7 +289,7 @@ export async function deleteTripGoal(req: Request, res: Response) {
     console.error("deleteTripGoal error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -373,7 +373,7 @@ export async function restoreTripGoal(req: Request, res: Response) {
     console.error("restoreTripGoal error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }

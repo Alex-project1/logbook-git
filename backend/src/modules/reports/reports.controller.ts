@@ -218,7 +218,7 @@ function calculateShiftSummary(shift: ShiftSummaryInput) {
         additionalPartner += partner;
 
         const reasonName =
-          event.reason?.name ?? event.customReasonText ?? "Без причины";
+          event.reason?.name ?? event.customReasonText ?? "Без причини";
 
         if (!additionalByReason[reasonName]) {
           additionalByReason[reasonName] = {
@@ -444,7 +444,7 @@ export async function getGeneralReport(req: Request, res: Response) {
     console.error("getGeneralReport error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -625,7 +625,7 @@ export async function getEmployeesReport(req: Request, res: Response) {
     console.error("getEmployeesReport error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -784,7 +784,7 @@ export async function getCrewsReport(req: Request, res: Response) {
     console.error("getCrewsReport error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -964,7 +964,7 @@ export async function getVehiclesReport(req: Request, res: Response) {
     console.error("getVehiclesReport error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -1014,10 +1014,10 @@ function mapTripEventForTable(event: any) {
       eventCategory: event.eventCategory,
       title:
         event.alarmSource === "OH"
-          ? "Сработка ОХ"
+          ? "Спрацювання ОХ"
           : event.alarmSource === "PARTNER"
-            ? "Сработка Партнеры"
-            : "Сработка",
+            ? "Спрацювання партнери"
+            : "Спрацювання",
       alarmSource: event.alarmSource,
       isCombat: event.isCombat,
       countTotal: event.countTotal ?? 1,
@@ -1036,13 +1036,13 @@ function mapTripEventForTable(event: any) {
   return {
     id: event.id,
     eventCategory: event.eventCategory,
-    title: "Дополнительные сработки",
+    title: "Додаткові спрацювання",
     alarmSource: null,
     isCombat: null,
     countTotal: ohCount + partnerCount,
     ohCount,
     partnerCount,
-    reasonName: event.reason?.name ?? event.customReasonText ?? "Без причины",
+    reasonName: event.reason?.name ?? event.customReasonText ?? "Без причини",
     detainedCount: event.detainedCount ?? 0,
     transferredCount: event.transferredCount ?? 0,
     note: event.note ?? null,
@@ -1057,17 +1057,17 @@ function buildTripEventSummary(events: any[]) {
   return events
     .map((event) => {
       if (event.eventCategory === "REGULAR_ALARM") {
-        const source = event.alarmSource === "OH" ? "ОХ" : "Партнеры";
-        const combatText = event.isCombat ? "боевая" : "ложная";
+        const source = event.alarmSource === "OH" ? "ОХ" : "Партнери";
+        const combatText = event.isCombat ? "бойова" : "хибна";
         return `${source}, ${combatText}`;
       }
 
       const reason =
-        event.reason?.name ?? event.customReasonText ?? "Без причины";
+        event.reason?.name ?? event.customReasonText ?? "Без причини";
       const oh = event.ohCount ?? 0;
       const partner = event.partnerCount ?? 0;
 
-      return `Доп.: ${reason} (${oh}/${partner})`;
+      return `Дод.: ${reason} (${oh}/${partner})`;
     })
     .join("; ");
 }
@@ -1459,7 +1459,7 @@ export async function getTripsTableReport(req: Request, res: Response) {
     console.error("getTripsTableReport error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -1765,7 +1765,7 @@ export async function getShiftsTableReport(req: Request, res: Response) {
     console.error("getShiftsTableReport error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -2469,7 +2469,7 @@ export async function getEmployeesTableReport(req: Request, res: Response) {
     console.error("getEmployeesTableReport error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -2906,7 +2906,7 @@ export async function getCrewsTableReport(req: Request, res: Response) {
     console.error("getCrewsTableReport error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -3419,7 +3419,7 @@ export async function getVehiclesTableReport(req: Request, res: Response) {
     console.error("getVehiclesTableReport error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -3557,7 +3557,7 @@ function getMonthKey(date: Date) {
 }
 
 function getMonthName(date: Date) {
-  return date.toLocaleDateString("ru-RU", {
+  return date.toLocaleDateString("uk-UA", {
     month: "long",
     year: "numeric",
   });
@@ -3796,7 +3796,7 @@ export async function getAlarmsReport(req: Request, res: Response) {
     console.error("getAlarmsReport error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }

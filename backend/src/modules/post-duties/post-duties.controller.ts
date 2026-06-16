@@ -1,4 +1,4 @@
-import type { Request, Response } from "express";
+﻿import type { Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../../config/prisma";
 import { createAdminActionLog } from "../../utils/admin-action-log";
@@ -380,7 +380,7 @@ export async function getPostDuties(req: Request, res: Response) {
     console.error("getPostDuties error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -435,7 +435,7 @@ export async function getPostDutyById(req: Request, res: Response) {
     console.error("getPostDutyById error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -464,7 +464,7 @@ export async function createPostDuty(req: Request, res: Response) {
 
     if (!canEdit || !canEditDepartment) {
       return res.status(403).json({
-        message: "Недостаточно прав для этого города или подразделения",
+        message: "Недостатньо прав для цього міста или подразделения",
       });
     }
 
@@ -541,7 +541,7 @@ export async function createPostDuty(req: Request, res: Response) {
     }
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -574,7 +574,7 @@ export async function updatePostDuty(req: Request, res: Response) {
 
     if (!canEditCurrentCity || !canEditCurrentDepartment) {
       return res.status(403).json({
-        message: "Недостаточно прав для текущего города или подразделения",
+        message: "Недостатньо прав для поточного міста або підрозділу",
       });
     }
 
@@ -592,7 +592,7 @@ export async function updatePostDuty(req: Request, res: Response) {
 
     if (!canEditNewCity || !canEditNewDepartment) {
       return res.status(403).json({
-        message: "Недостаточно прав для нового города или подразделения",
+        message: "Недостатньо прав для нового міста или подразделения",
       });
     }
 
@@ -692,7 +692,7 @@ export async function updatePostDuty(req: Request, res: Response) {
     }
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -724,7 +724,7 @@ export async function deletePostDuty(req: Request, res: Response) {
 
     if (!canEdit) {
       return res.status(403).json({
-        message: "Недостаточно прав для этого города",
+        message: "Недостатньо прав для цього міста",
       });
     }
 
@@ -758,7 +758,7 @@ export async function deletePostDuty(req: Request, res: Response) {
     console.error("deletePostDuty error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -795,7 +795,7 @@ export async function restorePostDuty(req: Request, res: Response) {
 
     if (!canEdit) {
       return res.status(403).json({
-        message: "Недостаточно прав для этого города",
+        message: "Недостатньо прав для цього міста",
       });
     }
 
@@ -838,7 +838,7 @@ export async function restorePostDuty(req: Request, res: Response) {
     console.error("restorePostDuty error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }

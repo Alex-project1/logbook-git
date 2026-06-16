@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+﻿import { Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../../config/prisma";
 
@@ -47,7 +47,7 @@ export async function getStreets(req: Request, res: Response) {
     return res.json({ data: streets });
   } catch (error) {
     console.error("getStreets error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -87,7 +87,7 @@ export async function getStreetById(req: Request, res: Response) {
     return res.json({ data: street });
   } catch (error) {
     console.error("getStreetById error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -147,7 +147,7 @@ export async function createStreet(req: Request, res: Response) {
     return res.status(201).json({ data: street });
   } catch (error) {
     console.error("createStreet error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -235,7 +235,7 @@ export async function updateStreet(req: Request, res: Response) {
     return res.json({ data: updatedStreet });
   } catch (error) {
     console.error("updateStreet error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -271,6 +271,6 @@ export async function deleteStreet(req: Request, res: Response) {
     return res.json({ message: "Street deleted successfully" });
   } catch (error) {
     console.error("deleteStreet error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }

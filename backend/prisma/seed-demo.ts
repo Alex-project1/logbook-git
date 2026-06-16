@@ -11,17 +11,17 @@ import type {
 
 const prisma = new PrismaClient();
 
-const cities = ["Запорожье", "Харьков", "Днепр", "Киев", "Одесса"];
+const cities = ["Запоріжжя", "Харків", "Дніпро", "Київ", "Одеса"];
 
 const employeeNames = [
-  "Иванов Иван Иванович",
-  "Петренко Сергей Викторович",
-  "Коваленко Андрей Петрович",
-  "Шевченко Дмитрий Олегович",
-  "Бондаренко Максим Сергеевич",
-  "Ткаченко Александр Николаевич",
-  "Мельник Роман Андреевич",
-  "Гриценко Павел Владимирович",
+  "Іванов Іван Іванович",
+  "Петренко Сергій Вікторович",
+  "Коваленко Андрій Петрович",
+  "Шевченко Дмитро Олегович",
+  "Бондаренко Максим Сергійович",
+  "Ткаченко Олександр Миколайович",
+  "Мельник Роман Андрійович",
+  "Гриценко Павло Володимирович",
 ];
 
 const crewNames = ["Байкал 1", "Байкал 2", "Байкал 3"];
@@ -34,55 +34,55 @@ const vehicleTemplates = [
 
 const locations = [
   "База",
-  "ул. Центральная",
-  "пр-т Соборный",
-  "ул. Победы",
-  "ул. Школьная",
-  "ул. Садовая",
+  "вул. Центральна",
+  "пр-т Соборний",
+  "вул. Перемоги",
+  "вул. Шкільна",
+  "вул. Садова",
   "ТРЦ",
-  "Районный отдел",
+  "Районний відділ",
   "АЗС",
-  "Объект 1045",
-  "Объект 2110",
-  "Объект 3250",
-  "Пост охраны",
+  "Об’єкт 1045",
+  "Об’єкт 2110",
+  "Об’єкт 3250",
+  "Пост охорони",
   "Склад",
   "ЖК",
 ];
 
 const tripGoalsSeed = [
   {
-    name: "Сработка ОХ",
+    name: "Спрацювання ОХ",
     systemCode: "alarm_oh",
     isSystem: true,
     sortOrder: 10,
   },
   {
-    name: "Сработка Партнеры",
+    name: "Спрацювання Партнери",
     systemCode: "alarm_partner",
     isSystem: true,
     sortOrder: 20,
   },
   {
-    name: "Список сработок",
+    name: "Список спрацювань",
     systemCode: "additional_alarm_list",
     isSystem: true,
     sortOrder: 30,
   },
   {
-    name: "Мойка",
+    name: "Мийка",
     systemCode: "wash",
     isSystem: true,
     sortOrder: 40,
   },
   {
-    name: "Пересменка",
+    name: "Перезміна",
     systemCode: "shift_change",
     isSystem: true,
     sortOrder: 50,
   },
   {
-    name: "Проверка",
+    name: "Перевірка",
     systemCode: "check",
     isSystem: true,
     sortOrder: 60,
@@ -94,19 +94,19 @@ const tripGoalsSeed = [
     sortOrder: 70,
   },
   {
-    name: "Туалет/Обед",
+    name: "Туалет/Обід",
     systemCode: null,
     isSystem: false,
     sortOrder: 80,
   },
   {
-    name: "Подвоз ОХ",
+    name: "Підвезення ОХ",
     systemCode: null,
     isSystem: false,
     sortOrder: 90,
   },
   {
-    name: "Подвоз Партнеры",
+    name: "Підвезення Партнери",
     systemCode: null,
     isSystem: false,
     sortOrder: 100,
@@ -124,7 +124,7 @@ const tripGoalsSeed = [
     sortOrder: 120,
   },
   {
-    name: "Ознаком",
+    name: "Ознайомлення",
     systemCode: null,
     isSystem: false,
     sortOrder: 130,
@@ -139,17 +139,17 @@ const tripGoalsSeed = [
 
 const additionalReasonsSeed = [
   {
-    name: "Военные действия",
+    name: "Воєнні дії",
     isSystem: true,
     sortOrder: 10,
   },
   {
-    name: "Массовое отключение",
+    name: "Масове відключення",
     isSystem: true,
     sortOrder: 20,
   },
   {
-    name: "Свой вариант",
+    name: "Свій варіант",
     isSystem: true,
     sortOrder: 999,
   },
@@ -386,7 +386,7 @@ async function upsertAdditionalReason(reason: {
 }
 
 async function main() {
-  console.log("Начинаю добавлять демо-данные...");
+  console.log("Починаю додавати демо-дані...");
 
   const goals = new Map<string, TripGoal>();
 
@@ -415,7 +415,7 @@ async function main() {
     const cityName = cities[cityIndex];
     const city = await upsertCity(cityName);
 
-    console.log(`Город: ${city.name}`);
+    console.log(`Місто: ${city.name}`);
 
     const employees: Employee[] = [];
 
@@ -522,19 +522,21 @@ async function main() {
         } else if (goalRoll <= 68) {
           goal = goals.get("Патруль");
         } else if (goalRoll <= 76) {
-          goal = goals.get("Проверка");
+          goal = goals.get("Перевірка");
         } else if (goalRoll <= 82) {
-          goal = goals.get("Мойка");
+          goal = goals.get("Мийка");
         } else if (goalRoll <= 88) {
-          goal = goals.get("Туалет/Обед");
+          goal = goals.get("Туалет/Обід");
         } else if (goalRoll <= 94) {
-          goal = goals.get("Пересменка");
+          goal = goals.get("Перезміна");
         } else {
           goal = goals.get("Інше");
         }
+
         if (!goal) {
-            throw new Error(`Не найдена цель поездки для tripIndex=${tripIndex}`);
-          }
+          throw new Error(`Не знайдено ціль поїздки для tripIndex=${tripIndex}`);
+        }
+
         const trip = await prisma.trip.create({
           data: {
             cityId: city.id,
@@ -548,7 +550,7 @@ async function main() {
             arrivalMinutes,
             distanceKm,
 
-            note: randomBool(15) ? "Тестовое примечание" : null,
+            note: randomBool(15) ? "Тестова примітка" : null,
           } as any,
         });
 
@@ -629,14 +631,14 @@ async function main() {
   }
 
   console.log("Готово!");
-  console.log(`Создано смен: ${createdShifts}`);
-  console.log(`Создано поездок: ${createdTrips}`);
-  console.log(`Создано событий: ${createdEvents}`);
+  console.log(`Створено змін: ${createdShifts}`);
+  console.log(`Створено поїздок: ${createdTrips}`);
+  console.log(`Створено подій: ${createdEvents}`);
 }
 
 main()
   .catch((error) => {
-    console.error("Ошибка seed-demo:", error);
+    console.error("Помилка seed-demo:", error);
     process.exit(1);
   })
   .finally(async () => {

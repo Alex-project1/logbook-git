@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+﻿import { Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../../config/prisma";
 import {
@@ -75,7 +75,7 @@ export async function getVehicles(req: Request, res: Response) {
     return res.json({ data: vehicles });
   } catch (error) {
     console.error("getVehicles error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -95,7 +95,7 @@ export async function getVehicleById(req: Request, res: Response) {
     return res.json({ data: vehicle });
   } catch (error) {
     console.error("getVehicleById error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -104,7 +104,7 @@ export async function createVehicle(req: Request, res: Response) {
     const parsed = createVehicleSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "Validation error", errors: parsed.error.flatten() });
 
-    if (!(await canEditDepartmentData(req, parsed.data.departmentId))) return res.status(403).json({ message: "Недостаточно прав для этого подразделения" });
+    if (!(await canEditDepartmentData(req, parsed.data.departmentId))) return res.status(403).json({ message: "Недостатньо прав для цього підрозділу" });
 
     const department = await validateDepartmentInCity({ cityId: parsed.data.cityId, departmentId: parsed.data.departmentId });
     if (!department) return res.status(404).json({ message: "Подразделение не найдено или неактивно" });
@@ -130,7 +130,7 @@ export async function createVehicle(req: Request, res: Response) {
     return res.status(201).json({ data: vehicle });
   } catch (error) {
     console.error("createVehicle error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -145,13 +145,13 @@ export async function updateVehicle(req: Request, res: Response) {
     const vehicle = await prisma.vehicle.findFirst({ where: { id: vehicleId, deletedAt: null } });
     if (!vehicle) return res.status(404).json({ message: "Vehicle not found" });
 
-    if (!(await canEditDepartmentData(req, vehicle.departmentId))) return res.status(403).json({ message: "Недостаточно прав для текущего подразделения" });
+    if (!(await canEditDepartmentData(req, vehicle.departmentId))) return res.status(403).json({ message: "Недостатньо прав для поточного підрозділу" });
 
     const nextCityId = parsed.data.cityId ?? vehicle.cityId;
     const nextDepartmentId = parsed.data.departmentId ?? vehicle.departmentId;
 
     if (nextDepartmentId !== vehicle.departmentId && !(await canEditDepartmentData(req, nextDepartmentId))) {
-      return res.status(403).json({ message: "Недостаточно прав для нового подразделения" });
+      return res.status(403).json({ message: "Недостатньо прав для нового підрозділу" });
     }
 
     const department = await validateDepartmentInCity({ cityId: nextCityId, departmentId: nextDepartmentId });
@@ -180,7 +180,7 @@ export async function updateVehicle(req: Request, res: Response) {
     return res.json({ data: updated });
   } catch (error) {
     console.error("updateVehicle error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -191,13 +191,13 @@ export async function deleteVehicle(req: Request, res: Response) {
 
     const vehicle = await prisma.vehicle.findFirst({ where: { id: vehicleId, deletedAt: null } });
     if (!vehicle) return res.status(404).json({ message: "Vehicle not found" });
-    if (!(await canEditDepartmentData(req, vehicle.departmentId))) return res.status(403).json({ message: "Недостаточно прав для этого подразделения" });
+    if (!(await canEditDepartmentData(req, vehicle.departmentId))) return res.status(403).json({ message: "Недостатньо прав для цього підрозділу" });
 
     await prisma.vehicle.update({ where: { id: vehicleId }, data: { deletedAt: new Date(), isActive: false } });
     return res.json({ message: "Vehicle archived successfully" });
   } catch (error) {
     console.error("deleteVehicle error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -208,12 +208,12 @@ export async function restoreVehicle(req: Request, res: Response) {
 
     const vehicle = await prisma.vehicle.findUnique({ where: { id: vehicleId } });
     if (!vehicle) return res.status(404).json({ message: "Vehicle not found" });
-    if (!(await canEditDepartmentData(req, vehicle.departmentId))) return res.status(403).json({ message: "Недостаточно прав для этого подразделения" });
+    if (!(await canEditDepartmentData(req, vehicle.departmentId))) return res.status(403).json({ message: "Недостатньо прав для цього підрозділу" });
 
     const restored = await prisma.vehicle.update({ where: { id: vehicleId }, data: { deletedAt: null, isActive: true }, select: vehicleSelect() });
     return res.json({ data: restored });
   } catch (error) {
     console.error("restoreVehicle error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }

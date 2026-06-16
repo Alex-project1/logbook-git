@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+﻿import { Request, Response } from "express";
 import { z } from "zod";
 import bcrypt from "bcrypt";
 import { CrewDutyType, CrewTransportType, DepartmentType, MobileUserKind } from "@prisma/client";
@@ -106,7 +106,7 @@ export async function getCrews(req: Request, res: Response) {
     return res.json({ data: crews.map(sanitizeCrew) });
   } catch (error) {
     console.error("getCrews error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -127,7 +127,7 @@ export async function getCrewById(req: Request, res: Response) {
     return res.json({ data: sanitizeCrew(crew) });
   } catch (error) {
     console.error("getCrewById error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -137,7 +137,7 @@ export async function createCrew(req: Request, res: Response) {
     if (!parsed.success) return res.status(400).json({ message: "Validation error", errors: parsed.error.flatten() });
     if (parsed.data.password !== parsed.data.confirmPassword) return res.status(400).json({ message: "Пароли не совпадают" });
 
-    if (!(await canEditDepartmentData(req, parsed.data.departmentId))) return res.status(403).json({ message: "Недостаточно прав для этого подразделения" });
+    if (!(await canEditDepartmentData(req, parsed.data.departmentId))) return res.status(403).json({ message: "Недостатньо прав для цього підрозділу" });
 
     const department = await validateDepartmentInCity({ cityId: parsed.data.cityId, departmentId: parsed.data.departmentId, requiredType: DepartmentType.GBR });
     if (!department) return res.status(404).json({ message: "Подразделение ГШР не найдено или неактивно" });
@@ -189,7 +189,7 @@ export async function createCrew(req: Request, res: Response) {
     return res.status(201).json({ data: sanitizeCrew(crew) });
   } catch (error) {
     console.error("createCrew error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -203,11 +203,11 @@ export async function updateCrew(req: Request, res: Response) {
 
     const crew = await prisma.crew.findFirst({ where: { id: crewId, deletedAt: null } });
     if (!crew) return res.status(404).json({ message: "Crew not found" });
-    if (!(await canEditDepartmentData(req, crew.departmentId))) return res.status(403).json({ message: "Недостаточно прав для текущего подразделения" });
+    if (!(await canEditDepartmentData(req, crew.departmentId))) return res.status(403).json({ message: "Недостатньо прав для поточного підрозділу" });
 
     const nextCityId = parsed.data.cityId ?? crew.cityId;
     const nextDepartmentId = parsed.data.departmentId ?? crew.departmentId;
-    if (nextDepartmentId !== crew.departmentId && !(await canEditDepartmentData(req, nextDepartmentId))) return res.status(403).json({ message: "Недостаточно прав для нового подразделения" });
+    if (nextDepartmentId !== crew.departmentId && !(await canEditDepartmentData(req, nextDepartmentId))) return res.status(403).json({ message: "Недостатньо прав для нового підрозділу" });
 
     const department = await validateDepartmentInCity({ cityId: nextCityId, departmentId: nextDepartmentId, requiredType: DepartmentType.GBR });
     if (!department) return res.status(404).json({ message: "Подразделение ГШР не найдено или неактивно" });
@@ -271,7 +271,7 @@ export async function updateCrew(req: Request, res: Response) {
     return res.json({ data: sanitizeCrew(updated) });
   } catch (error) {
     console.error("updateCrew error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -282,7 +282,7 @@ export async function deleteCrew(req: Request, res: Response) {
 
     const crew = await prisma.crew.findFirst({ where: { id: crewId, deletedAt: null } });
     if (!crew) return res.status(404).json({ message: "Crew not found" });
-    if (!(await canEditDepartmentData(req, crew.departmentId))) return res.status(403).json({ message: "Недостаточно прав для этого подразделения" });
+    if (!(await canEditDepartmentData(req, crew.departmentId))) return res.status(403).json({ message: "Недостатньо прав для цього підрозділу" });
 
     await prisma.$transaction([
       prisma.crew.update({ where: { id: crewId }, data: { deletedAt: new Date(), isActive: false } }),
@@ -292,7 +292,7 @@ export async function deleteCrew(req: Request, res: Response) {
     return res.json({ message: "Crew archived successfully" });
   } catch (error) {
     console.error("deleteCrew error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -303,7 +303,7 @@ export async function restoreCrew(req: Request, res: Response) {
 
     const crew = await prisma.crew.findUnique({ where: { id: crewId } });
     if (!crew) return res.status(404).json({ message: "Crew not found" });
-    if (!(await canEditDepartmentData(req, crew.departmentId))) return res.status(403).json({ message: "Недостаточно прав для этого подразделения" });
+    if (!(await canEditDepartmentData(req, crew.departmentId))) return res.status(403).json({ message: "Недостатньо прав для цього підрозділу" });
 
     const restored = await prisma.$transaction(async (tx) => {
       await tx.crew.update({ where: { id: crewId }, data: { deletedAt: null, isActive: true } });
@@ -314,6 +314,6 @@ export async function restoreCrew(req: Request, res: Response) {
     return res.json({ data: sanitizeCrew(restored) });
   } catch (error) {
     console.error("restoreCrew error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }

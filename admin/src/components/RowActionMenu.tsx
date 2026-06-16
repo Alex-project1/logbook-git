@@ -143,7 +143,7 @@ export function RowActionMenu({
               disabled={item.disabled}
               onClick={() => handleActionClick(item)}
             >
-              <span className="row-action-dot" />
+             
               {item.label}
             </button>
           ))}

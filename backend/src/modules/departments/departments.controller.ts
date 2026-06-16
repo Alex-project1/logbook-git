@@ -1,4 +1,4 @@
-import type { Request, Response } from "express";
+﻿import type { Request, Response } from "express";
 import { z } from "zod";
 import { DepartmentType } from "@prisma/client";
 import { prisma } from "../../config/prisma";
@@ -80,7 +80,7 @@ export async function getDepartments(req: Request, res: Response) {
     return res.json({ data: departments });
   } catch (error) {
     console.error("getDepartments error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -112,7 +112,7 @@ export async function getDepartmentById(req: Request, res: Response) {
     return res.json({ data: department });
   } catch (error) {
     console.error("getDepartmentById error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -126,7 +126,7 @@ export async function createDepartment(req: Request, res: Response) {
 
     const canEdit = await canEditCityData(req, parsed.data.cityId);
     if (!canEdit) {
-      return res.status(403).json({ message: "Недостаточно прав для этого города" });
+      return res.status(403).json({ message: "Недостатньо прав для цього міста" });
     }
 
     const city = await prisma.city.findFirst({
@@ -164,7 +164,7 @@ export async function createDepartment(req: Request, res: Response) {
     return res.status(201).json({ data: department });
   } catch (error) {
     console.error("createDepartment error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -190,7 +190,7 @@ export async function updateDepartment(req: Request, res: Response) {
 
     const canEditCurrent = await canEditDepartmentData(req, department.id);
     if (!canEditCurrent) {
-      return res.status(403).json({ message: "Недостаточно прав для этого подразделения" });
+      return res.status(403).json({ message: "Недостатньо прав для цього підрозділу" });
     }
 
     const nextCityId = parsed.data.cityId ?? department.cityId;
@@ -203,7 +203,7 @@ export async function updateDepartment(req: Request, res: Response) {
     if (parsed.data.cityId && parsed.data.cityId !== department.cityId) {
       const canEditNewCity = await canEditCityData(req, parsed.data.cityId);
       if (!canEditNewCity) {
-        return res.status(403).json({ message: "Недостаточно прав для нового города" });
+        return res.status(403).json({ message: "Недостатньо прав для нового міста" });
       }
     }
 
@@ -230,7 +230,7 @@ export async function updateDepartment(req: Request, res: Response) {
     return res.json({ data: updated });
   } catch (error) {
     console.error("updateDepartment error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -253,7 +253,7 @@ export async function archiveDepartment(req: Request, res: Response) {
     }
 
     if (!(await canEditDepartmentData(req, department.id))) {
-      return res.status(403).json({ message: "Недостаточно прав для этого подразделения" });
+      return res.status(403).json({ message: "Недостатньо прав для цього підрозділу" });
     }
 
     await prisma.department.update({
@@ -264,7 +264,7 @@ export async function archiveDepartment(req: Request, res: Response) {
     return res.json({ message: "Подразделение отправлено в архив" });
   } catch (error) {
     console.error("archiveDepartment error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -283,7 +283,7 @@ export async function restoreDepartment(req: Request, res: Response) {
     }
 
     if (!(await canEditCityData(req, department.cityId))) {
-      return res.status(403).json({ message: "Недостаточно прав для этого города" });
+      return res.status(403).json({ message: "Недостатньо прав для цього міста" });
     }
 
     const restored = await prisma.department.update({
@@ -295,6 +295,6 @@ export async function restoreDepartment(req: Request, res: Response) {
     return res.json({ data: restored });
   } catch (error) {
     console.error("restoreDepartment error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }

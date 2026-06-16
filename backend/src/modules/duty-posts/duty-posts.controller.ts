@@ -1,4 +1,4 @@
-import type { Request, Response } from "express";
+﻿import type { Request, Response } from "express";
 import { z } from "zod";
 import bcrypt from "bcrypt";
 import { MobileUserKind } from "@prisma/client";
@@ -89,7 +89,7 @@ export async function getDutyPosts(req: Request, res: Response) {
     return res.json({ data: posts.map(sanitizePost) });
   } catch (error) {
     console.error("getDutyPosts error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -109,7 +109,7 @@ export async function getDutyPostById(req: Request, res: Response) {
     return res.json({ data: sanitizePost(post) });
   } catch (error) {
     console.error("getDutyPostById error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -119,7 +119,7 @@ export async function createDutyPost(req: Request, res: Response) {
     if (!parsed.success) return res.status(400).json({ message: "Validation error", errors: parsed.error.flatten() });
     if (parsed.data.password !== parsed.data.confirmPassword) return res.status(400).json({ message: "Пароли не совпадают" });
 
-    if (!(await canEditDepartmentData(req, parsed.data.departmentId))) return res.status(403).json({ message: "Недостаточно прав для этого подразделения" });
+    if (!(await canEditDepartmentData(req, parsed.data.departmentId))) return res.status(403).json({ message: "Недостатньо прав для цього підрозділу" });
 
     const department = await validateDepartmentInCity({ cityId: parsed.data.cityId, departmentId: parsed.data.departmentId });
     if (!department) return res.status(404).json({ message: "Подразделение не найдено или неактивно" });
@@ -173,7 +173,7 @@ export async function createDutyPost(req: Request, res: Response) {
     return res.status(201).json({ data: sanitizePost(post) });
   } catch (error) {
     console.error("createDutyPost error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -187,11 +187,11 @@ export async function updateDutyPost(req: Request, res: Response) {
 
     const post = await prisma.dutyPost.findFirst({ where: { id: postId, deletedAt: null } });
     if (!post) return res.status(404).json({ message: "Пост не найден" });
-    if (!(await canEditDepartmentData(req, post.departmentId))) return res.status(403).json({ message: "Недостаточно прав для текущего подразделения" });
+    if (!(await canEditDepartmentData(req, post.departmentId))) return res.status(403).json({ message: "Недостатньо прав для поточного підрозділу" });
 
     const nextCityId = parsed.data.cityId ?? post.cityId;
     const nextDepartmentId = parsed.data.departmentId ?? post.departmentId;
-    if (nextDepartmentId !== post.departmentId && !(await canEditDepartmentData(req, nextDepartmentId))) return res.status(403).json({ message: "Недостаточно прав для нового подразделения" });
+    if (nextDepartmentId !== post.departmentId && !(await canEditDepartmentData(req, nextDepartmentId))) return res.status(403).json({ message: "Недостатньо прав для нового підрозділу" });
 
     const department = await validateDepartmentInCity({ cityId: nextCityId, departmentId: nextDepartmentId });
     if (!department) return res.status(404).json({ message: "Подразделение не найдено или неактивно" });
@@ -247,7 +247,7 @@ export async function updateDutyPost(req: Request, res: Response) {
     return res.json({ data: sanitizePost(updated) });
   } catch (error) {
     console.error("updateDutyPost error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -258,7 +258,7 @@ export async function deleteDutyPost(req: Request, res: Response) {
 
     const post = await prisma.dutyPost.findFirst({ where: { id: postId, deletedAt: null } });
     if (!post) return res.status(404).json({ message: "Пост не найден" });
-    if (!(await canEditDepartmentData(req, post.departmentId))) return res.status(403).json({ message: "Недостаточно прав для этого подразделения" });
+    if (!(await canEditDepartmentData(req, post.departmentId))) return res.status(403).json({ message: "Недостатньо прав для цього підрозділу" });
 
     await prisma.$transaction([
       prisma.dutyPost.update({ where: { id: postId }, data: { deletedAt: new Date(), isActive: false } }),
@@ -268,7 +268,7 @@ export async function deleteDutyPost(req: Request, res: Response) {
     return res.json({ message: "Пост отправлен в архив" });
   } catch (error) {
     console.error("deleteDutyPost error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -279,7 +279,7 @@ export async function restoreDutyPost(req: Request, res: Response) {
 
     const post = await prisma.dutyPost.findUnique({ where: { id: postId } });
     if (!post) return res.status(404).json({ message: "Пост не найден" });
-    if (!(await canEditDepartmentData(req, post.departmentId))) return res.status(403).json({ message: "Недостаточно прав для этого подразделения" });
+    if (!(await canEditDepartmentData(req, post.departmentId))) return res.status(403).json({ message: "Недостатньо прав для цього підрозділу" });
 
     const restored = await prisma.$transaction(async (tx) => {
       await tx.dutyPost.update({ where: { id: postId }, data: { deletedAt: null, isActive: true } });
@@ -290,6 +290,6 @@ export async function restoreDutyPost(req: Request, res: Response) {
     return res.json({ data: sanitizePost(restored) });
   } catch (error) {
     console.error("restoreDutyPost error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }

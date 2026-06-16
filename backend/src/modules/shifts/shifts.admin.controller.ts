@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+﻿import { Request, Response } from "express";
 import { z } from "zod";
 import {
   AlarmSource,
@@ -96,7 +96,7 @@ function calculateShiftSummary(shift: any) {
         additionalPartner += partner;
 
         const reasonName =
-          event.reason?.name ?? event.customReasonText ?? "Без причины";
+          event.reason?.name ?? event.customReasonText ?? "Без причини";
 
         if (!additionalByReason[reasonName]) {
           additionalByReason[reasonName] = {
@@ -291,7 +291,7 @@ export async function getAdminShifts(req: Request, res: Response) {
     console.error("getAdminShifts error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -302,7 +302,7 @@ export async function getAdminShiftById(req: Request, res: Response) {
 
     if (!Number.isInteger(shiftId)) {
       return res.status(400).json({
-        message: "Invalid shift id",
+        message: "Некоректний ідентифікатор зміни",
       });
     }
 
@@ -375,7 +375,7 @@ export async function getAdminShiftById(req: Request, res: Response) {
 
     if (!shift) {
       return res.status(404).json({
-        message: "Shift not found",
+        message: "Зміну не знайдено",
       });
     }
 
@@ -386,7 +386,7 @@ export async function getAdminShiftById(req: Request, res: Response) {
     console.error("getAdminShiftById error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -401,7 +401,7 @@ export async function deleteAdminShift(req: Request, res: Response) {
 
     if (!Number.isInteger(shiftId)) {
       return res.status(400).json({
-        message: "Invalid shift id",
+        message: "Некоректний ідентифікатор зміни",
       });
     }
 
@@ -409,7 +409,7 @@ export async function deleteAdminShift(req: Request, res: Response) {
 
     if (!parsed.success) {
       return res.status(400).json({
-        message: "Validation error",
+        message: "Помилка валідації",
         errors: parsed.error.flatten(),
       });
     }
@@ -430,7 +430,7 @@ export async function deleteAdminShift(req: Request, res: Response) {
 
     if (!shift) {
       return res.status(404).json({
-        message: "Shift not found",
+        message: "Зміну не знайдено",
       });
     }
 
@@ -480,13 +480,13 @@ export async function deleteAdminShift(req: Request, res: Response) {
     });
 
     return res.json({
-      message: "Shift deleted successfully",
+      message: "Зміну успішно видалено",
     });
   } catch (error) {
     console.error("deleteAdminShift error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -594,7 +594,7 @@ export async function getAdminTrips(req: Request, res: Response) {
     console.error("getAdminTrips error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -674,7 +674,7 @@ export async function createAdminShift(req: Request, res: Response) {
 
     if (!parsed.success) {
       return res.status(400).json({
-        message: "Validation error",
+        message: "Помилка валідації",
         errors: parsed.error.flatten(),
       });
     }
@@ -683,7 +683,7 @@ export async function createAdminShift(req: Request, res: Response) {
 
     if (data.driverEmployeeId === data.seniorEmployeeId) {
       return res.status(400).json({
-        message: "Driver and senior cannot be the same employee",
+        message: "Водій і старший не можуть бути одним співробітником",
       });
     }
 
@@ -691,7 +691,7 @@ export async function createAdminShift(req: Request, res: Response) {
 
     if (!shiftDate) {
       return res.status(400).json({
-        message: "Invalid shiftDate",
+        message: "Некоректна дата зміни",
       });
     }
 
@@ -742,23 +742,23 @@ export async function createAdminShift(req: Request, res: Response) {
     ]);
 
     if (!city) {
-      return res.status(404).json({ message: "City not found" });
+      return res.status(404).json({ message: "Місто не знайдено" });
     }
 
     if (!crew) {
-      return res.status(404).json({ message: "Crew not found" });
+      return res.status(404).json({ message: "Наряд не знайдено" });
     }
 
     if (!vehicle) {
-      return res.status(404).json({ message: "Vehicle not found" });
+      return res.status(404).json({ message: "Автомобіль не знайдено" });
     }
 
     if (!driver) {
-      return res.status(404).json({ message: "Driver not found" });
+      return res.status(404).json({ message: "Водія не знайдено" });
     }
 
     if (!senior) {
-      return res.status(404).json({ message: "Senior not found" });
+      return res.status(404).json({ message: "Старшого не знайдено" });
     }
 
     const goalIds = [...new Set(data.trips.map((trip) => trip.goalId))];
@@ -775,7 +775,7 @@ export async function createAdminShift(req: Request, res: Response) {
 
     if (goals.length !== goalIds.length) {
       return res.status(400).json({
-        message: "One or more trip goals are invalid",
+        message: "Одна або кілька цілей поїздки некоректні",
       });
     }
 
@@ -799,7 +799,7 @@ export async function createAdminShift(req: Request, res: Response) {
 
       if (reasons.length !== uniqueReasonIds.length) {
         return res.status(400).json({
-          message: "One or more additional alarm reasons are invalid",
+          message: "Одна або кілька причин додаткових спрацювань некоректні",
         });
       }
     }
@@ -810,13 +810,13 @@ export async function createAdminShift(req: Request, res: Response) {
 
       if (!departureTime || !arrivalTime) {
         return res.status(400).json({
-          message: "Invalid trip departureTime or arrivalTime",
+          message: "Некоректний час виїзду або прибуття поїздки",
         });
       }
 
       if (arrivalTime.getTime() < departureTime.getTime()) {
         return res.status(400).json({
-          message: "Arrival time cannot be earlier than departure time",
+          message: "Час прибуття не може бути раніше часу виїзду",
         });
       }
 
@@ -824,13 +824,13 @@ export async function createAdminShift(req: Request, res: Response) {
         if (event.eventCategory === "REGULAR_ALARM") {
           if (!event.alarmSource) {
             return res.status(400).json({
-              message: "Regular alarm must have alarmSource",
+              message: "Звичайне спрацювання має містити джерело (ОХ/партнери)",
             });
           }
 
           if (typeof event.isCombat !== "boolean") {
             return res.status(400).json({
-              message: "Regular alarm must have isCombat",
+              message: "Звичайне спрацювання має містити ознаку бойове/хибне",
             });
           }
         }
@@ -841,14 +841,14 @@ export async function createAdminShift(req: Request, res: Response) {
 
           if (ohCount + partnerCount <= 0) {
             return res.status(400).json({
-              message: "Additional alarm must have OH or Partner count",
+              message: "Додаткове спрацювання має містити кількість ОХ або партнерів",
             });
           }
 
           if (!event.reasonId && !event.customReasonText) {
             return res.status(400).json({
               message:
-                "Additional alarm must have reasonId or customReasonText",
+                "Додаткове спрацювання має містити причину",
             });
           }
         }
@@ -876,7 +876,7 @@ export async function createAdminShift(req: Request, res: Response) {
 
     if (!selectedCrew) {
       return res.status(404).json({
-        message: "Наряд не найден или неактивен",
+        message: "Наряд не знайдено або він неактивний",
       });
     }
 
@@ -998,7 +998,7 @@ export async function createAdminShift(req: Request, res: Response) {
     });
 
     return res.status(201).json({
-      message: "Admin shift created successfully",
+      message: "Зміну успішно створено",
       data: {
         id: savedShift.id,
         sourceType: savedShift.sourceType,
@@ -1013,7 +1013,7 @@ export async function createAdminShift(req: Request, res: Response) {
     console.error("createAdminShift error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -1024,7 +1024,7 @@ export async function updateAdminShift(req: Request, res: Response) {
 
     if (!Number.isInteger(shiftId)) {
       return res.status(400).json({
-        message: "Invalid shift id",
+        message: "Некоректний ідентифікатор зміни",
       });
     }
 
@@ -1032,7 +1032,7 @@ export async function updateAdminShift(req: Request, res: Response) {
 
     if (!parsed.success) {
       return res.status(400).json({
-        message: "Validation error",
+        message: "Помилка валідації",
         errors: parsed.error.flatten(),
       });
     }
@@ -1041,7 +1041,7 @@ export async function updateAdminShift(req: Request, res: Response) {
 
     if (data.driverEmployeeId === data.seniorEmployeeId) {
       return res.status(400).json({
-        message: "Driver and senior cannot be the same employee",
+        message: "Водій і старший не можуть бути одним співробітником",
       });
     }
 
@@ -1064,7 +1064,7 @@ export async function updateAdminShift(req: Request, res: Response) {
 
     if (!existingShift) {
       return res.status(404).json({
-        message: "Shift not found",
+        message: "Зміну не знайдено",
       });
     }
 
@@ -1072,7 +1072,7 @@ export async function updateAdminShift(req: Request, res: Response) {
 
     if (!shiftDate) {
       return res.status(400).json({
-        message: "Invalid shiftDate",
+        message: "Некоректна дата зміни",
       });
     }
 
@@ -1123,23 +1123,23 @@ export async function updateAdminShift(req: Request, res: Response) {
     ]);
 
     if (!city) {
-      return res.status(404).json({ message: "City not found" });
+      return res.status(404).json({ message: "Місто не знайдено" });
     }
 
     if (!crew) {
-      return res.status(404).json({ message: "Crew not found" });
+      return res.status(404).json({ message: "Наряд не знайдено" });
     }
 
     if (!vehicle) {
-      return res.status(404).json({ message: "Vehicle not found" });
+      return res.status(404).json({ message: "Автомобіль не знайдено" });
     }
 
     if (!driver) {
-      return res.status(404).json({ message: "Driver not found" });
+      return res.status(404).json({ message: "Водія не знайдено" });
     }
 
     if (!senior) {
-      return res.status(404).json({ message: "Senior not found" });
+      return res.status(404).json({ message: "Старшого не знайдено" });
     }
 
     const goalIds = [...new Set(data.trips.map((trip) => trip.goalId))];
@@ -1156,7 +1156,7 @@ export async function updateAdminShift(req: Request, res: Response) {
 
     if (goals.length !== goalIds.length) {
       return res.status(400).json({
-        message: "One or more trip goals are invalid",
+        message: "Одна або кілька цілей поїздки некоректні",
       });
     }
 
@@ -1180,7 +1180,7 @@ export async function updateAdminShift(req: Request, res: Response) {
 
       if (reasons.length !== uniqueReasonIds.length) {
         return res.status(400).json({
-          message: "One or more additional alarm reasons are invalid",
+          message: "Одна або кілька причин додаткових спрацювань некоректні",
         });
       }
     }
@@ -1191,13 +1191,13 @@ export async function updateAdminShift(req: Request, res: Response) {
 
       if (!departureTime || !arrivalTime) {
         return res.status(400).json({
-          message: "Invalid trip departureTime or arrivalTime",
+          message: "Некоректний час виїзду або прибуття поїздки",
         });
       }
 
       if (arrivalTime.getTime() < departureTime.getTime()) {
         return res.status(400).json({
-          message: "Arrival time cannot be earlier than departure time",
+          message: "Час прибуття не може бути раніше часу виїзду",
         });
       }
 
@@ -1205,13 +1205,13 @@ export async function updateAdminShift(req: Request, res: Response) {
         if (event.eventCategory === "REGULAR_ALARM") {
           if (!event.alarmSource) {
             return res.status(400).json({
-              message: "Regular alarm must have alarmSource",
+              message: "Звичайне спрацювання має містити джерело (ОХ/партнери)",
             });
           }
 
           if (typeof event.isCombat !== "boolean") {
             return res.status(400).json({
-              message: "Regular alarm must have isCombat",
+              message: "Звичайне спрацювання має містити ознаку бойове/хибне",
             });
           }
         }
@@ -1222,14 +1222,14 @@ export async function updateAdminShift(req: Request, res: Response) {
 
           if (ohCount + partnerCount <= 0) {
             return res.status(400).json({
-              message: "Additional alarm must have OH or Partner count",
+              message: "Додаткове спрацювання має містити кількість ОХ або партнерів",
             });
           }
 
           if (!event.reasonId && !event.customReasonText) {
             return res.status(400).json({
               message:
-                "Additional alarm must have reasonId or customReasonText",
+                "Додаткове спрацювання має містити причину",
             });
           }
         }
@@ -1372,7 +1372,7 @@ export async function updateAdminShift(req: Request, res: Response) {
     });
 
     return res.json({
-      message: "Shift updated successfully",
+      message: "Зміну успішно оновлено",
       data: {
         id: updatedShift.id,
         sourceType: updatedShift.sourceType,
@@ -1387,7 +1387,7 @@ export async function updateAdminShift(req: Request, res: Response) {
     console.error("updateAdminShift error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }

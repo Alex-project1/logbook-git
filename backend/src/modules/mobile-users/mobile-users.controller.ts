@@ -69,7 +69,7 @@ export async function getMobileUsers(req: Request, res: Response) {
     return res.json({ data: mobileUsers });
   } catch (error) {
     console.error("getMobileUsers error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -89,13 +89,14 @@ export async function getMobileUserById(req: Request, res: Response) {
     return res.json({ data: mobileUser });
   } catch (error) {
     console.error("getMobileUserById error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
 export async function createMobileUser(req: Request, res: Response) {
   return res.status(400).json({
-    message: "Пользователь приложения создается через справочник Наряды ГБР или Доп. посты",
+    message:
+      "Користувача застосунку створюють через довідники «Наряди ГШР» або «Дод. пости»",
   });
 }
 
@@ -109,7 +110,7 @@ export async function updateMobileUser(req: Request, res: Response) {
 
     const mobileUser = await prisma.mobileUser.findFirst({ where: { id: mobileUserId, deletedAt: null } });
     if (!mobileUser) return res.status(404).json({ message: "Mobile user not found" });
-    if (!(await canEditDepartmentData(req, mobileUser.departmentId))) return res.status(403).json({ message: "Недостаточно прав для этого подразделения" });
+    if (!(await canEditDepartmentData(req, mobileUser.departmentId))) return res.status(403).json({ message: "Недостатньо прав для цього підрозділу" });
 
     if (parsed.data.login && parsed.data.login !== mobileUser.login) {
       const existingUser = await prisma.mobileUser.findUnique({ where: { login: parsed.data.login.trim() } });
@@ -137,7 +138,7 @@ export async function updateMobileUser(req: Request, res: Response) {
     return res.json({ data: updatedMobileUser });
   } catch (error) {
     console.error("updateMobileUser error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -148,13 +149,13 @@ export async function deleteMobileUser(req: Request, res: Response) {
 
     const mobileUser = await prisma.mobileUser.findFirst({ where: { id: mobileUserId, deletedAt: null } });
     if (!mobileUser) return res.status(404).json({ message: "Mobile user not found" });
-    if (!(await canEditDepartmentData(req, mobileUser.departmentId))) return res.status(403).json({ message: "Недостаточно прав для этого подразделения" });
+    if (!(await canEditDepartmentData(req, mobileUser.departmentId))) return res.status(403).json({ message: "Недостатньо прав для цього підрозділу" });
 
     await prisma.mobileUser.update({ where: { id: mobileUserId }, data: { deletedAt: new Date(), isActive: false } });
     return res.json({ message: "Mobile user archived successfully" });
   } catch (error) {
     console.error("deleteMobileUser error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -165,12 +166,12 @@ export async function restoreMobileUser(req: Request, res: Response) {
 
     const mobileUser = await prisma.mobileUser.findUnique({ where: { id: mobileUserId } });
     if (!mobileUser) return res.status(404).json({ message: "Mobile user not found" });
-    if (!(await canEditDepartmentData(req, mobileUser.departmentId))) return res.status(403).json({ message: "Недостаточно прав для этого подразделения" });
+    if (!(await canEditDepartmentData(req, mobileUser.departmentId))) return res.status(403).json({ message: "Недостатньо прав для цього підрозділу" });
 
     const restoredMobileUser = await prisma.mobileUser.update({ where: { id: mobileUserId }, data: { deletedAt: null, isActive: true }, select: mobileUserSelect() });
     return res.json({ data: restoredMobileUser });
   } catch (error) {
     console.error("restoreMobileUser error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }

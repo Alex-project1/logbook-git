@@ -15,7 +15,7 @@ function formatDateLabel(value: unknown) {
     return "—";
   }
 
-  return date.toLocaleDateString("ru-RU");
+  return date.toLocaleDateString("uk-UA");
 }
 
 function buildPeriodLabel(params: {
@@ -64,11 +64,11 @@ function addReportTableSheet(params: {
   const sheet = params.workbook.addWorksheet(safeSheetName(params.sheetName));
 
   sheet.addRow([params.title]);
-  sheet.addRow(["Период", params.periodLabel]);
+  sheet.addRow(["Період", params.periodLabel]);
   sheet.addRow([]);
 
   const header = [
-    "Показатель",
+    "Показник",
     ...params.table.columns.map((column) => column.label),
   ];
 
@@ -116,13 +116,13 @@ function addPeriodComparisonSheet(
     return;
   }
 
-  const sheet = workbook.addWorksheet("Сравнение периодов");
+  const sheet = workbook.addWorksheet("Порівняння періодів");
 
   sheet.columns = [
-    { header: "Показатель", key: "label", width: 30 },
-    { header: "Основной период", key: "main", width: 18 },
-    { header: "Период сравнения", key: "compare", width: 18 },
-    { header: "Разница", key: "diff", width: 16 },
+    { header: "Показник", key: "label", width: 30 },
+    { header: "Основний період", key: "main", width: 18 },
+    { header: "Період порівняння", key: "compare", width: 18 },
+    { header: "Різниця", key: "diff", width: 16 },
   ];
 
   payload.data.charts.periodComparison
@@ -145,11 +145,11 @@ function addAdditionalReasonsSheet(
   workbook: ExcelJS.Workbook,
   payload: CustomReportPayload,
 ) {
-  const sheet = workbook.addWorksheet("Причины доп. сработок");
+  const sheet = workbook.addWorksheet("Дод. спрацювання");
 
   sheet.columns = [
     { header: "Причина", key: "reasonName", width: 36 },
-    { header: "Всего", key: "total", width: 14 },
+    { header: "Усього", key: "total", width: 14 },
   ];
 
   payload.data.charts.additionalReasons.forEach((row) => {
@@ -166,15 +166,15 @@ function addAlarmGroupsSheet(
   workbook: ExcelJS.Workbook,
   payload: CustomReportPayload,
 ) {
-  const sheet = workbook.addWorksheet("Сработки по группам");
+  const sheet = workbook.addWorksheet("Спрацювання за групами");
 
   sheet.columns = [
-    { header: "Группа", key: "name", width: 28 },
-    { header: "Всего сработок", key: "totalAlarms", width: 18 },
-    { header: "Ложные", key: "falseTotal", width: 14 },
-    { header: "Боевые", key: "combatTotal", width: 14 },
-    { header: "Дополнительные", key: "additionalTotal", width: 18 },
-    { header: "Смены", key: "totalShifts", width: 14 },
+    { header: "Група", key: "name", width: 28 },
+    { header: "Усього спрацювань", key: "totalAlarms", width: 18 },
+    { header: "Хибні", key: "falseTotal", width: 14 },
+    { header: "Бойові", key: "combatTotal", width: 14 },
+    { header: "Додаткові", key: "additionalTotal", width: 18 },
+    { header: "Зміни", key: "totalShifts", width: 14 },
   ];
 
   payload.data.charts.byGroups.forEach((group) => {
@@ -202,8 +202,8 @@ export async function exportCustomReportExcel(req: Request, res: Response) {
 
     addReportTableSheet({
       workbook,
-      sheetName: "Основной отчет",
-      title: "Основной отчет",
+      sheetName: "Основний звіт",
+      title: "Основний звіт",
       periodLabel: buildPeriodLabel({
         dateFrom: payload.filters.dateFrom,
         dateTo: payload.filters.dateTo,
@@ -214,8 +214,8 @@ export async function exportCustomReportExcel(req: Request, res: Response) {
     if (payload.data.compare) {
       addReportTableSheet({
         workbook,
-        sheetName: "Сравнительный отчет",
-        title: "Сравнительный отчет",
+        sheetName: "Порівняльний звіт",
+        title: "Порівняльний звіт",
         periodLabel: buildPeriodLabel({
           dateFrom: payload.filters.compareDateFrom,
           dateTo: payload.filters.compareDateTo,
@@ -252,14 +252,14 @@ export async function exportCustomReportExcel(req: Request, res: Response) {
         message:
           error instanceof Error
             ? error.message
-            : "Недостаточно прав для выбранного города",
+            : "Недостатньо прав для обраного міста",
       });
     }
 
     console.error("exportCustomReportExcel error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }

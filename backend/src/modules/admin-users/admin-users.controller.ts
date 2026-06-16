@@ -1,4 +1,4 @@
-import type { Request, Response } from "express";
+﻿import type { Request, Response } from "express";
 import { AdminAccessLevel } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
 import { prisma } from "../../config/prisma";
@@ -85,7 +85,7 @@ export async function getAdminUsers(req: Request, res: Response) {
   try {
     if (!canManageUsers(req)) {
       return res.status(403).json({
-        message: "Недостаточно прав",
+        message: "Недостатньо прав",
       });
     }
 
@@ -194,7 +194,7 @@ export async function getAdminUsers(req: Request, res: Response) {
     console.error("getAdminUsers error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -203,7 +203,7 @@ export async function createAdminUser(req: Request, res: Response) {
   try {
     if (!canManageUsers(req)) {
       return res.status(403).json({
-        message: "Недостаточно прав",
+        message: "Недостатньо прав",
       });
     }
 
@@ -281,7 +281,7 @@ export async function createAdminUser(req: Request, res: Response) {
 
     if (existingUser) {
       return res.status(409).json({
-        message: "Пользователь с таким логином или email уже существует",
+        message: "Користувача з таким логіном або email уже існує",
       });
     }
 
@@ -344,14 +344,14 @@ export async function createAdminUser(req: Request, res: Response) {
     });
 
     return res.status(201).json({
-      message: "Пользователь создан",
+      message: "Користувача створено",
       data: sanitizeUser(user),
     });
   } catch (error) {
     console.error("createAdminUser error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -360,7 +360,7 @@ export async function updateAdminUser(req: Request, res: Response) {
   try {
     if (!canManageUsers(req)) {
       return res.status(403).json({
-        message: "Недостаточно прав",
+        message: "Недостатньо прав",
       });
     }
 
@@ -386,7 +386,7 @@ export async function updateAdminUser(req: Request, res: Response) {
 
     if (!existingUser) {
       return res.status(404).json({
-        message: "Пользователь не найден",
+        message: "Користувача не знайдено",
       });
     }
 
@@ -475,7 +475,7 @@ export async function updateAdminUser(req: Request, res: Response) {
 
     if (duplicateUser) {
       return res.status(409).json({
-        message: "Пользователь с таким логином или email уже существует",
+        message: "Користувача з таким логіном або email уже існує",
       });
     }
 
@@ -555,14 +555,14 @@ export async function updateAdminUser(req: Request, res: Response) {
     });
 
     return res.json({
-      message: "Пользователь обновлен",
+      message: "Користувача оновлено",
       data: sanitizeUser(user),
     });
   } catch (error) {
     console.error("updateAdminUser error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -571,7 +571,7 @@ export async function deleteAdminUser(req: Request, res: Response) {
   try {
     if (!canManageUsers(req)) {
       return res.status(403).json({
-        message: "Недостаточно прав",
+        message: "Недостатньо прав",
       });
     }
 
@@ -603,7 +603,7 @@ export async function deleteAdminUser(req: Request, res: Response) {
 
     if (!user) {
       return res.status(404).json({
-        message: "Пользователь не найден",
+        message: "Користувача не знайдено",
       });
     }
 
@@ -624,13 +624,13 @@ export async function deleteAdminUser(req: Request, res: Response) {
     });
 
     return res.json({
-      message: "Пользователь удален",
+      message: "Користувача видалено",
     });
   } catch (error) {
     console.error("deleteAdminUser error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }

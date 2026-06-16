@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+﻿import { Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../../config/prisma";
 import {
@@ -72,7 +72,7 @@ export async function getEmployees(req: Request, res: Response) {
     return res.json({ data: employees });
   } catch (error) {
     console.error("getEmployees error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -92,7 +92,7 @@ export async function getEmployeeById(req: Request, res: Response) {
     return res.json({ data: employee });
   } catch (error) {
     console.error("getEmployeeById error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -101,7 +101,7 @@ export async function createEmployee(req: Request, res: Response) {
     const parsed = createEmployeeSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "Validation error", errors: parsed.error.flatten() });
 
-    if (!(await canEditDepartmentData(req, parsed.data.departmentId))) return res.status(403).json({ message: "Недостаточно прав для этого подразделения" });
+    if (!(await canEditDepartmentData(req, parsed.data.departmentId))) return res.status(403).json({ message: "Недостатньо прав для цього підрозділу" });
 
     const department = await validateDepartmentInCity({ cityId: parsed.data.cityId, departmentId: parsed.data.departmentId });
     if (!department) return res.status(404).json({ message: "Подразделение не найдено или неактивно" });
@@ -121,7 +121,7 @@ export async function createEmployee(req: Request, res: Response) {
     return res.status(201).json({ data: employee });
   } catch (error) {
     console.error("createEmployee error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -136,13 +136,13 @@ export async function updateEmployee(req: Request, res: Response) {
     const employee = await prisma.employee.findFirst({ where: { id: employeeId, deletedAt: null } });
     if (!employee) return res.status(404).json({ message: "Employee not found" });
 
-    if (!(await canEditDepartmentData(req, employee.departmentId))) return res.status(403).json({ message: "Недостаточно прав для текущего подразделения" });
+    if (!(await canEditDepartmentData(req, employee.departmentId))) return res.status(403).json({ message: "Недостатньо прав для поточного підрозділу" });
 
     const nextCityId = parsed.data.cityId ?? employee.cityId;
     const nextDepartmentId = parsed.data.departmentId ?? employee.departmentId;
 
     if (nextDepartmentId !== employee.departmentId && !(await canEditDepartmentData(req, nextDepartmentId))) {
-      return res.status(403).json({ message: "Недостаточно прав для нового подразделения" });
+      return res.status(403).json({ message: "Недостатньо прав для нового підрозділу" });
     }
 
     const department = await validateDepartmentInCity({ cityId: nextCityId, departmentId: nextDepartmentId });
@@ -164,7 +164,7 @@ export async function updateEmployee(req: Request, res: Response) {
     return res.json({ data: updated });
   } catch (error) {
     console.error("updateEmployee error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -175,13 +175,13 @@ export async function deleteEmployee(req: Request, res: Response) {
 
     const employee = await prisma.employee.findFirst({ where: { id: employeeId, deletedAt: null } });
     if (!employee) return res.status(404).json({ message: "Employee not found" });
-    if (!(await canEditDepartmentData(req, employee.departmentId))) return res.status(403).json({ message: "Недостаточно прав для этого подразделения" });
+    if (!(await canEditDepartmentData(req, employee.departmentId))) return res.status(403).json({ message: "Недостатньо прав для цього підрозділу" });
 
     await prisma.employee.update({ where: { id: employeeId }, data: { deletedAt: new Date(), isActive: false } });
     return res.json({ message: "Employee archived successfully" });
   } catch (error) {
     console.error("deleteEmployee error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }
 
@@ -192,12 +192,12 @@ export async function restoreEmployee(req: Request, res: Response) {
 
     const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
     if (!employee) return res.status(404).json({ message: "Employee not found" });
-    if (!(await canEditDepartmentData(req, employee.departmentId))) return res.status(403).json({ message: "Недостаточно прав для этого подразделения" });
+    if (!(await canEditDepartmentData(req, employee.departmentId))) return res.status(403).json({ message: "Недостатньо прав для цього підрозділу" });
 
     const restored = await prisma.employee.update({ where: { id: employeeId }, data: { deletedAt: null, isActive: true }, select: employeeSelect() });
     return res.json({ data: restored });
   } catch (error) {
     console.error("restoreEmployee error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Внутрішня помилка сервера" });
   }
 }

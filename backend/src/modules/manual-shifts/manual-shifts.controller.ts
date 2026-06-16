@@ -68,6 +68,7 @@ function parseNumberValue(value: unknown) {
 function roundNumber(value: number) {
   return Number(value.toFixed(1));
 }
+
 function getShiftEquivalent(shift: { shiftDurationHours?: unknown }) {
   const durationHours = Number(shift.shiftDurationHours ?? 24);
 
@@ -77,17 +78,18 @@ function getShiftEquivalent(shift: { shiftDurationHours?: unknown }) {
 
   return Math.round((durationHours / 24) * 100) / 100;
 }
+
 function normalizeEvent(event: ManualTripEventInput) {
   const detainedCount = Math.max(Number(event.detainedCount ?? 0), 0);
   const transferredCount = Math.max(Number(event.transferredCount ?? 0), 0);
 
   if (event.eventCategory === "REGULAR_ALARM") {
     if (event.alarmSource !== "OH" && event.alarmSource !== "PARTNER") {
-      throw new Error("Для обычной сработки нужен alarmSource OH или PARTNER");
+      throw new Error("Для звичайного спрацювання потрібен alarmSource OH або PARTNER");
     }
 
     if (typeof event.isCombat !== "boolean") {
-      throw new Error("Для обычной сработки нужно указать isCombat");
+      throw new Error("Для звичайного спрацювання потрібно вказати isCombat");
     }
 
     return {
@@ -107,7 +109,7 @@ function normalizeEvent(event: ManualTripEventInput) {
 
   if (countTotal <= 0) {
     throw new Error(
-      "Для доп. сработок нужно указать количество ОХ или Партнеров",
+      "Для дод. спрацювань потрібно вказати кількість ОХ або партнерів",
     );
   }
 
@@ -129,19 +131,19 @@ function normalizeTrip(trip: ManualTripInput) {
   const arrivalTime = parseDateValue(trip.arrivalTime);
 
   if (!trip.fromLocation?.trim()) {
-    throw new Error("Не заполнено поле Откуда");
+    throw new Error("Не заповнено поле Звідки");
   }
 
   if (!trip.toLocation?.trim()) {
-    throw new Error("Не заполнено поле Куда");
+    throw new Error("Не заповнено поле Куди");
   }
 
   if (!departureTime) {
-    throw new Error("Некорректное время выезда");
+    throw new Error("Некоректний час виїзду");
   }
 
   if (!arrivalTime) {
-    throw new Error("Некорректное время прибытия");
+    throw new Error("Некоректний час прибуття");
   }
 
   const arrivalMinutes = parseNumberValue(trip.arrivalMinutes);
@@ -149,15 +151,15 @@ function normalizeTrip(trip: ManualTripInput) {
   const goalId = parseNumberValue(trip.goalId);
 
   if (arrivalMinutes === null || arrivalMinutes < 0) {
-    throw new Error("Некорректное время прибытия в минутах");
+    throw new Error("Некоректний час прибуття у хвилинах");
   }
 
   if (distanceKm === null || distanceKm < 0) {
-    throw new Error("Некорректное расстояние");
+    throw new Error("Некоректна відстань");
   }
 
   if (!goalId) {
-    throw new Error("Не указана цель поездки");
+    throw new Error("Не вказано ціль поїздки");
   }
 
   return {
@@ -172,6 +174,7 @@ function normalizeTrip(trip: ManualTripInput) {
     events: (trip.events ?? []).map(normalizeEvent),
   };
 }
+
 function getAdminInfoFromRequest(req: Request) {
   const requestAny = req as any;
 
@@ -243,37 +246,39 @@ export async function createManualShift(req: Request, res: Response) {
       !seniorEmployeeId
     ) {
       return res.status(400).json({
-        message: "Не заполнены основные поля смены",
+        message: "Не заповнені основні поля зміни",
       });
     }
+
     const canCreateShift = await canAddShiftInCity(req, cityId);
 
     if (!canCreateShift) {
       return res.status(403).json({
-        message: "Недостаточно прав для создания смены в этом городе",
+        message: "Недостатньо прав для створення зміни в цьому місті",
       });
     }
+
     if (driverEmployeeId === seniorEmployeeId) {
       return res.status(400).json({
-        message: "Водитель и старший не могут быть одним сотрудником",
+        message: "Водій і старший не можуть бути одним співробітником",
       });
     }
 
     if (!shiftDate) {
       return res.status(400).json({
-        message: "Некорректная дата смены",
+        message: "Некоректна дата зміни",
       });
     }
 
     if (odometerStart === null || odometerStart < 0) {
       return res.status(400).json({
-        message: "Некорректный спидометр на начало смены",
+        message: "Некоректний спідометр на початку зміни",
       });
     }
 
     if (!Array.isArray(req.body.trips) || req.body.trips.length === 0) {
       return res.status(400).json({
-        message: "Добавьте хотя бы одну поездку",
+        message: "Додайте хоча б одну поїздку",
       });
     }
 
@@ -302,7 +307,7 @@ export async function createManualShift(req: Request, res: Response) {
 
     if (!crew) {
       return res.status(404).json({
-        message: "Наряд не найден или неактивен",
+        message: "Наряд не знайдено або він неактивний",
       });
     }
 
@@ -362,20 +367,22 @@ export async function createManualShift(req: Request, res: Response) {
         },
       },
     });
+
     await createAdminActionLog(req, {
       action: "CREATE_SHIFT",
       entityType: "SHIFT",
       entityId: shift.id,
       cityId: shift.cityId,
-      description: `Создана смена #${shift.id}`,
+      description: `Створено зміну #${shift.id}`,
       metadata: {
         shiftId: shift.id,
         tripsCount: shift.trips.length,
         totalDistanceKm: shift.totalDistanceKm,
       },
     });
+
     return res.status(201).json({
-      message: "Смена добавлена вручную",
+      message: "Зміну додано вручну",
       data: shift,
     });
   } catch (error) {
@@ -388,7 +395,7 @@ export async function createManualShift(req: Request, res: Response) {
     }
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -399,7 +406,7 @@ export async function deleteManualShift(req: Request, res: Response) {
 
     if (!Number.isInteger(shiftId)) {
       return res.status(400).json({
-        message: "Invalid shift id",
+        message: "Некоректний ID зміни",
       });
     }
 
@@ -412,20 +419,22 @@ export async function deleteManualShift(req: Request, res: Response) {
 
     if (!shift) {
       return res.status(404).json({
-        message: "Shift not found",
+        message: "Зміну не знайдено",
       });
     }
+
     const canDeleteShift = await canDeleteShiftInCity(req, shift.cityId);
 
     if (!canDeleteShift) {
       return res.status(403).json({
-        message: "Недостаточно прав для удаления смены в этом городе",
+        message: "Недостатньо прав для видалення зміни в цьому місті",
       });
     }
+
     const deleteReason =
       typeof req.body?.reason === "string" && req.body.reason.trim()
         ? req.body.reason.trim()
-        : "Причина не указана";
+        : "Причину не вказано";
 
     await prisma.shift.update({
       where: {
@@ -435,25 +444,27 @@ export async function deleteManualShift(req: Request, res: Response) {
         deletedAt: new Date(),
       } as any,
     });
+
     await createAdminActionLog(req, {
       action: "DELETE_SHIFT",
       entityType: "SHIFT",
       entityId: shiftId,
       cityId: shift.cityId,
-      description: `Удалена смена #${shiftId}. Причина: ${deleteReason}`,
+      description: `Видалено зміну #${shiftId}. Причина: ${deleteReason}`,
       metadata: {
         shiftId,
         reason: deleteReason,
       },
     });
+
     return res.json({
-      message: "Смена удалена",
+      message: "Зміну видалено",
     });
   } catch (error) {
     console.error("deleteManualShift error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -471,7 +482,7 @@ export async function getDeletedManualShifts(req: Request, res: Response) {
 
     if (!isSuperAdmin(req) && !isAdmin(req)) {
       return res.status(403).json({
-        message: "Недостаточно прав для просмотра архива смен",
+        message: "Недостатньо прав для перегляду архіву змін",
       });
     }
 
@@ -637,7 +648,7 @@ export async function getDeletedManualShifts(req: Request, res: Response) {
     console.error("getDeletedManualShifts error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -648,7 +659,7 @@ export async function restoreManualShift(req: Request, res: Response) {
 
     if (!Number.isInteger(shiftId)) {
       return res.status(400).json({
-        message: "Invalid shift id",
+        message: "Некоректний ID зміни",
       });
     }
 
@@ -663,16 +674,18 @@ export async function restoreManualShift(req: Request, res: Response) {
 
     if (!shift) {
       return res.status(404).json({
-        message: "Deleted shift not found",
+        message: "Видалену зміну не знайдено",
       });
     }
+
     const canRestoreShift = await canDeleteShiftInCity(req, shift.cityId);
 
     if (!canRestoreShift) {
       return res.status(403).json({
-        message: "Недостаточно прав для восстановления смены в этом городе",
+        message: "Недостатньо прав для відновлення зміни в цьому місті",
       });
     }
+
     await prisma.shift.update({
       where: {
         id: shiftId,
@@ -681,24 +694,26 @@ export async function restoreManualShift(req: Request, res: Response) {
         deletedAt: null,
       } as any,
     });
+
     await createAdminActionLog(req, {
       action: "RESTORE_SHIFT",
       entityType: "SHIFT",
       entityId: shiftId,
       cityId: shift.cityId,
-      description: `Восстановлена смена #${shiftId}`,
+      description: `Відновлено зміну #${shiftId}`,
       metadata: {
         shiftId,
       },
     });
+
     return res.json({
-      message: "Смена восстановлена",
+      message: "Зміну відновлено",
     });
   } catch (error) {
     console.error("restoreManualShift error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -709,9 +724,10 @@ export async function getManualShiftById(req: Request, res: Response) {
 
     if (!Number.isInteger(shiftId)) {
       return res.status(400).json({
-        message: "Invalid shift id",
+        message: "Некоректний ID зміни",
       });
     }
+
     const allowedCityIds = await getAllowedCityIds(req);
     const shift = await prisma.shift.findFirst({
       where: {
@@ -746,7 +762,7 @@ export async function getManualShiftById(req: Request, res: Response) {
 
     if (!shift) {
       return res.status(404).json({
-        message: "Shift not found",
+        message: "Зміну не знайдено",
       });
     }
 
@@ -757,7 +773,7 @@ export async function getManualShiftById(req: Request, res: Response) {
     console.error("getManualShiftById error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -768,7 +784,7 @@ export async function updateManualShift(req: Request, res: Response) {
 
     if (!Number.isInteger(shiftId)) {
       return res.status(400).json({
-        message: "Invalid shift id",
+        message: "Некоректний ID зміни",
       });
     }
 
@@ -781,9 +797,10 @@ export async function updateManualShift(req: Request, res: Response) {
 
     if (!existingShift) {
       return res.status(404).json({
-        message: "Shift not found",
+        message: "Зміну не знайдено",
       });
     }
+
     const canEditCurrentShift = await canEditCityData(
       req,
       existingShift.cityId,
@@ -791,9 +808,10 @@ export async function updateManualShift(req: Request, res: Response) {
 
     if (!canEditCurrentShift) {
       return res.status(403).json({
-        message: "Недостаточно прав для редактирования этой смены",
+        message: "Недостатньо прав для редагування цієї зміни",
       });
     }
+
     const cityId = parseNumberValue(req.body.cityId);
     const crewId = parseNumberValue(req.body.crewId);
     const vehicleId = parseNumberValue(req.body.vehicleId);
@@ -812,38 +830,39 @@ export async function updateManualShift(req: Request, res: Response) {
       !seniorEmployeeId
     ) {
       return res.status(400).json({
-        message: "Не заполнены основные поля смены",
+        message: "Не заповнені основні поля зміни",
       });
     }
+
     const canEditNewShiftCity = await canEditCityData(req, cityId);
 
     if (!canEditNewShiftCity) {
       return res.status(403).json({
-        message: "Недостаточно прав для переноса смены в этот город",
+        message: "Недостатньо прав для перенесення зміни в це місто",
       });
     }
 
     if (driverEmployeeId === seniorEmployeeId) {
       return res.status(400).json({
-        message: "Водитель и старший не могут быть одним сотрудником",
+        message: "Водій і старший не можуть бути одним співробітником",
       });
     }
 
     if (!shiftDate) {
       return res.status(400).json({
-        message: "Некорректная дата смены",
+        message: "Некоректна дата зміни",
       });
     }
 
     if (odometerStart === null || odometerStart < 0) {
       return res.status(400).json({
-        message: "Некорректный спидометр на начало смены",
+        message: "Некоректний спідометр на початку зміни",
       });
     }
 
     if (!Array.isArray(req.body.trips) || req.body.trips.length === 0) {
       return res.status(400).json({
-        message: "Добавьте хотя бы одну поездку",
+        message: "Додайте хоча б одну поїздку",
       });
     }
 
@@ -873,7 +892,7 @@ export async function updateManualShift(req: Request, res: Response) {
 
     if (!selectedCrew) {
       return res.status(404).json({
-        message: "Наряд не найден или неактивен",
+        message: "Наряд не знайдено або він неактивний",
       });
     }
 
@@ -892,6 +911,7 @@ export async function updateManualShift(req: Request, res: Response) {
       : Number(
           existingShift.shiftDurationHours ?? selectedCrew.durationHours ?? 24,
         );
+
     const oldTrips = await prisma.trip.findMany({
       where: {
         shiftId,
@@ -981,20 +1001,22 @@ export async function updateManualShift(req: Request, res: Response) {
         },
       });
     });
+
     await createAdminActionLog(req, {
       action: "UPDATE_SHIFT",
       entityType: "SHIFT",
       entityId: updatedShift.id,
       cityId: updatedShift.cityId,
-      description: `Обновлена смена #${updatedShift.id}`,
+      description: `Оновлено зміну #${updatedShift.id}`,
       metadata: {
         shiftId: updatedShift.id,
         tripsCount: updatedShift.trips.length,
         totalDistanceKm: updatedShift.totalDistanceKm,
       },
     });
+
     return res.json({
-      message: "Смена обновлена",
+      message: "Зміну оновлено",
       data: updatedShift,
     });
   } catch (error) {
@@ -1007,7 +1029,7 @@ export async function updateManualShift(req: Request, res: Response) {
     }
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }

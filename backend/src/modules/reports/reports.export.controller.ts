@@ -1,6 +1,31 @@
 import { Request, Response } from "express";
 import ExcelJS from "exceljs";
 import { prisma } from "../../config/prisma";
+import {
+  buildCityAccessWhere,
+  buildDepartmentAccessWhere,
+  getAllowedCityIds,
+  getAllowedDepartmentIds,
+} from "../../utils/admin-access";
+
+type ExportScope = {
+  allowedCityIds: number[] | null;
+  allowedDepartmentIds: number[] | null;
+};
+
+async function getExportScope(req: Request): Promise<ExportScope> {
+  return {
+    allowedCityIds: await getAllowedCityIds(req),
+    allowedDepartmentIds: await getAllowedDepartmentIds(req),
+  };
+}
+
+function buildExportAccessWhere(scope: ExportScope) {
+  return {
+    ...buildCityAccessWhere(scope.allowedCityIds),
+    ...buildDepartmentAccessWhere(scope.allowedDepartmentIds),
+  };
+}
 
 function toNumber(value: unknown) {
   return Number(value ?? 0);
@@ -33,9 +58,9 @@ function roundNumber(value: number) {
 
 function getDutyTypeExportLabel(value: string | null | undefined) {
   const labels: Record<string, string> = {
-    FULL_DAY: "Суточный",
-    DAY: "Дневной",
-    NIGHT: "Ночной",
+    FULL_DAY: "Добовий",
+    DAY: "Денний",
+    NIGHT: "Нічний",
   };
 
   return labels[value ?? ""] ?? value ?? "—";
@@ -52,13 +77,17 @@ function getTransportTypeExportLabel(value: string | null | undefined) {
 
 async function loadShiftsForExport(params: {
   cityId?: number;
+  departmentId?: number;
   dateFrom?: Date;
   dateTo?: Date;
+  scope?: ExportScope;
 }) {
   return prisma.shift.findMany({
     where: {
       deletedAt: null,
+      ...(params.scope ? buildExportAccessWhere(params.scope) : {}),
       ...(params.cityId ? { cityId: params.cityId } : {}),
+      ...(params.departmentId ? { departmentId: params.departmentId } : {}),
       ...(params.dateFrom || params.dateTo
         ? {
             shiftDate: {
@@ -120,7 +149,7 @@ function calculateShiftSummary(shift: ShiftForExport) {
   for (const trip of shift.trips) {
     totalTrips += 1;
 
-    const goalName = trip.goal?.name ?? "Без цели";
+    const goalName = trip.goal?.name ?? "Без цілі";
     distanceByGoal[goalName] =
       (distanceByGoal[goalName] ?? 0) + toNumber(trip.distanceKm);
 
@@ -151,7 +180,7 @@ function calculateShiftSummary(shift: ShiftForExport) {
         additionalPartner += partner;
 
         const reasonName =
-          event.reason?.name ?? event.customReasonText ?? "Без причины";
+          event.reason?.name ?? event.customReasonText ?? "Без причини";
 
         if (!additionalByReason[reasonName]) {
           additionalByReason[reasonName] = { total: 0, oh: 0, partner: 0 };
@@ -220,6 +249,27 @@ function createEmptyTotals() {
 
     detained: 0,
     transferred: 0,
+
+    additionalByReason: {} as Record<
+      string,
+      { total: number; oh: number; partner: number }
+    >,
+  };
+}
+
+function finalizeTotals(totals: ReturnType<typeof createEmptyTotals>) {
+  return {
+    ...totals,
+    totalShifts: roundNumber(totals.totalShifts),
+    totalDistanceKm: roundNumber(totals.totalDistanceKm),
+    averageAlarmsPerShift:
+      totals.totalShifts > 0
+        ? roundNumber(totals.totalAlarms / totals.totalShifts)
+        : 0,
+    averageDistancePerShift:
+      totals.totalShifts > 0
+        ? roundNumber(totals.totalDistanceKm / totals.totalShifts)
+        : 0,
   };
 }
 
@@ -249,6 +299,22 @@ function addSummaryToTotals(
 
   totals.detained += summary.detained;
   totals.transferred += summary.transferred;
+
+  for (const [reasonName, reasonStats] of Object.entries(
+    summary.additionalByReason,
+  )) {
+    if (!totals.additionalByReason[reasonName]) {
+      totals.additionalByReason[reasonName] = {
+        total: 0,
+        oh: 0,
+        partner: 0,
+      };
+    }
+
+    totals.additionalByReason[reasonName].total += reasonStats.total;
+    totals.additionalByReason[reasonName].oh += reasonStats.oh;
+    totals.additionalByReason[reasonName].partner += reasonStats.partner;
+  }
 }
 function addPostDutyToEmployeeExportTotal(
   row: any,
@@ -296,9 +362,9 @@ function buildPostDutyExportText(postDutyByPost: Record<string, any>) {
 
   return rows
     .map(([postName, stats]) => {
-      return `${postName}: ${roundNumber(stats.shiftEquivalent)} смен / ${roundNumber(
+      return `${postName}: ${roundNumber(stats.shiftEquivalent)} змін / ${roundNumber(
         stats.hours,
-      )} ч / ${stats.count} выходов`;
+      )} год / ${stats.count} виходів`;
     })
     .join("; ");
 }
@@ -325,357 +391,157 @@ function styleSheet(sheet: ExcelJS.Worksheet) {
 
 export async function exportReportsExcel(req: Request, res: Response) {
   try {
-    const cityId = req.query.cityId ? Number(req.query.cityId) : undefined;
+    const scope = await getExportScope(req);
+    const cityId = parseNumberExportQuery(req.query.cityId);
+    const departmentId = parseNumberExportQuery(req.query.departmentId);
     const dateFrom = parseDate(req.query.dateFrom);
     const dateTo = parseDate(req.query.dateTo);
 
-    const shifts = await loadShiftsForExport({ cityId, dateFrom, dateTo });
-    const postDuties = await prisma.postDuty.findMany({
-      where: {
-        deletedAt: null,
-        ...(cityId ? { cityId } : {}),
-        ...(dateFrom || dateTo
-          ? {
-              dutyDate: {
-                ...(dateFrom ? { gte: dateFrom } : {}),
-                ...(dateTo ? { lte: dateTo } : {}),
-              },
-            }
-          : {}),
-      },
-      take: 10000,
-      orderBy: {
-        dutyDate: "desc",
-      },
-      include: {
-        city: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        post: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        members: {
-          include: {
-            employee: {
-              select: {
-                id: true,
-                fullName: true,
-              },
-            },
-          },
-        },
-      },
+    const shifts = await loadShiftsForExport({
+      cityId,
+      departmentId,
+      dateFrom,
+      dateTo,
+      scope,
     });
-    const workbook = new ExcelJS.Workbook();
-
-    workbook.creator = "Guard Journal";
-    workbook.created = new Date();
-
-    const generalSheet = workbook.addWorksheet("Общая статистика");
-    const employeesSheet = workbook.addWorksheet("Сотрудники");
-    const employeePostsSheet = workbook.addWorksheet("Постовые дежурства");
-    const crewsSheet = workbook.addWorksheet("Наряды");
-    const vehiclesSheet = workbook.addWorksheet("Автомобили");
 
     const totals = createEmptyTotals();
-
-    const employeeMap = new Map<string, any>();
-    const crewMap = new Map<string, any>();
-    const vehicleMap = new Map<string, any>();
+    const byCity = new Map<
+      string,
+      ReturnType<typeof createEmptyTotals> & {
+        cityId: number;
+        cityName: string;
+      }
+    >();
 
     for (const shift of shifts) {
       const summary = calculateShiftSummary(shift);
 
       addSummaryToTotals(totals, summary);
 
-      const driver = shift.driverEmployee;
-      const senior = shift.seniorEmployee;
+      const cityKey = String(shift.city.id);
 
-      const driverKey = `${driver.id}_${shift.city.id}`;
-
-      if (!employeeMap.has(driverKey)) {
-        employeeMap.set(driverKey, {
+      if (!byCity.has(cityKey)) {
+        byCity.set(cityKey, {
           ...createEmptyTotals(),
-          employeeId: driver.id,
           cityId: shift.city.id,
           cityName: shift.city.name,
-          name: driver.fullName,
-          driverShifts: 0,
-          seniorShifts: 0,
-          weaponShifts: 0,
-          postDutyShiftEquivalent: 0,
-          postDutyHours: 0,
-          postDutyCount: 0,
-          postDutyByPost: {},
         });
       }
 
-      const driverRow = employeeMap.get(driverKey);
-      driverRow.driverShifts += summary.shiftEquivalent;
-      if (shift.driverHasWeapon) {
-        driverRow.weaponShifts += summary.shiftEquivalent;
-      }
-      addSummaryToTotals(driverRow, summary);
-
-      const seniorKey = `${senior.id}_${shift.city.id}`;
-
-      if (!employeeMap.has(seniorKey)) {
-        employeeMap.set(seniorKey, {
-          ...createEmptyTotals(),
-          employeeId: senior.id,
-          cityId: shift.city.id,
-          cityName: shift.city.name,
-          name: senior.fullName,
-          driverShifts: 0,
-          seniorShifts: 0,
-          weaponShifts: 0,
-          postDutyShiftEquivalent: 0,
-          postDutyHours: 0,
-          postDutyCount: 0,
-          postDutyByPost: {},
-        });
-      }
-
-      const seniorRow = employeeMap.get(seniorKey);
-      seniorRow.seniorShifts += summary.shiftEquivalent;
-      if (shift.seniorHasWeapon) {
-        seniorRow.weaponShifts += summary.shiftEquivalent;
-      }
-      addSummaryToTotals(seniorRow, summary);
-
-      const crewKey = `${shift.crew.id}_${shift.city.id}`;
-
-      if (!crewMap.has(crewKey)) {
-        crewMap.set(crewKey, {
-          crewId: shift.crew.id,
-          cityId: shift.city.id,
-          cityName: shift.city.name,
-          name: shift.crew.name,
-          ...createEmptyTotals(),
-        });
-      }
-
-      addSummaryToTotals(crewMap.get(crewKey), summary);
-      const vehicleKey = `${shift.vehicle.id}_${shift.city.id}`;
-
-      if (!vehicleMap.has(vehicleKey)) {
-        vehicleMap.set(vehicleKey, {
-          vehicleId: shift.vehicle.id,
-          cityId: shift.city.id,
-          cityName: shift.city.name,
-          title: shift.vehicle.title,
-          licensePlate: shift.vehicle.licensePlate,
-          odometerStartFirstShift: null,
-          odometerEndLastShift: null,
-          firstShiftDate: null,
-          lastShiftDate: null,
-          ...createEmptyTotals(),
-        });
-      }
-
-      const vehicleRow = vehicleMap.get(vehicleKey);
-
-      if (
-        !vehicleRow.firstShiftDate ||
-        shift.shiftDate < vehicleRow.firstShiftDate
-      ) {
-        vehicleRow.firstShiftDate = shift.shiftDate;
-        vehicleRow.odometerStartFirstShift = shift.odometerStart;
-      }
-
-      if (
-        !vehicleRow.lastShiftDate ||
-        shift.shiftDate > vehicleRow.lastShiftDate
-      ) {
-        vehicleRow.lastShiftDate = shift.shiftDate;
-        vehicleRow.odometerEndLastShift = shift.odometerEndCalculated;
-      }
-
-      addSummaryToTotals(vehicleRow, summary);
+      addSummaryToTotals(byCity.get(cityKey)!, summary);
     }
-    for (const duty of postDuties) {
-      const durationHours = Number(duty.durationHours);
 
-      for (const member of duty.members) {
-        const employee = member.employee;
-        const employeeKey = `${employee.id}_${duty.city.id}`;
-
-        if (!employeeMap.has(employeeKey)) {
-          employeeMap.set(employeeKey, {
-            ...createEmptyTotals(),
-            employeeId: employee.id,
-            cityId: duty.city.id,
-            cityName: duty.city.name,
-            name: employee.fullName,
-            driverShifts: 0,
-            seniorShifts: 0,
-            weaponShifts: 0,
-            postDutyShiftEquivalent: 0,
-            postDutyHours: 0,
-            postDutyCount: 0,
-            postDutyByPost: {},
-          });
-        }
-
-        const row = employeeMap.get(employeeKey);
-
-        addPostDutyToEmployeeExportTotal(row, {
-          postName: duty.post.name,
-          durationHours,
-          hasWeapon: member.hasWeapon,
-          isDriver: member.isDriver,
-        });
-      }
-    }
-    generalSheet.columns = [
-      { header: "Показатель", key: "label", width: 32 },
-      { header: "Значение", key: "value", width: 18 },
-    ];
-
-    generalSheet.addRows([
-      { label: "Всего смен", value: roundNumber(totals.totalShifts) },
-      { label: "Всего поездок", value: totals.totalTrips },
-      { label: "Пробег", value: roundNumber(totals.totalDistanceKm) },
-      { label: "Всего сработок", value: totals.totalAlarms },
-      { label: "ОХ", value: totals.totalOh },
-      { label: "Партнеры", value: totals.totalPartner },
-      { label: "Ложные", value: totals.falseTotal },
-      { label: "Боевые", value: totals.combatTotal },
-      { label: "Дополнительно", value: totals.additionalTotal },
-      { label: "Задержано", value: totals.detained },
-      { label: "Передано", value: totals.transferred },
-    ]);
-
-    employeesSheet.columns = [
-      { header: "Город", key: "cityName", width: 18 },
-      { header: "Сотрудник", key: "name", width: 28 },
-      { header: "Смен", key: "totalShifts", width: 12 },
-      { header: "Водителем", key: "driverShifts", width: 12 },
-      { header: "Старшим", key: "seniorShifts", width: 12 },
-      { header: "С оружием", key: "weaponShifts", width: 12 },
-      { header: "Дополнительно", key: "postDutyShiftEquivalent", width: 16 },
-      { header: "Постовые часы", key: "postDutyHours", width: 16 },
-      { header: "Выходов на посты", key: "postDutyCount", width: 18 },
-      { header: "Посты", key: "postDutySummary", width: 42 },
-      { header: "Сработок", key: "totalAlarms", width: 12 },
-      { header: "ОХ", key: "totalOh", width: 10 },
-      { header: "Партнеры", key: "totalPartner", width: 12 },
-      { header: "Ложные", key: "falseTotal", width: 12 },
-      { header: "Боевые", key: "combatTotal", width: 12 },
-      { header: "Доп. сработки", key: "additionalTotal", width: 14 },
-      { header: "Пробег", key: "totalDistanceKm", width: 12 },
-      { header: "Задержано", key: "detained", width: 12 },
-      { header: "Передано", key: "transferred", width: 12 },
-    ];
-    employeePostsSheet.columns = [
-      { header: "Город", key: "cityName", width: 18 },
-      { header: "Сотрудник", key: "name", width: 28 },
-      { header: "Пост", key: "postName", width: 28 },
-      { header: "Смен", key: "shiftEquivalent", width: 12 },
-      { header: "Часы", key: "hours", width: 12 },
-      { header: "Выходов", key: "count", width: 12 },
-    ];
-
-    const employeeRows = Array.from(employeeMap.values()).map((row) => ({
-      ...row,
-      totalShifts: roundNumber(row.totalShifts),
-      driverShifts: roundNumber(row.driverShifts),
-      seniorShifts: roundNumber(row.seniorShifts),
-      weaponShifts: roundNumber(row.weaponShifts),
-      postDutyShiftEquivalent: roundNumber(row.postDutyShiftEquivalent),
-      postDutyHours: roundNumber(row.postDutyHours),
-      postDutySummary: buildPostDutyExportText(row.postDutyByPost),
-      totalDistanceKm: roundNumber(row.totalDistanceKm),
+    const finalizedTotals = finalizeTotals(totals);
+    const byCityRows = Array.from(byCity.values()).map((cityTotals) => ({
+      cityId: cityTotals.cityId,
+      cityName: cityTotals.cityName,
+      ...finalizeTotals(cityTotals),
     }));
 
-    employeesSheet.addRows(employeeRows);
+    const additionalByReason = Object.entries(
+      finalizedTotals.additionalByReason,
+    )
+      .map(([reasonName, stats]) => ({
+        reasonName,
+        ...stats,
+      }))
+      .sort((a, b) => b.total - a.total);
 
-    for (const row of employeeRows) {
-      employeePostsSheet.addRow({
+    const workbook = new ExcelJS.Workbook();
+
+    workbook.creator = "Guard Journal";
+    workbook.created = new Date();
+
+    const summarySheet = workbook.addWorksheet("Зведення");
+    const citiesSheet = workbook.addWorksheet("За містами");
+    const reasonsSheet = workbook.addWorksheet("Дод. спрацювання");
+
+    summarySheet.columns = [
+      { header: "Показник", key: "label", width: 32 },
+      { header: "Значення", key: "value", width: 18 },
+    ];
+
+    summarySheet.addRows([
+      { label: "Усього змін", value: finalizedTotals.totalShifts },
+      { label: "Усього поїздок", value: finalizedTotals.totalTrips },
+      { label: "Пробіг", value: finalizedTotals.totalDistanceKm },
+      { label: "Усього спрацювань", value: finalizedTotals.totalAlarms },
+      { label: "ОХ", value: finalizedTotals.totalOh },
+      { label: "Партнери", value: finalizedTotals.totalPartner },
+      { label: "Бойові", value: finalizedTotals.combatTotal },
+      { label: "Хибні", value: finalizedTotals.falseTotal },
+      { label: "Додатково", value: finalizedTotals.additionalTotal },
+      { label: "Затримано", value: finalizedTotals.detained },
+      { label: "Передано", value: finalizedTotals.transferred },
+      {
+        label: "Середнє навантаження",
+        value: finalizedTotals.averageAlarmsPerShift,
+      },
+      {
+        label: "Середній пробіг",
+        value: finalizedTotals.averageDistancePerShift,
+      },
+    ]);
+
+    citiesSheet.columns = [
+      { header: "Місто", key: "cityName", width: 22 },
+      { header: "Змін", key: "totalShifts", width: 12 },
+      { header: "Поїздок", key: "totalTrips", width: 12 },
+      { header: "Пробіг", key: "totalDistanceKm", width: 14 },
+      { header: "Спрацювань", key: "totalAlarms", width: 14 },
+      { header: "ОХ", key: "totalOh", width: 10 },
+      { header: "Партнери", key: "totalPartner", width: 12 },
+      { header: "Бойові", key: "combatTotal", width: 12 },
+      { header: "Хибні", key: "falseTotal", width: 12 },
+      { header: "Дод.", key: "additionalTotal", width: 12 },
+      { header: "Затримано", key: "detained", width: 12 },
+      { header: "Передано", key: "transferred", width: 12 },
+      { header: "Середня", key: "averageAlarmsPerShift", width: 14 },
+    ];
+
+    for (const row of byCityRows) {
+      citiesSheet.addRow({
         cityName: row.cityName,
-        name: row.name,
-        postName: "Дополнительно",
-        shiftEquivalent: row.postDutyShiftEquivalent,
-        hours: row.postDutyHours,
-        count: row.postDutyCount,
+        totalShifts: row.totalShifts,
+        totalTrips: row.totalTrips,
+        totalDistanceKm: row.totalDistanceKm,
+        totalAlarms: row.totalAlarms,
+        totalOh: row.totalOh,
+        totalPartner: row.totalPartner,
+        combatTotal: row.combatTotal,
+        falseTotal: row.falseTotal,
+        additionalTotal: row.additionalTotal,
+        detained: row.detained,
+        transferred: row.transferred,
+        averageAlarmsPerShift: row.averageAlarmsPerShift,
       });
-
-      for (const [postName, stats] of Object.entries(row.postDutyByPost)) {
-        employeePostsSheet.addRow({
-          cityName: row.cityName,
-          name: row.name,
-          postName,
-          shiftEquivalent: roundNumber(Number((stats as any).shiftEquivalent)),
-          hours: roundNumber(Number((stats as any).hours)),
-          count: (stats as any).count,
-        });
-      }
     }
 
-    crewsSheet.columns = [
-      { header: "Город", key: "cityName", width: 18 },
-      { header: "Наряд", key: "name", width: 24 },
-      { header: "Смен", key: "totalShifts", width: 12 },
-      { header: "Поездок", key: "totalTrips", width: 12 },
-      { header: "Пробег", key: "totalDistanceKm", width: 12 },
-      { header: "Сработок", key: "totalAlarms", width: 12 },
-      { header: "ОХ", key: "totalOh", width: 10 },
-      { header: "Партнеры", key: "totalPartner", width: 12 },
-      { header: "Ложные", key: "falseTotal", width: 12 },
-      { header: "Боевые", key: "combatTotal", width: 12 },
-      { header: "Доп.", key: "additionalTotal", width: 12 },
-      { header: "Задержано", key: "detained", width: 12 },
-      { header: "Передано", key: "transferred", width: 12 },
+    reasonsSheet.columns = [
+      { header: "Причина", key: "reasonName", width: 30 },
+      { header: "Усього", key: "total", width: 14 },
+      { header: "ОХ", key: "oh", width: 14 },
+      { header: "Партнери", key: "partner", width: 14 },
     ];
 
-    crewsSheet.addRows(
-      Array.from(crewMap.values()).map((row) => ({
-        ...row,
-        totalShifts: roundNumber(row.totalShifts),
-        totalDistanceKm: roundNumber(row.totalDistanceKm),
-      })),
-    );
+    reasonsSheet.addRow({
+      reasonName: "Додатково",
+      total: finalizedTotals.additionalTotal,
+      oh: finalizedTotals.additionalOh,
+      partner: finalizedTotals.additionalPartner,
+    });
 
-    vehiclesSheet.columns = [
-      { header: "Город", key: "cityName", width: 18 },
-      { header: "Автомобиль", key: "title", width: 24 },
-      { header: "Госномер", key: "licensePlate", width: 16 },
-      { header: "Смен", key: "totalShifts", width: 12 },
-      { header: "Поездок", key: "totalTrips", width: 12 },
-      { header: "Пробег", key: "totalDistanceKm", width: 12 },
-      { header: "Спидометр начало", key: "odometerStartFirstShift", width: 18 },
-      { header: "Спидометр конец", key: "odometerEndLastShift", width: 18 },
-      { header: "Сработок", key: "totalAlarms", width: 12 },
-      { header: "ОХ", key: "totalOh", width: 10 },
-      { header: "Партнеры", key: "totalPartner", width: 12 },
-      { header: "Ложные", key: "falseTotal", width: 12 },
-      { header: "Боевые", key: "combatTotal", width: 12 },
-      { header: "Доп.", key: "additionalTotal", width: 12 },
-      { header: "Задержано", key: "detained", width: 12 },
-      { header: "Передано", key: "transferred", width: 12 },
-    ];
+    for (const row of additionalByReason) {
+      reasonsSheet.addRow({
+        reasonName: row.reasonName,
+        total: row.total,
+        oh: row.oh,
+        partner: row.partner,
+      });
+    }
 
-    vehiclesSheet.addRows(
-      Array.from(vehicleMap.values()).map((row) => ({
-        ...row,
-        totalShifts: roundNumber(row.totalShifts),
-        totalDistanceKm: roundNumber(row.totalDistanceKm),
-      })),
-    );
-
-    [
-      generalSheet,
-      employeesSheet,
-      employeePostsSheet,
-      crewsSheet,
-      vehiclesSheet,
-    ].forEach(styleSheet);
+    [summarySheet, citiesSheet, reasonsSheet].forEach(styleSheet);
 
     const fileName = `reports-${Date.now()}.xlsx`;
 
@@ -691,7 +557,7 @@ export async function exportReportsExcel(req: Request, res: Response) {
     console.error("exportReportsExcel error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -746,17 +612,17 @@ function buildTripExportEventSummary(events: any[]) {
   return events
     .map((event) => {
       if (event.eventCategory === "REGULAR_ALARM") {
-        const source = event.alarmSource === "OH" ? "ОХ" : "Партнеры";
-        const combatText = event.isCombat ? "боевая" : "ложная";
+        const source = event.alarmSource === "OH" ? "ОХ" : "Партнери";
+        const combatText = event.isCombat ? "бойова" : "хибна";
         return `${source}, ${combatText}`;
       }
 
       const reason =
-        event.reason?.name ?? event.customReasonText ?? "Без причины";
+        event.reason?.name ?? event.customReasonText ?? "Без причини";
       const oh = event.ohCount ?? 0;
       const partner = event.partnerCount ?? 0;
 
-      return `Доп.: ${reason} (${oh}/${partner})`;
+      return `Дод.: ${reason} (${oh}/${partner})`;
     })
     .join("; ");
 }
@@ -818,21 +684,25 @@ function getTripExportCombatLabel(totals: {
   falseTotal: number;
 }) {
   if (totals.combatTotal > 0 && totals.falseTotal > 0) {
-    return "Есть боевые и ложные";
+    return "Є бойові та хибні";
   }
 
   if (totals.combatTotal > 0) {
-    return "Боевая";
+    return "Бойова";
   }
 
   if (totals.falseTotal > 0) {
-    return "Ложная";
+    return "Хибна";
   }
 
   return "—";
 }
 
-function buildTripExportWhere(req: Request) {
+function buildTripExportWhere(
+  req: Request,
+  scope: ExportScope,
+  departmentId?: number,
+) {
   const cityId = parseNumberExportQuery(req.query.cityId);
   const crewId = parseNumberExportQuery(req.query.crewId);
   const vehicleId = parseNumberExportQuery(req.query.vehicleId);
@@ -887,6 +757,8 @@ function buildTripExportWhere(req: Request) {
     deletedAt: null,
     shift: {
       deletedAt: null,
+      ...buildExportAccessWhere(scope),
+      ...(departmentId ? { departmentId } : {}),
       ...(dateFrom || dateTo
         ? {
             shiftDate: {
@@ -976,6 +848,8 @@ function buildTripExportWhere(req: Request) {
 
 export async function exportTripsTableExcel(req: Request, res: Response) {
   try {
+    const scope = await getExportScope(req);
+    const departmentId = parseNumberExportQuery(req.query.departmentId);
     const sortByRaw = String(req.query.sortBy ?? "departureTime");
 
     const sortBy: TripsExportSortBy = [
@@ -991,7 +865,7 @@ export async function exportTripsTableExcel(req: Request, res: Response) {
     const sortDir: "asc" | "desc" =
       req.query.sortDir === "asc" ? "asc" : "desc";
 
-    const where = buildTripExportWhere(req);
+    const where = buildTripExportWhere(req, scope, departmentId);
 
     const trips = await prisma.trip.findMany({
       where,
@@ -1012,6 +886,13 @@ export async function exportTripsTableExcel(req: Request, res: Response) {
             odometerStart: true,
             odometerEndCalculated: true,
             totalDistanceKm: true,
+            department: {
+              select: {
+                id: true,
+                name: true,
+                type: true,
+              },
+            },
             crew: {
               select: {
                 id: true,
@@ -1064,53 +945,54 @@ export async function exportTripsTableExcel(req: Request, res: Response) {
     workbook.creator = "Guard Journal";
     workbook.created = new Date();
 
-    const tripsSheet = workbook.addWorksheet("Все поездки");
-    const eventsSheet = workbook.addWorksheet("События поездок");
+    const tripsSheet = workbook.addWorksheet("Усі поїздки");
+    const eventsSheet = workbook.addWorksheet("Події поїздок");
 
     tripsSheet.columns = [
-      { header: "Город", key: "city", width: 18 },
+      { header: "Місто", key: "city", width: 18 },
+      { header: "Підрозділ", key: "department", width: 20 },
       { header: "Дата", key: "shiftDate", width: 14 },
       { header: "Наряд", key: "crew", width: 18 },
       { header: "Авто", key: "vehicle", width: 24 },
-      { header: "Госномер", key: "licensePlate", width: 16 },
+      { header: "Держномер", key: "licensePlate", width: 16 },
       { header: "Старший", key: "senior", width: 28 },
-      { header: "Водитель", key: "driver", width: 28 },
-      { header: "Спидометр начало", key: "odometerStart", width: 18 },
-      { header: "Откуда", key: "fromLocation", width: 28 },
-      { header: "Время выезда", key: "departureTime", width: 18 },
-      { header: "Куда", key: "toLocation", width: 28 },
-      { header: "Время прибытия", key: "arrivalTime", width: 18 },
-      { header: "Прибытие, мин", key: "arrivalMinutes", width: 16 },
-      { header: "Расстояние, км", key: "distanceKm", width: 16 },
-      { header: "Цель поездки", key: "goal", width: 24 },
-      { header: "Сработка", key: "eventSummary", width: 40 },
-      { header: "Боевая?", key: "combatLabel", width: 18 },
-      { header: "Всего сработок", key: "totalAlarms", width: 16 },
+      { header: "Водій", key: "driver", width: 28 },
+      { header: "Спідометр початок", key: "odometerStart", width: 18 },
+      { header: "Звідки", key: "fromLocation", width: 28 },
+      { header: "Час виїзду", key: "departureTime", width: 18 },
+      { header: "Куди", key: "toLocation", width: 28 },
+      { header: "Час прибуття", key: "arrivalTime", width: 18 },
+      { header: "Прибуття, хв", key: "arrivalMinutes", width: 16 },
+      { header: "Відстань, км", key: "distanceKm", width: 16 },
+      { header: "Ціль поїздки", key: "goal", width: 24 },
+      { header: "Спрацювання", key: "eventSummary", width: 40 },
+      { header: "Бойова?", key: "combatLabel", width: 18 },
+      { header: "Усього спрацювань", key: "totalAlarms", width: 16 },
       { header: "ОХ", key: "totalOh", width: 10 },
-      { header: "Партнеры", key: "totalPartner", width: 12 },
-      { header: "Доп. ОХ", key: "additionalOh", width: 12 },
-      { header: "Доп. Партнеры", key: "additionalPartner", width: 16 },
-      { header: "Задержано", key: "detained", width: 12 },
+      { header: "Партнери", key: "totalPartner", width: 12 },
+      { header: "Дод. ОХ", key: "additionalOh", width: 12 },
+      { header: "Дод. Партнери", key: "additionalPartner", width: 16 },
+      { header: "Затримано", key: "detained", width: 12 },
       { header: "Передано", key: "transferred", width: 12 },
-      { header: "Примечание", key: "note", width: 30 },
+      { header: "Примітка", key: "note", width: 30 },
     ];
 
     eventsSheet.columns = [
-      { header: "ID поездки", key: "tripId", width: 12 },
-      { header: "Город", key: "city", width: 18 },
+      { header: "ID поїздки", key: "tripId", width: 12 },
+      { header: "Місто", key: "city", width: 18 },
       { header: "Дата", key: "shiftDate", width: 14 },
       { header: "Наряд", key: "crew", width: 18 },
       { header: "Маршрут", key: "route", width: 42 },
-      { header: "Событие", key: "title", width: 28 },
-      { header: "Категория", key: "eventCategory", width: 22 },
+      { header: "Подія", key: "title", width: 28 },
+      { header: "Категорія", key: "eventCategory", width: 22 },
       { header: "ОХ", key: "ohCount", width: 10 },
-      { header: "Партнеры", key: "partnerCount", width: 12 },
-      { header: "Всего", key: "countTotal", width: 10 },
-      { header: "Боевая?", key: "combatLabel", width: 14 },
+      { header: "Партнери", key: "partnerCount", width: 12 },
+      { header: "Усього", key: "countTotal", width: 10 },
+      { header: "Бойова?", key: "combatLabel", width: 14 },
       { header: "Причина", key: "reasonName", width: 26 },
-      { header: "Задержано", key: "detained", width: 12 },
+      { header: "Затримано", key: "detained", width: 12 },
       { header: "Передано", key: "transferred", width: 12 },
-      { header: "Примечание", key: "note", width: 30 },
+      { header: "Примітка", key: "note", width: 30 },
     ];
 
     for (const trip of trips) {
@@ -1119,6 +1001,7 @@ export async function exportTripsTableExcel(req: Request, res: Response) {
 
       tripsSheet.addRow({
         city: trip.city.name,
+        department: trip.shift.department?.name ?? "—",
         shiftDate: trip.shift.shiftDate,
         crew: trip.shift.crew.name,
         vehicle: trip.shift.vehicle.title,
@@ -1167,14 +1050,14 @@ export async function exportTripsTableExcel(req: Request, res: Response) {
           route: `${trip.fromLocation} → ${trip.toLocation}`,
           title: isRegular
             ? event.alarmSource === "OH"
-              ? "Сработка ОХ"
-              : "Сработка Партнеры"
-            : "Дополнительные сработки",
+              ? "Спрацювання ОХ"
+              : "Спрацювання Партнери"
+            : "Додаткові спрацювання",
           eventCategory: event.eventCategory,
           ohCount,
           partnerCount,
           countTotal: isRegular ? 1 : ohCount + partnerCount,
-          combatLabel: isRegular ? (event.isCombat ? "Боевая" : "Ложная") : "",
+          combatLabel: isRegular ? (event.isCombat ? "Бойова" : "Хибна") : "",
           reasonName: event.reason?.name ?? event.customReasonText ?? "",
           detained: event.detainedCount ?? 0,
           transferred: event.transferredCount ?? 0,
@@ -1205,7 +1088,7 @@ export async function exportTripsTableExcel(req: Request, res: Response) {
     console.error("exportTripsTableExcel error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -1226,7 +1109,11 @@ function buildShiftExportOrderBy(
   };
 }
 
-function buildShiftExportWhere(req: Request) {
+function buildShiftExportWhere(
+  req: Request,
+  scope: ExportScope,
+  departmentId?: number,
+) {
   const cityId = parseNumberExportQuery(req.query.cityId);
   const crewId = parseNumberExportQuery(req.query.crewId);
   const vehicleId = parseNumberExportQuery(req.query.vehicleId);
@@ -1239,6 +1126,8 @@ function buildShiftExportWhere(req: Request) {
 
   const where: any = {
     deletedAt: null,
+    ...buildExportAccessWhere(scope),
+    ...(departmentId ? { departmentId } : {}),
     ...(cityId ? { cityId } : {}),
     ...(crewId ? { crewId } : {}),
     ...(vehicleId ? { vehicleId } : {}),
@@ -1318,18 +1207,20 @@ function getWeaponExportLabel(params: {
   const parts = [];
 
   if (params.driverHasWeapon) {
-    parts.push("водитель");
+    parts.push("водій");
   }
 
   if (params.seniorHasWeapon) {
     parts.push("старший");
   }
 
-  return parts.length ? parts.join(", ") : "без оружия";
+  return parts.length ? parts.join(", ") : "без зброї";
 }
 
 export async function exportShiftsTableExcel(req: Request, res: Response) {
   try {
+    const scope = await getExportScope(req);
+    const departmentId = parseNumberExportQuery(req.query.departmentId);
     const sortByRaw = String(req.query.sortBy ?? "shiftDate");
 
     const sortBy: ShiftsExportSortBy = [
@@ -1345,7 +1236,7 @@ export async function exportShiftsTableExcel(req: Request, res: Response) {
     const sortDir: "asc" | "desc" =
       req.query.sortDir === "asc" ? "asc" : "desc";
 
-    const where = buildShiftExportWhere(req);
+    const where = buildShiftExportWhere(req, scope, departmentId);
 
     const shifts = await prisma.shift.findMany({
       where,
@@ -1356,6 +1247,13 @@ export async function exportShiftsTableExcel(req: Request, res: Response) {
           select: {
             id: true,
             name: true,
+          },
+        },
+        department: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
           },
         },
         crew: {
@@ -1418,78 +1316,79 @@ export async function exportShiftsTableExcel(req: Request, res: Response) {
     workbook.creator = "Guard Journal";
     workbook.created = new Date();
 
-    const shiftsSheet = workbook.addWorksheet("Итоги смен");
-    const tripsSheet = workbook.addWorksheet("Поездки смен");
-    const eventsSheet = workbook.addWorksheet("События поездок");
+    const shiftsSheet = workbook.addWorksheet("Підсумки змін");
+    const tripsSheet = workbook.addWorksheet("Поїздки змін");
+    const eventsSheet = workbook.addWorksheet("Події поїздок");
 
     shiftsSheet.columns = [
-      { header: "Город", key: "city", width: 18 },
+      { header: "Місто", key: "city", width: 18 },
+      { header: "Підрозділ", key: "department", width: 20 },
       { header: "Дата", key: "shiftDate", width: 14 },
-      { header: "Время отправки", key: "submittedAt", width: 18 },
+      { header: "Час надсилання", key: "submittedAt", width: 18 },
       { header: "Наряд", key: "crew", width: 18 },
-      { header: "Тип наряда", key: "crewDutyType", width: 16 },
+      { header: "Тип наряду", key: "crewDutyType", width: 16 },
       { header: "Транспорт", key: "crewTransportType", width: 14 },
-      { header: "Часы", key: "shiftDurationHours", width: 10 },
-      { header: "Смены", key: "shiftEquivalent", width: 10 },
+      { header: "Години", key: "shiftDurationHours", width: 10 },
+      { header: "Зміни", key: "shiftEquivalent", width: 10 },
       { header: "Авто", key: "vehicle", width: 24 },
-      { header: "Госномер", key: "licensePlate", width: 16 },
-      { header: "Водитель", key: "driver", width: 28 },
+      { header: "Держномер", key: "licensePlate", width: 16 },
+      { header: "Водій", key: "driver", width: 28 },
       { header: "Старший", key: "senior", width: 28 },
-      { header: "Оружие", key: "weapon", width: 20 },
-      { header: "Спидометр начало", key: "odometerStart", width: 18 },
-      { header: "Спидометр конец", key: "odometerEnd", width: 18 },
-      { header: "Пробег", key: "distance", width: 14 },
-      { header: "Поездок", key: "totalTrips", width: 12 },
-      { header: "Сработок всего", key: "totalAlarms", width: 16 },
+      { header: "Зброя", key: "weapon", width: 20 },
+      { header: "Спідометр початок", key: "odometerStart", width: 18 },
+      { header: "Спідометр кінець", key: "odometerEnd", width: 18 },
+      { header: "Пробіг", key: "distance", width: 14 },
+      { header: "Поїздок", key: "totalTrips", width: 12 },
+      { header: "Спрацювань усього", key: "totalAlarms", width: 16 },
       { header: "ОХ", key: "totalOh", width: 10 },
-      { header: "Партнеры", key: "totalPartner", width: 12 },
-      { header: "Боевые", key: "combatTotal", width: 12 },
-      { header: "Ложные", key: "falseTotal", width: 12 },
-      { header: "Доп. всего", key: "additionalTotal", width: 14 },
-      { header: "Доп. ОХ", key: "additionalOh", width: 12 },
-      { header: "Доп. Партнеры", key: "additionalPartner", width: 16 },
-      { header: "Задержано", key: "detained", width: 12 },
+      { header: "Партнери", key: "totalPartner", width: 12 },
+      { header: "Бойові", key: "combatTotal", width: 12 },
+      { header: "Хибні", key: "falseTotal", width: 12 },
+      { header: "Дод. усього", key: "additionalTotal", width: 14 },
+      { header: "Дод. ОХ", key: "additionalOh", width: 12 },
+      { header: "Дод. Партнери", key: "additionalPartner", width: 16 },
+      { header: "Затримано", key: "detained", width: 12 },
       { header: "Передано", key: "transferred", width: 12 },
     ];
 
     tripsSheet.columns = [
-      { header: "ID смены", key: "shiftId", width: 12 },
-      { header: "Город", key: "city", width: 18 },
+      { header: "ID зміни", key: "shiftId", width: 12 },
+      { header: "Місто", key: "city", width: 18 },
       { header: "Дата", key: "shiftDate", width: 14 },
       { header: "Наряд", key: "crew", width: 18 },
       { header: "Авто", key: "vehicle", width: 24 },
-      { header: "Водитель", key: "driver", width: 28 },
+      { header: "Водій", key: "driver", width: 28 },
       { header: "Старший", key: "senior", width: 28 },
-      { header: "Откуда", key: "fromLocation", width: 28 },
-      { header: "Время выезда", key: "departureTime", width: 18 },
-      { header: "Куда", key: "toLocation", width: 28 },
-      { header: "Время прибытия", key: "arrivalTime", width: 18 },
-      { header: "Прибытие, мин", key: "arrivalMinutes", width: 16 },
-      { header: "Расстояние, км", key: "distanceKm", width: 16 },
-      { header: "Цель поездки", key: "goal", width: 24 },
-      { header: "Сработка", key: "eventSummary", width: 40 },
-      { header: "Задержано", key: "detained", width: 12 },
+      { header: "Звідки", key: "fromLocation", width: 28 },
+      { header: "Час виїзду", key: "departureTime", width: 18 },
+      { header: "Куди", key: "toLocation", width: 28 },
+      { header: "Час прибуття", key: "arrivalTime", width: 18 },
+      { header: "Прибуття, хв", key: "arrivalMinutes", width: 16 },
+      { header: "Відстань, км", key: "distanceKm", width: 16 },
+      { header: "Ціль поїздки", key: "goal", width: 24 },
+      { header: "Спрацювання", key: "eventSummary", width: 40 },
+      { header: "Затримано", key: "detained", width: 12 },
       { header: "Передано", key: "transferred", width: 12 },
-      { header: "Примечание", key: "note", width: 30 },
+      { header: "Примітка", key: "note", width: 30 },
     ];
 
     eventsSheet.columns = [
-      { header: "ID смены", key: "shiftId", width: 12 },
-      { header: "ID поездки", key: "tripId", width: 12 },
-      { header: "Город", key: "city", width: 18 },
+      { header: "ID зміни", key: "shiftId", width: 12 },
+      { header: "ID поїздки", key: "tripId", width: 12 },
+      { header: "Місто", key: "city", width: 18 },
       { header: "Дата", key: "shiftDate", width: 14 },
       { header: "Наряд", key: "crew", width: 18 },
       { header: "Маршрут", key: "route", width: 42 },
-      { header: "Событие", key: "title", width: 28 },
-      { header: "Категория", key: "eventCategory", width: 22 },
+      { header: "Подія", key: "title", width: 28 },
+      { header: "Категорія", key: "eventCategory", width: 22 },
       { header: "ОХ", key: "ohCount", width: 10 },
-      { header: "Партнеры", key: "partnerCount", width: 12 },
-      { header: "Всего", key: "countTotal", width: 10 },
-      { header: "Боевая?", key: "combatLabel", width: 14 },
+      { header: "Партнери", key: "partnerCount", width: 12 },
+      { header: "Усього", key: "countTotal", width: 10 },
+      { header: "Бойова?", key: "combatLabel", width: 14 },
       { header: "Причина", key: "reasonName", width: 26 },
-      { header: "Задержано", key: "detained", width: 12 },
+      { header: "Затримано", key: "detained", width: 12 },
       { header: "Передано", key: "transferred", width: 12 },
-      { header: "Примечание", key: "note", width: 30 },
+      { header: "Примітка", key: "note", width: 30 },
     ];
 
     for (const shift of shifts) {
@@ -1497,6 +1396,7 @@ export async function exportShiftsTableExcel(req: Request, res: Response) {
 
       shiftsSheet.addRow({
         city: shift.city.name,
+        department: shift.department?.name ?? "—",
         shiftDate: shift.shiftDate,
         submittedAt: shift.submittedAt,
         crew: shift.crew.name,
@@ -1576,17 +1476,17 @@ export async function exportShiftsTableExcel(req: Request, res: Response) {
             route: `${trip.fromLocation} → ${trip.toLocation}`,
             title: isRegular
               ? event.alarmSource === "OH"
-                ? "Сработка ОХ"
-                : "Сработка Партнеры"
-              : "Дополнительные сработки",
+                ? "Спрацювання ОХ"
+                : "Спрацювання Партнери"
+              : "Додаткові спрацювання",
             eventCategory: event.eventCategory,
             ohCount,
             partnerCount,
             countTotal: isRegular ? 1 : ohCount + partnerCount,
             combatLabel: isRegular
               ? event.isCombat
-                ? "Боевая"
-                : "Ложная"
+                ? "Бойова"
+                : "Хибна"
               : "",
             reasonName: event.reason?.name ?? event.customReasonText ?? "",
             detained: event.detainedCount ?? 0,
@@ -1622,7 +1522,7 @@ export async function exportShiftsTableExcel(req: Request, res: Response) {
     console.error("exportShiftsTableExcel error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -1692,7 +1592,11 @@ type EmployeeExportRow = {
   >;
 };
 
-function buildEmployeesExportWhere(req: Request) {
+function buildEmployeesExportWhere(
+  req: Request,
+  scope: ExportScope,
+  departmentId?: number,
+) {
   const cityId = parseNumberExportQuery(req.query.cityId);
   const crewId = parseNumberExportQuery(req.query.crewId);
   const vehicleId = parseNumberExportQuery(req.query.vehicleId);
@@ -1705,6 +1609,8 @@ function buildEmployeesExportWhere(req: Request) {
 
   const where: any = {
     deletedAt: null,
+    ...buildExportAccessWhere(scope),
+    ...(departmentId ? { departmentId } : {}),
     ...(cityId ? { cityId } : {}),
     ...(crewId ? { crewId } : {}),
     ...(vehicleId ? { vehicleId } : {}),
@@ -1910,9 +1816,9 @@ function buildPostDutyExportSummary(
 
   return rows
     .map(([postName, stats]) => {
-      return `${postName}: ${roundNumber(stats.shiftEquivalent)} смен / ${roundNumber(
+      return `${postName}: ${roundNumber(stats.shiftEquivalent)} змін / ${roundNumber(
         stats.hours,
-      )} ч / ${stats.count} выходов`;
+      )} год / ${stats.count} виходів`;
     })
     .join("; ");
 }
@@ -1934,6 +1840,8 @@ function sortEmployeeExportRows(
 
 export async function exportEmployeesTableExcel(req: Request, res: Response) {
   try {
+    const scope = await getExportScope(req);
+    const departmentId = parseNumberExportQuery(req.query.departmentId);
     const sortByRaw = String(req.query.sortBy ?? "totalAlarms");
 
     const sortBy: EmployeesExportSortBy = [
@@ -1954,7 +1862,11 @@ export async function exportEmployeesTableExcel(req: Request, res: Response) {
     const sortDir: "asc" | "desc" =
       req.query.sortDir === "asc" ? "asc" : "desc";
 
-    const { where, employeeId } = buildEmployeesExportWhere(req);
+    const { where, employeeId } = buildEmployeesExportWhere(
+      req,
+      scope,
+      departmentId,
+    );
     const cityId = parseNumberExportQuery(req.query.cityId);
     const crewId = parseNumberExportQuery(req.query.crewId);
     const vehicleId = parseNumberExportQuery(req.query.vehicleId);
@@ -2033,6 +1945,7 @@ export async function exportEmployeesTableExcel(req: Request, res: Response) {
       : await prisma.postDuty.findMany({
           where: {
             deletedAt: null,
+            ...buildExportAccessWhere(scope),
 
             ...(cityId ? { cityId } : {}),
             ...(vehicleId ? { vehicleId } : {}),
@@ -2262,52 +2175,52 @@ export async function exportEmployeesTableExcel(req: Request, res: Response) {
     workbook.creator = "Guard Journal";
     workbook.created = new Date();
 
-    const employeesSheet = workbook.addWorksheet("По сотрудникам");
-    const reasonsSheet = workbook.addWorksheet("Доп. сработки");
-    const postsSheet = workbook.addWorksheet("Постовые дежурства");
+    const employeesSheet = workbook.addWorksheet("За співробітниками");
+    const reasonsSheet = workbook.addWorksheet("Дод. спрацювання");
+    const postsSheet = workbook.addWorksheet("Чергування на постах");
 
     employeesSheet.columns = [
-      { header: "Город", key: "cityName", width: 18 },
-      { header: "ФИО", key: "fullName", width: 32 },
-      { header: "Всего смен", key: "totalShifts", width: 14 },
-      { header: "Водителем", key: "driverShifts", width: 14 },
+      { header: "Місто", key: "cityName", width: 18 },
+      { header: "ПІБ", key: "fullName", width: 32 },
+      { header: "Усього змін", key: "totalShifts", width: 14 },
+      { header: "Водієм", key: "driverShifts", width: 14 },
       { header: "Старшим", key: "seniorShifts", width: 14 },
-      { header: "С оружием", key: "weaponShifts", width: 14 },
-      { header: "Дополнительно", key: "postDutyShiftEquivalent", width: 16 },
-      { header: "Постовые часы", key: "postDutyHours", width: 16 },
-      { header: "Выходов на посты", key: "postDutyCount", width: 18 },
-      { header: "Посты", key: "postDutySummary", width: 42 },
-      { header: "Поездок", key: "totalTrips", width: 12 },
-      { header: "Пробег", key: "totalDistanceKm", width: 14 },
-      { header: "Всего сработок", key: "totalAlarms", width: 18 },
-      { header: "Средняя нагрузка", key: "averageAlarmsPerShift", width: 18 },
+      { header: "Зі зброєю", key: "weaponShifts", width: 14 },
+      { header: "Додатково", key: "postDutyShiftEquivalent", width: 16 },
+      { header: "Години на постах", key: "postDutyHours", width: 16 },
+      { header: "Виходів на пости", key: "postDutyCount", width: 18 },
+      { header: "Пости", key: "postDutySummary", width: 42 },
+      { header: "Поїздок", key: "totalTrips", width: 12 },
+      { header: "Пробіг", key: "totalDistanceKm", width: 14 },
+      { header: "Усього спрацювань", key: "totalAlarms", width: 18 },
+      { header: "Середнє навантаження", key: "averageAlarmsPerShift", width: 18 },
       { header: "ОХ", key: "totalOh", width: 10 },
-      { header: "Партнеры", key: "totalPartner", width: 12 },
-      { header: "Боевые", key: "combatTotal", width: 12 },
-      { header: "Ложные", key: "falseTotal", width: 12 },
-      { header: "Доп. всего", key: "additionalTotal", width: 14 },
-      { header: "Доп. ОХ", key: "additionalOh", width: 12 },
-      { header: "Доп. Партнеры", key: "additionalPartner", width: 16 },
-      { header: "Задержано", key: "detained", width: 12 },
+      { header: "Партнери", key: "totalPartner", width: 12 },
+      { header: "Бойові", key: "combatTotal", width: 12 },
+      { header: "Хибні", key: "falseTotal", width: 12 },
+      { header: "Дод. усього", key: "additionalTotal", width: 14 },
+      { header: "Дод. ОХ", key: "additionalOh", width: 12 },
+      { header: "Дод. Партнери", key: "additionalPartner", width: 16 },
+      { header: "Затримано", key: "detained", width: 12 },
       { header: "Передано", key: "transferred", width: 12 },
     ];
 
     reasonsSheet.columns = [
-      { header: "Город", key: "cityName", width: 18 },
-      { header: "ФИО", key: "fullName", width: 32 },
+      { header: "Місто", key: "cityName", width: 18 },
+      { header: "ПІБ", key: "fullName", width: 32 },
       { header: "Причина", key: "reasonName", width: 28 },
-      { header: "Всего", key: "total", width: 12 },
+      { header: "Усього", key: "total", width: 12 },
       { header: "ОХ", key: "oh", width: 12 },
-      { header: "Партнеры", key: "partner", width: 12 },
+      { header: "Партнери", key: "partner", width: 12 },
     ];
 
     postsSheet.columns = [
-      { header: "Город", key: "cityName", width: 18 },
-      { header: "ФИО", key: "fullName", width: 32 },
+      { header: "Місто", key: "cityName", width: 18 },
+      { header: "ПІБ", key: "fullName", width: 32 },
       { header: "Пост", key: "postName", width: 28 },
-      { header: "Смен", key: "shiftEquivalent", width: 12 },
-      { header: "Часы", key: "hours", width: 12 },
-      { header: "Выходов", key: "count", width: 12 },
+      { header: "Змін", key: "shiftEquivalent", width: 12 },
+      { header: "Години", key: "hours", width: 12 },
+      { header: "Виходів", key: "count", width: 12 },
     ];
 
     for (const row of sortedRows) {
@@ -2340,7 +2253,7 @@ export async function exportEmployeesTableExcel(req: Request, res: Response) {
       reasonsSheet.addRow({
         cityName: row.cityName,
         fullName: row.fullName,
-        reasonName: "Дополнительно",
+        reasonName: "Додатково",
         total: row.additionalTotal,
         oh: row.additionalOh,
         partner: row.additionalPartner,
@@ -2361,7 +2274,7 @@ export async function exportEmployeesTableExcel(req: Request, res: Response) {
       postsSheet.addRow({
         cityName: row.cityName,
         fullName: row.fullName,
-        postName: "Дополнительно",
+        postName: "Додатково",
         shiftEquivalent: row.postDutyShiftEquivalent,
         hours: row.postDutyHours,
         count: row.postDutyCount,
@@ -2395,7 +2308,7 @@ export async function exportEmployeesTableExcel(req: Request, res: Response) {
     console.error("exportEmployeesTableExcel error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -2450,7 +2363,11 @@ type CrewExportRow = {
   distanceByGoal: Record<string, number>;
 };
 
-function buildCrewsExportWhere(req: Request) {
+function buildCrewsExportWhere(
+  req: Request,
+  scope: ExportScope,
+  departmentId?: number,
+) {
   const cityId = parseNumberExportQuery(req.query.cityId);
   const crewId = parseNumberExportQuery(req.query.crewId);
   const vehicleId = parseNumberExportQuery(req.query.vehicleId);
@@ -2463,6 +2380,8 @@ function buildCrewsExportWhere(req: Request) {
 
   const where: any = {
     deletedAt: null,
+    ...buildExportAccessWhere(scope),
+    ...(departmentId ? { departmentId } : {}),
     ...(cityId ? { cityId } : {}),
     ...(crewId ? { crewId } : {}),
     ...(vehicleId ? { vehicleId } : {}),
@@ -2635,6 +2554,8 @@ function sortCrewExportRows(
 
 export async function exportCrewsTableExcel(req: Request, res: Response) {
   try {
+    const scope = await getExportScope(req);
+    const departmentId = parseNumberExportQuery(req.query.departmentId);
     const sortByRaw = String(req.query.sortBy ?? "totalAlarms");
 
     const sortBy: CrewsExportSortBy = [
@@ -2654,7 +2575,7 @@ export async function exportCrewsTableExcel(req: Request, res: Response) {
     const sortDir: "asc" | "desc" =
       req.query.sortDir === "asc" ? "asc" : "desc";
 
-    const where = buildCrewsExportWhere(req);
+    const where = buildCrewsExportWhere(req, scope, departmentId);
 
     const shifts = await prisma.shift.findMany({
       where,
@@ -2721,15 +2642,16 @@ export async function exportCrewsTableExcel(req: Request, res: Response) {
       },
     });
 
-    const crewMap = new Map<number, CrewExportRow>();
+    const crewMap = new Map<string, CrewExportRow>();
 
     for (const shift of shifts) {
       const summary = calculateShiftSummary(shift);
       const crew = shift.crew;
+      const crewKey = `${crew.id}_${shift.city.id}`;
 
-      if (!crewMap.has(crew.id)) {
+      if (!crewMap.has(crewKey)) {
         crewMap.set(
-          crew.id,
+          crewKey,
           createCrewExportRow({
             crewId: crew.id,
             crewName: crew.name,
@@ -2739,7 +2661,7 @@ export async function exportCrewsTableExcel(req: Request, res: Response) {
         );
       }
 
-      const row = crewMap.get(crew.id)!;
+      const row = crewMap.get(crewKey)!;
       addShiftSummaryToCrewExportRow(row, summary);
     }
 
@@ -2763,44 +2685,44 @@ export async function exportCrewsTableExcel(req: Request, res: Response) {
     workbook.creator = "Guard Journal";
     workbook.created = new Date();
 
-    const crewsSheet = workbook.addWorksheet("По нарядам");
-    const reasonsSheet = workbook.addWorksheet("Доп. сработки");
-    const distanceSheet = workbook.addWorksheet("Пробег по целям");
+    const crewsSheet = workbook.addWorksheet("За нарядами");
+    const reasonsSheet = workbook.addWorksheet("Дод. спрацювання");
+    const distanceSheet = workbook.addWorksheet("Пробіг за цілями");
 
     crewsSheet.columns = [
-      { header: "Город", key: "cityName", width: 18 },
+      { header: "Місто", key: "cityName", width: 18 },
       { header: "Наряд", key: "crewName", width: 24 },
-      { header: "Всего смен", key: "totalShifts", width: 14 },
-      { header: "Поездок", key: "totalTrips", width: 12 },
-      { header: "Пробег", key: "totalDistanceKm", width: 14 },
-      { header: "Средний пробег", key: "averageDistancePerShift", width: 18 },
-      { header: "Всего сработок", key: "totalAlarms", width: 18 },
-      { header: "Средняя нагрузка", key: "averageAlarmsPerShift", width: 18 },
+      { header: "Усього змін", key: "totalShifts", width: 14 },
+      { header: "Поїздок", key: "totalTrips", width: 12 },
+      { header: "Пробіг", key: "totalDistanceKm", width: 14 },
+      { header: "Середній пробіг", key: "averageDistancePerShift", width: 18 },
+      { header: "Усього спрацювань", key: "totalAlarms", width: 18 },
+      { header: "Середнє навантаження", key: "averageAlarmsPerShift", width: 18 },
       { header: "ОХ", key: "totalOh", width: 10 },
-      { header: "Партнеры", key: "totalPartner", width: 12 },
-      { header: "Боевые", key: "combatTotal", width: 12 },
-      { header: "Ложные", key: "falseTotal", width: 12 },
-      { header: "Доп. всего", key: "additionalTotal", width: 14 },
-      { header: "Доп. ОХ", key: "additionalOh", width: 12 },
-      { header: "Доп. Партнеры", key: "additionalPartner", width: 16 },
-      { header: "Задержано", key: "detained", width: 12 },
+      { header: "Партнери", key: "totalPartner", width: 12 },
+      { header: "Бойові", key: "combatTotal", width: 12 },
+      { header: "Хибні", key: "falseTotal", width: 12 },
+      { header: "Дод. усього", key: "additionalTotal", width: 14 },
+      { header: "Дод. ОХ", key: "additionalOh", width: 12 },
+      { header: "Дод. Партнери", key: "additionalPartner", width: 16 },
+      { header: "Затримано", key: "detained", width: 12 },
       { header: "Передано", key: "transferred", width: 12 },
     ];
 
     reasonsSheet.columns = [
-      { header: "Город", key: "cityName", width: 18 },
+      { header: "Місто", key: "cityName", width: 18 },
       { header: "Наряд", key: "crewName", width: 24 },
       { header: "Причина", key: "reasonName", width: 28 },
-      { header: "Всего", key: "total", width: 12 },
+      { header: "Усього", key: "total", width: 12 },
       { header: "ОХ", key: "oh", width: 12 },
-      { header: "Партнеры", key: "partner", width: 12 },
+      { header: "Партнери", key: "partner", width: 12 },
     ];
 
     distanceSheet.columns = [
-      { header: "Город", key: "cityName", width: 18 },
+      { header: "Місто", key: "cityName", width: 18 },
       { header: "Наряд", key: "crewName", width: 24 },
-      { header: "Цель поездки", key: "goalName", width: 30 },
-      { header: "Пробег", key: "distance", width: 14 },
+      { header: "Ціль поїздки", key: "goalName", width: 30 },
+      { header: "Пробіг", key: "distance", width: 14 },
     ];
 
     for (const row of sortedRows) {
@@ -2827,7 +2749,7 @@ export async function exportCrewsTableExcel(req: Request, res: Response) {
       reasonsSheet.addRow({
         cityName: row.cityName,
         crewName: row.crewName,
-        reasonName: "Дополнительно",
+        reasonName: "Додатково",
         total: row.additionalTotal,
         oh: row.additionalOh,
         partner: row.additionalPartner,
@@ -2872,7 +2794,7 @@ export async function exportCrewsTableExcel(req: Request, res: Response) {
     console.error("exportCrewsTableExcel error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -2930,7 +2852,11 @@ type VehicleExportRow = {
   distanceByGoal: Record<string, number>;
 };
 
-function buildVehiclesExportWhere(req: Request) {
+function buildVehiclesExportWhere(
+  req: Request,
+  scope: ExportScope,
+  departmentId?: number,
+) {
   const cityId = parseNumberExportQuery(req.query.cityId);
   const crewId = parseNumberExportQuery(req.query.crewId);
   const vehicleId = parseNumberExportQuery(req.query.vehicleId);
@@ -2943,6 +2869,8 @@ function buildVehiclesExportWhere(req: Request) {
 
   const shiftsWhere: any = {
     deletedAt: null,
+    ...buildExportAccessWhere(scope),
+    ...(departmentId ? { departmentId } : {}),
     ...(cityId ? { cityId } : {}),
     ...(crewId ? { crewId } : {}),
     ...(vehicleId ? { vehicleId } : {}),
@@ -3015,6 +2943,7 @@ function buildVehiclesExportWhere(req: Request) {
   const vehiclesWhere: any = {
     deletedAt: null,
     isActive: true,
+    ...buildExportAccessWhere(scope),
     ...(cityId ? { cityId } : {}),
     ...(vehicleId ? { id: vehicleId } : {}),
     ...(search
@@ -3168,6 +3097,8 @@ function sortVehicleExportRows(
 
 export async function exportVehiclesTableExcel(req: Request, res: Response) {
   try {
+    const scope = await getExportScope(req);
+    const departmentId = parseNumberExportQuery(req.query.departmentId);
     const sortByRaw = String(req.query.sortBy ?? "totalDistanceKm");
 
     const sortBy: VehiclesExportSortBy = [
@@ -3187,7 +3118,7 @@ export async function exportVehiclesTableExcel(req: Request, res: Response) {
       req.query.sortDir === "asc" ? "asc" : "desc";
 
     const { shiftsWhere, vehiclesWhere, crewId, employeeId } =
-      buildVehiclesExportWhere(req);
+      buildVehiclesExportWhere(req, scope, departmentId);
 
     const shouldShowEmptyVehicles = !crewId && !employeeId;
 
@@ -3273,11 +3204,13 @@ export async function exportVehiclesTableExcel(req: Request, res: Response) {
       },
     });
 
-    const vehicleMap = new Map<number, VehicleExportRow>();
+    const vehicleMap = new Map<string, VehicleExportRow>();
 
     for (const vehicle of vehiclesFromDirectory) {
+      const vehicleKey = `${vehicle.id}_${vehicle.city.id}`;
+
       vehicleMap.set(
-        vehicle.id,
+        vehicleKey,
         createVehicleExportRow({
           vehicleId: vehicle.id,
           vehicleTitle: vehicle.title,
@@ -3291,10 +3224,11 @@ export async function exportVehiclesTableExcel(req: Request, res: Response) {
     for (const shift of shifts) {
       const summary = calculateShiftSummary(shift);
       const vehicle = shift.vehicle;
+      const vehicleKey = `${vehicle.id}_${shift.city.id}`;
 
-      if (!vehicleMap.has(vehicle.id)) {
+      if (!vehicleMap.has(vehicleKey)) {
         vehicleMap.set(
-          vehicle.id,
+          vehicleKey,
           createVehicleExportRow({
             vehicleId: vehicle.id,
             vehicleTitle: vehicle.title,
@@ -3305,7 +3239,7 @@ export async function exportVehiclesTableExcel(req: Request, res: Response) {
         );
       }
 
-      const row = vehicleMap.get(vehicle.id)!;
+      const row = vehicleMap.get(vehicleKey)!;
       addShiftSummaryToVehicleExportRow(row, shift, summary);
     }
 
@@ -3325,50 +3259,50 @@ export async function exportVehiclesTableExcel(req: Request, res: Response) {
     workbook.creator = "Guard Journal";
     workbook.created = new Date();
 
-    const vehiclesSheet = workbook.addWorksheet("По автомобилям");
-    const reasonsSheet = workbook.addWorksheet("Доп. сработки");
-    const distanceSheet = workbook.addWorksheet("Пробег по целям");
+    const vehiclesSheet = workbook.addWorksheet("За автомобілями");
+    const reasonsSheet = workbook.addWorksheet("Дод. спрацювання");
+    const distanceSheet = workbook.addWorksheet("Пробіг за цілями");
 
     vehiclesSheet.columns = [
-      { header: "Город", key: "cityName", width: 18 },
-      { header: "Автомобиль", key: "vehicleTitle", width: 24 },
-      { header: "Госномер", key: "licensePlate", width: 16 },
-      { header: "Всего смен", key: "totalShifts", width: 14 },
-      { header: "Поездок", key: "totalTrips", width: 12 },
-      { header: "Пробег", key: "totalDistanceKm", width: 14 },
-      { header: "Средний пробег", key: "averageDistancePerShift", width: 18 },
-      { header: "Первая смена", key: "firstShiftDate", width: 14 },
-      { header: "Первый спидометр", key: "odometerStartFirstShift", width: 18 },
-      { header: "Последняя смена", key: "lastShiftDate", width: 16 },
-      { header: "Последний спидометр", key: "odometerEndLastShift", width: 20 },
-      { header: "Всего сработок", key: "totalAlarms", width: 18 },
+      { header: "Місто", key: "cityName", width: 18 },
+      { header: "Автомобіль", key: "vehicleTitle", width: 24 },
+      { header: "Держномер", key: "licensePlate", width: 16 },
+      { header: "Усього змін", key: "totalShifts", width: 14 },
+      { header: "Поїздок", key: "totalTrips", width: 12 },
+      { header: "Пробіг", key: "totalDistanceKm", width: 14 },
+      { header: "Середній пробіг", key: "averageDistancePerShift", width: 18 },
+      { header: "Перша зміна", key: "firstShiftDate", width: 14 },
+      { header: "Перший спідометр", key: "odometerStartFirstShift", width: 18 },
+      { header: "Остання зміна", key: "lastShiftDate", width: 16 },
+      { header: "Останній спідометр", key: "odometerEndLastShift", width: 20 },
+      { header: "Усього спрацювань", key: "totalAlarms", width: 18 },
       { header: "ОХ", key: "totalOh", width: 10 },
-      { header: "Партнеры", key: "totalPartner", width: 12 },
-      { header: "Боевые", key: "combatTotal", width: 12 },
-      { header: "Ложные", key: "falseTotal", width: 12 },
-      { header: "Доп. всего", key: "additionalTotal", width: 14 },
-      { header: "Доп. ОХ", key: "additionalOh", width: 12 },
-      { header: "Доп. Партнеры", key: "additionalPartner", width: 16 },
-      { header: "Задержано", key: "detained", width: 12 },
+      { header: "Партнери", key: "totalPartner", width: 12 },
+      { header: "Бойові", key: "combatTotal", width: 12 },
+      { header: "Хибні", key: "falseTotal", width: 12 },
+      { header: "Дод. усього", key: "additionalTotal", width: 14 },
+      { header: "Дод. ОХ", key: "additionalOh", width: 12 },
+      { header: "Дод. Партнери", key: "additionalPartner", width: 16 },
+      { header: "Затримано", key: "detained", width: 12 },
       { header: "Передано", key: "transferred", width: 12 },
     ];
 
     reasonsSheet.columns = [
-      { header: "Город", key: "cityName", width: 18 },
-      { header: "Автомобиль", key: "vehicleTitle", width: 24 },
-      { header: "Госномер", key: "licensePlate", width: 16 },
+      { header: "Місто", key: "cityName", width: 18 },
+      { header: "Автомобіль", key: "vehicleTitle", width: 24 },
+      { header: "Держномер", key: "licensePlate", width: 16 },
       { header: "Причина", key: "reasonName", width: 28 },
-      { header: "Всего", key: "total", width: 12 },
+      { header: "Усього", key: "total", width: 12 },
       { header: "ОХ", key: "oh", width: 12 },
-      { header: "Партнеры", key: "partner", width: 12 },
+      { header: "Партнери", key: "partner", width: 12 },
     ];
 
     distanceSheet.columns = [
-      { header: "Город", key: "cityName", width: 18 },
-      { header: "Автомобиль", key: "vehicleTitle", width: 24 },
-      { header: "Госномер", key: "licensePlate", width: 16 },
-      { header: "Цель поездки", key: "goalName", width: 30 },
-      { header: "Пробег", key: "distance", width: 14 },
+      { header: "Місто", key: "cityName", width: 18 },
+      { header: "Автомобіль", key: "vehicleTitle", width: 24 },
+      { header: "Держномер", key: "licensePlate", width: 16 },
+      { header: "Ціль поїздки", key: "goalName", width: 30 },
+      { header: "Пробіг", key: "distance", width: 14 },
     ];
 
     for (const row of sortedRows) {
@@ -3400,7 +3334,7 @@ export async function exportVehiclesTableExcel(req: Request, res: Response) {
         cityName: row.cityName,
         vehicleTitle: row.vehicleTitle,
         licensePlate: row.licensePlate ?? "",
-        reasonName: "Дополнительно",
+        reasonName: "Додатково",
         total: row.additionalTotal,
         oh: row.additionalOh,
         partner: row.additionalPartner,
@@ -3450,7 +3384,7 @@ export async function exportVehiclesTableExcel(req: Request, res: Response) {
     console.error("exportVehiclesTableExcel error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -3588,13 +3522,17 @@ function getAlarmsExportMonthKey(date: Date) {
 }
 
 function getAlarmsExportMonthName(date: Date) {
-  return date.toLocaleDateString("ru-RU", {
+  return date.toLocaleDateString("uk-UA", {
     month: "long",
     year: "numeric",
   });
 }
 
-function buildAlarmsExportWhere(req: Request) {
+function buildAlarmsExportWhere(
+  req: Request,
+  scope: ExportScope,
+  departmentId?: number,
+) {
   const cityId = parseNumberExportQuery(req.query.cityId);
   const crewId = parseNumberExportQuery(req.query.crewId);
   const vehicleId = parseNumberExportQuery(req.query.vehicleId);
@@ -3607,6 +3545,8 @@ function buildAlarmsExportWhere(req: Request) {
 
   const where: any = {
     deletedAt: null,
+    ...buildExportAccessWhere(scope),
+    ...(departmentId ? { departmentId } : {}),
     ...(cityId ? { cityId } : {}),
     ...(crewId ? { crewId } : {}),
     ...(vehicleId ? { vehicleId } : {}),
@@ -3684,35 +3624,35 @@ function addAlarmsSummaryRows(
   totals: AlarmsExportTotals,
 ) {
   sheet.addRow({
-    title: "Всего сработок",
+    title: "Усього спрацювань",
     total: totals.totalAlarms,
     oh: totals.totalOh,
     partner: totals.totalPartner,
   });
 
   sheet.addRow({
-    title: "Ложные",
+    title: "Хибні",
     total: totals.falseTotal,
     oh: totals.falseOh,
     partner: totals.falsePartner,
   });
 
   sheet.addRow({
-    title: "Боевые",
+    title: "Бойові",
     total: totals.combatTotal,
     oh: totals.combatOh,
     partner: totals.combatPartner,
   });
 
   sheet.addRow({
-    title: "Дополнительно",
+    title: "Додатково",
     total: totals.additionalTotal,
     oh: totals.additionalOh,
     partner: totals.additionalPartner,
   });
 
   sheet.addRow({
-    title: "Задержано",
+    title: "Затримано",
     total: totals.detained,
     oh: "",
     partner: "",
@@ -3726,21 +3666,21 @@ function addAlarmsSummaryRows(
   });
 
   sheet.addRow({
-    title: "Смен",
+    title: "Змін",
     total: totals.totalShifts,
     oh: "",
     partner: "",
   });
 
   sheet.addRow({
-    title: "Поездок",
+    title: "Поїздок",
     total: totals.totalTrips,
     oh: "",
     partner: "",
   });
 
   sheet.addRow({
-    title: "Пробег",
+    title: "Пробіг",
     total: roundNumber(totals.totalDistanceKm),
     oh: "",
     partner: "",
@@ -3773,7 +3713,9 @@ function addAlarmsGroupRows(
 
 export async function exportAlarmsReportExcel(req: Request, res: Response) {
   try {
-    const where = buildAlarmsExportWhere(req);
+    const scope = await getExportScope(req);
+    const departmentId = parseNumberExportQuery(req.query.departmentId);
+    const where = buildAlarmsExportWhere(req, scope, departmentId);
 
     const shifts = await prisma.shift.findMany({
       where,
@@ -3901,63 +3843,63 @@ export async function exportAlarmsReportExcel(req: Request, res: Response) {
     workbook.creator = "Guard Journal";
     workbook.created = new Date();
 
-    const summarySheet = workbook.addWorksheet("Сводка");
-    const reasonsSheet = workbook.addWorksheet("Доп. причины");
-    const citiesSheet = workbook.addWorksheet("По городам");
-    const monthsSheet = workbook.addWorksheet("По месяцам");
+    const summarySheet = workbook.addWorksheet("Зведення");
+    const reasonsSheet = workbook.addWorksheet("Дод. спрацювання");
+    const citiesSheet = workbook.addWorksheet("За містами");
+    const monthsSheet = workbook.addWorksheet("За місяцями");
 
     summarySheet.columns = [
-      { header: "Показатель", key: "title", width: 28 },
-      { header: "Всего", key: "total", width: 14 },
+      { header: "Показник", key: "title", width: 28 },
+      { header: "Усього", key: "total", width: 14 },
       { header: "ОХ", key: "oh", width: 14 },
-      { header: "Партнеры", key: "partner", width: 14 },
+      { header: "Партнери", key: "partner", width: 14 },
     ];
 
     reasonsSheet.columns = [
       { header: "Причина", key: "reasonName", width: 30 },
-      { header: "Всего", key: "total", width: 14 },
+      { header: "Усього", key: "total", width: 14 },
       { header: "ОХ", key: "oh", width: 14 },
-      { header: "Партнеры", key: "partner", width: 14 },
+      { header: "Партнери", key: "partner", width: 14 },
     ];
 
     citiesSheet.columns = [
-      { header: "Город", key: "name", width: 22 },
-      { header: "Всего сработок", key: "totalAlarms", width: 18 },
+      { header: "Місто", key: "name", width: 22 },
+      { header: "Усього спрацювань", key: "totalAlarms", width: 18 },
       { header: "ОХ", key: "totalOh", width: 10 },
-      { header: "Партнеры", key: "totalPartner", width: 12 },
-      { header: "Боевые", key: "combatTotal", width: 12 },
-      { header: "Ложные", key: "falseTotal", width: 12 },
-      { header: "Доп. всего", key: "additionalTotal", width: 14 },
-      { header: "Доп. ОХ", key: "additionalOh", width: 12 },
-      { header: "Доп. Партнеры", key: "additionalPartner", width: 16 },
-      { header: "Задержано", key: "detained", width: 12 },
+      { header: "Партнери", key: "totalPartner", width: 12 },
+      { header: "Бойові", key: "combatTotal", width: 12 },
+      { header: "Хибні", key: "falseTotal", width: 12 },
+      { header: "Дод. усього", key: "additionalTotal", width: 14 },
+      { header: "Дод. ОХ", key: "additionalOh", width: 12 },
+      { header: "Дод. Партнери", key: "additionalPartner", width: 16 },
+      { header: "Затримано", key: "detained", width: 12 },
       { header: "Передано", key: "transferred", width: 12 },
-      { header: "Смен", key: "totalShifts", width: 10 },
-      { header: "Поездок", key: "totalTrips", width: 10 },
-      { header: "Пробег", key: "totalDistanceKm", width: 12 },
+      { header: "Змін", key: "totalShifts", width: 10 },
+      { header: "Поїздок", key: "totalTrips", width: 10 },
+      { header: "Пробіг", key: "totalDistanceKm", width: 12 },
     ];
 
     monthsSheet.columns = [
-      { header: "Месяц", key: "name", width: 22 },
-      { header: "Всего сработок", key: "totalAlarms", width: 18 },
+      { header: "Місяць", key: "name", width: 22 },
+      { header: "Усього спрацювань", key: "totalAlarms", width: 18 },
       { header: "ОХ", key: "totalOh", width: 10 },
-      { header: "Партнеры", key: "totalPartner", width: 12 },
-      { header: "Боевые", key: "combatTotal", width: 12 },
-      { header: "Ложные", key: "falseTotal", width: 12 },
-      { header: "Доп. всего", key: "additionalTotal", width: 14 },
-      { header: "Доп. ОХ", key: "additionalOh", width: 12 },
-      { header: "Доп. Партнеры", key: "additionalPartner", width: 16 },
-      { header: "Задержано", key: "detained", width: 12 },
+      { header: "Партнери", key: "totalPartner", width: 12 },
+      { header: "Бойові", key: "combatTotal", width: 12 },
+      { header: "Хибні", key: "falseTotal", width: 12 },
+      { header: "Дод. усього", key: "additionalTotal", width: 14 },
+      { header: "Дод. ОХ", key: "additionalOh", width: 12 },
+      { header: "Дод. Партнери", key: "additionalPartner", width: 16 },
+      { header: "Затримано", key: "detained", width: 12 },
       { header: "Передано", key: "transferred", width: 12 },
-      { header: "Смен", key: "totalShifts", width: 10 },
-      { header: "Поездок", key: "totalTrips", width: 10 },
-      { header: "Пробег", key: "totalDistanceKm", width: 12 },
+      { header: "Змін", key: "totalShifts", width: 10 },
+      { header: "Поїздок", key: "totalTrips", width: 10 },
+      { header: "Пробіг", key: "totalDistanceKm", width: 12 },
     ];
 
     addAlarmsSummaryRows(summarySheet, totals);
 
     reasonsSheet.addRow({
-      reasonName: "Дополнительно",
+      reasonName: "Додатково",
       total: totals.additionalTotal,
       oh: totals.additionalOh,
       partner: totals.additionalPartner,
@@ -3991,7 +3933,7 @@ export async function exportAlarmsReportExcel(req: Request, res: Response) {
     console.error("exportAlarmsReportExcel error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }

@@ -1,12 +1,12 @@
-import { Request, Response } from "express";
+﻿import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import { z } from "zod";
 import { prisma } from "../../config/prisma";
 import { signAdminToken } from "../../utils/jwt";
 
 const loginSchema = z.object({
-  login: z.string().min(1, "Login is required"),
-  password: z.string().min(1, "Password is required"),
+  login: z.string().min(1, "Логін обов'язковий"),
+  password: z.string().min(1, "Пароль обов'язковий"),
 });
 
 export async function adminLogin(req: Request, res: Response) {
@@ -15,7 +15,7 @@ export async function adminLogin(req: Request, res: Response) {
 
     if (!parsed.success) {
       return res.status(400).json({
-        message: "Validation error",
+        message: "Помилка валідації",
         errors: parsed.error.flatten(),
       });
     }
@@ -33,7 +33,7 @@ export async function adminLogin(req: Request, res: Response) {
 
     if (!user || !user.isActive || user.deletedAt) {
       return res.status(401).json({
-        message: "Invalid login or password",
+        message: "Невірний логін або пароль",
       });
     }
 
@@ -41,7 +41,7 @@ export async function adminLogin(req: Request, res: Response) {
 
     if (!isPasswordValid) {
       return res.status(401).json({
-        message: "Invalid login or password",
+        message: "Невірний логін або пароль",
       });
     }
 
@@ -68,7 +68,7 @@ export async function adminLogin(req: Request, res: Response) {
     console.error("adminLogin error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }
@@ -77,7 +77,7 @@ export async function adminMe(req: Request, res: Response) {
   try {
     if (!req.user) {
       return res.status(401).json({
-        message: "Unauthorized",
+        message: "Не авторизовано",
       });
     }
 
@@ -92,7 +92,7 @@ export async function adminMe(req: Request, res: Response) {
 
     if (!user || !user.isActive || user.deletedAt) {
       return res.status(401).json({
-        message: "User is not active",
+        message: "Користувача деактивовано",
       });
     }
 
@@ -112,7 +112,7 @@ export async function adminMe(req: Request, res: Response) {
     console.error("adminMe error:", error);
 
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Внутрішня помилка сервера",
     });
   }
 }

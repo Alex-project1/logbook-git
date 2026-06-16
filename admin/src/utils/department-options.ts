@@ -59,16 +59,23 @@ export function dedupeDepartments(departments: Department[]) {
 }
 
 export function formatDepartmentOption(
-  department: Pick<Department, "id" | "name" | "type"> & { cityId?: number; city?: { id: number; name: string } },
+  department: Pick<Department, "id" | "name" | "type"> & {
+    cityId?: number;
+    city?: { id: number; name: string };
+  },
   options?: { showCity?: boolean; showType?: boolean },
 ) {
   const showCity = Boolean(options?.showCity);
   const showType = options?.showType !== false;
 
-  const parts = [];
+  const parts: string[] = [];
 
   if (showCity) {
-    parts.push(department.city?.name ?? `Місто #${department.cityId}`);
+    const cityLabel = department.city?.name || (department.cityId ? `Місто #${department.cityId}` : "");
+
+    if (cityLabel) {
+      parts.push(cityLabel);
+    }
   }
 
   parts.push(department.name);

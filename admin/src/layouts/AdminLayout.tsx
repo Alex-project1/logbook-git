@@ -35,10 +35,10 @@ export function AdminLayout() {
         label: "Зміни та чергування",
         items: [
           ...(canWrite
-            ? [{ to: "/manual-shifts/create", label: "Додати зміну ГБР" }]
+            ? [{ to: "/manual-shifts/create", label: "Додати зміну ГШР" }]
             : []),
           ...(canWrite
-            ? [{ to: "/manual-shifts/archive", label: "Архів змін ГБР" }]
+            ? [{ to: "/manual-shifts/archive", label: "Архів змін ГШР" }]
             : []),
           { to: "/post-duties", label: "Постові чергування" },
         ],
@@ -61,7 +61,7 @@ export function AdminLayout() {
           { to: "/mobile-users", label: "Користувачі застосунку" },
           ...(canWrite ? [{ to: "/departments", label: "Підрозділи" }] : []),
           { to: "/employees", label: "Співробітники" },
-          { to: "/crews", label: "Наряди ГБР" },
+          { to: "/crews", label: "Наряди ГШР" },
           { to: "/duty-posts", label: "Дод. пости" },
           { to: "/vehicles", label: "Автомобілі" },
           ...(isSuperAdmin
@@ -84,7 +84,7 @@ export function AdminLayout() {
           { to: "/reports/trips", label: "Усі поїздки" },
           { to: "/reports/shifts", label: "Підсумки за змінами" },
           { to: "/reports/employees", label: "За співробітниками" },
-          { to: "/reports/crews", label: "За нарядамии" },
+          { to: "/reports/crews", label: "За нарядами" },
           { to: "/reports/vehicles", label: "За автомобілями" },
           { to: "/reports/alarms", label: "За спрацюваннями" },
         ],
