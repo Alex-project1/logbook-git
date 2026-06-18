@@ -622,6 +622,7 @@ export type EmployeesTableResponse = {
     postDutyShiftEquivalent: number;
     postDutyHours: number;
     postDutyCount: number;
+    postDutyRecordCount?: number;
     totalAlarms: number;
     totalOh: number;
     totalPartner: number;

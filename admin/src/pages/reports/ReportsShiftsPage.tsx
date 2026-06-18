@@ -208,6 +208,7 @@ export function ReportsShiftsPage() {
       const data = await getShiftsTableReport(nextFilters);
       setReport(data);
       setExpandedRows({});
+  
     } catch {
       setError("Не вдалося завантажити підсумки змін");
     } finally {

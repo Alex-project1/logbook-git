@@ -134,22 +134,35 @@ export async function getMobileHistory(req: Request, res: Response) {
 
     const cityId = req.mobileUser.cityId;
     const departmentId = req.mobileUser.departmentId;
+
+    if (!cityId || !departmentId) {
+      return res.status(400).json({
+        message: "Користувач застосунку не привʼязаний до міста або підрозділу",
+      });
+    }
+
+    /*
+      ВАЖНО:
+      История приложения должна показывать всю историю подразделения:
+      - все смены всех нарядов ГШР этого города/подразделения;
+      - все постовые чергування всех постов этого города/подразделения.
+
+      Поэтому здесь НЕ фильтруем по req.mobileUser.crewId и НЕ фильтруем по
+      req.mobileUser.dutyPostId. Логин наряда или поста нужен только для
+      авторизации и определения подразделения.
+    */
     const historyWhereShift: any = {
       cityId,
       departmentId,
       deletedAt: null,
-      ...(req.mobileUser.userKind === "CREW" && req.mobileUser.crewId
-        ? { crewId: req.mobileUser.crewId }
-        : {}),
     };
+
     const historyWherePostDuty: any = {
       cityId,
       departmentId,
       deletedAt: null,
-      ...(req.mobileUser.userKind === "POST" && req.mobileUser.dutyPostId
-        ? { postId: req.mobileUser.dutyPostId }
-        : {}),
     };
+
     const page = parsePositiveInteger(req.query.page, 1);
     const pageSizeRaw = parsePositiveInteger(req.query.pageSize, 10);
     const pageSize = Math.min(Math.max(pageSizeRaw, 1), 50);

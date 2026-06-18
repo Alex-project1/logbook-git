@@ -2349,6 +2349,12 @@ fun validateGbrForm(data: MobileBootstrapDto): GbrFormErrors {
 
                             tripsCount = trips.size,
 
+                            trips = trips,
+
+                            tripGoals = data.tripGoals,
+
+                            additionalAlarmReasons = data.additionalAlarmReasons,
+
                             gbrSaveSuccess = gbrSaveSuccess,
 
                             gbrSaveError = gbrSaveError,
@@ -2429,7 +2435,7 @@ fun validateGbrForm(data: MobileBootstrapDto): GbrFormErrors {
 
         ) {
 
-            Text("Скинути зміну і почати заново")
+            Text("Видалити всі дані")
 
         }
 
@@ -5279,6 +5285,354 @@ private fun WeaponSwitchRow(
 
 
 
+private data class GbrAlarmReasonSummary(
+
+    val label: String,
+
+    val total: Int
+
+)
+
+
+
+private data class GbrAlarmSummary(
+
+    val totalAlarms: Int,
+
+    val falseTotal: Int,
+
+    val combatTotal: Int,
+
+    val additionalTotal: Int,
+
+    val additionalReasons: List<GbrAlarmReasonSummary>,
+
+    val detained: Int,
+
+    val transferred: Int
+
+)
+
+
+
+private fun buildGbrAlarmSummary(
+
+    trips: List<TripDraft>,
+
+    tripGoals: List<TripGoalDto>,
+
+    additionalAlarmReasons: List<AdditionalAlarmReasonDto>
+
+): GbrAlarmSummary {
+
+    var falseTotal = 0
+
+    var combatTotal = 0
+
+    var additionalTotal = 0
+
+    var detained = 0
+
+    var transferred = 0
+
+
+
+    val additionalReasonMap = linkedMapOf<String, Int>()
+
+
+
+    trips.forEach { trip ->
+
+        val goal = tripGoals.firstOrNull { it.id == trip.goalId }
+
+
+
+        if (isRegularAlarmGoal(goal)) {
+
+            if (trip.regularAlarmType.isCombat) {
+
+                combatTotal += 1
+
+            } else {
+
+                falseTotal += 1
+
+            }
+
+        }
+
+
+
+        if (isAdditionalAlarmGoal(goal)) {
+
+            val oh = trip.ohCount.toIntOrNull() ?: 0
+
+            val partner = trip.partnerCount.toIntOrNull() ?: 0
+
+            val total = oh + partner
+
+
+
+            if (total > 0) {
+
+                val reasonLabel = if (trip.additionalReasonId > 0) {
+
+                    findAdditionalReasonLabel(additionalAlarmReasons, trip.additionalReasonId)
+
+                } else {
+
+                    trip.customReasonText.trim().ifBlank { "Без причини" }
+
+                }
+
+
+
+                additionalTotal += total
+
+                additionalReasonMap[reasonLabel] = (additionalReasonMap[reasonLabel] ?: 0) + total
+
+            }
+
+        }
+
+
+
+        detained += trip.detainedCount.toIntOrNull() ?: 0
+
+        transferred += trip.transferredCount.toIntOrNull() ?: 0
+
+    }
+
+
+
+    return GbrAlarmSummary(
+
+        totalAlarms = falseTotal + combatTotal + additionalTotal,
+
+        falseTotal = falseTotal,
+
+        combatTotal = combatTotal,
+
+        additionalTotal = additionalTotal,
+
+        additionalReasons = additionalReasonMap
+
+            .map { (label, total) ->
+
+                GbrAlarmReasonSummary(
+
+                    label = label,
+
+                    total = total
+
+                )
+
+            }
+
+            .sortedBy { it.label.lowercase() },
+
+        detained = detained,
+
+        transferred = transferred
+
+    )
+
+}
+
+
+
+@Composable
+
+private fun GbrAlarmSummaryCascade(
+
+    summary: GbrAlarmSummary
+
+) {
+
+    Card(
+
+        modifier = Modifier.fillMaxWidth(),
+
+        shape = MaterialTheme.shapes.medium,
+
+        colors = CardDefaults.cardColors(
+
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+
+        ),
+
+        border = BorderStroke(
+
+            width = 1.dp,
+
+            color = MaterialTheme.colorScheme.outline
+
+        )
+
+    ) {
+
+        Column(
+
+            modifier = Modifier.padding(14.dp),
+
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+
+        ) {
+
+            Text(
+
+                text = "Спрацювання та результат",
+
+                style = MaterialTheme.typography.titleSmall,
+
+                fontWeight = FontWeight.SemiBold
+
+            )
+
+
+
+            CascadeText(
+
+                text = "Спрацювань: ${summary.totalAlarms}",
+
+                level = 0,
+
+                bold = true
+
+            )
+
+
+
+            CascadeText(
+
+                text = "− хибних: ${summary.falseTotal}",
+
+                level = 1
+
+            )
+
+
+
+            CascadeText(
+
+                text = "− бойових: ${summary.combatTotal}",
+
+                level = 1
+
+            )
+
+
+
+            CascadeText(
+
+                text = "− додатково: ${summary.additionalTotal}",
+
+                level = 1
+
+            )
+
+
+
+            if (summary.additionalReasons.isEmpty()) {
+
+                CascadeText(
+
+                    text = "Немає додаткових причин",
+
+                    level = 2,
+
+                    muted = true
+
+                )
+
+            } else {
+
+                summary.additionalReasons.forEach { reason ->
+
+                    CascadeText(
+
+                        text = "${reason.label}: ${reason.total}",
+
+                        level = 2
+
+                    )
+
+                }
+
+            }
+
+
+
+            CascadeText(
+
+                text = "Затримано: ${summary.detained}",
+
+                level = 0,
+
+                bold = true
+
+            )
+
+
+
+            CascadeText(
+
+                text = "− передано до поліції: ${summary.transferred}",
+
+                level = 1
+
+            )
+
+        }
+
+    }
+
+}
+
+
+
+@Composable
+
+private fun CascadeText(
+
+    text: String,
+
+    level: Int,
+
+    bold: Boolean = false,
+
+    muted: Boolean = false
+
+) {
+
+    Text(
+
+        text = text,
+
+        modifier = Modifier.padding(start = (level * 18).dp),
+
+        style = MaterialTheme.typography.bodyMedium,
+
+        fontWeight = if (bold) FontWeight.SemiBold else FontWeight.Normal,
+
+        color = if (muted) {
+
+            MaterialTheme.colorScheme.onSurfaceVariant
+
+        } else {
+
+            MaterialTheme.colorScheme.onSurface
+
+        }
+
+    )
+
+}
+
+
+
+
+
 @Composable
 
 private fun GbrSummaryCard(
@@ -5305,6 +5659,12 @@ private fun GbrSummaryCard(
 
     tripsCount: Int,
 
+    trips: List<TripDraft>,
+
+    tripGoals: List<TripGoalDto>,
+
+    additionalAlarmReasons: List<AdditionalAlarmReasonDto>,
+
     gbrSaveSuccess: String,
 
     gbrSaveError: String,
@@ -5330,6 +5690,18 @@ private fun GbrSummaryCard(
         odometerStart.isNotBlank() &&
 
         tripsCount > 0
+
+
+
+    val alarmSummary = buildGbrAlarmSummary(
+
+        trips = trips,
+
+        tripGoals = tripGoals,
+
+        additionalAlarmReasons = additionalAlarmReasons
+
+    )
 
 
 
@@ -5373,6 +5745,8 @@ private fun GbrSummaryCard(
 
         Text("Поїздок: $tripsCount")
 
+        GbrAlarmSummaryCascade(alarmSummary)
+
         Text("Зброя: водій ${if (driverHasWeapon) "так" else "ні"}, старший ${if (seniorHasWeapon) "так" else "ні"}")
 
 
@@ -5415,7 +5789,7 @@ private fun GbrSummaryCard(
 
         ) {
 
-            Text(if (saving) "Збереження..." else "Зберегти наряд ГШР")
+            Text(if (saving) "Збереження..." else "Відправити звіт")
 
         }
 
@@ -5577,7 +5951,7 @@ private fun PostSummaryCard(
 
         ) {
 
-            Text(if (saving) "Збереження..." else "Зберегти постове чергування")
+            Text(if (saving) "Збереження..." else "Відправити звіт")
 
         }
 
@@ -5617,7 +5991,7 @@ private fun ResetShiftDialog(
 
         title = {
 
-            Text("Скинути зміну?")
+            Text("Видалити дані?")
 
         },
 
@@ -5631,7 +6005,7 @@ private fun ResetShiftDialog(
 
             Button(onClick = onConfirm) {
 
-                Text("Скинути")
+                Text("Видалити")
 
             }
 

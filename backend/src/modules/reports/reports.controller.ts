@@ -2456,6 +2456,7 @@ export async function getEmployeesTableReport(req: Request, res: Response) {
       summary: {
         ...summary,
         totalShifts: roundNumber(summary.totalShifts),
+        postDutyRecordCount: postDuties.length,
         driverShifts: roundNumber(summary.driverShifts),
         seniorShifts: roundNumber(summary.seniorShifts),
         weaponShifts: roundNumber(summary.weaponShifts),

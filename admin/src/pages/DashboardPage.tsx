@@ -182,6 +182,14 @@ export function DashboardPage() {
   const postDutyEquivalent = employeeSummary?.postDutyShiftEquivalent ?? 0;
   const postDutyHours = employeeSummary?.postDutyHours ?? 0;
   const postDutyCount = employeeSummary?.postDutyCount ?? 0;
+  const postDutyRecordCount =
+    (
+      employeeSummary as
+        | {
+            postDutyRecordCount?: number;
+          }
+        | undefined
+    )?.postDutyRecordCount ?? 0;
   const totalShiftsWithPosts = machineShifts + postDutyEquivalent;
 
   const topEmployees = employeesReport?.data ?? [];
@@ -267,9 +275,13 @@ export function DashboardPage() {
         </div>
 
         <div className="stat-card">
-          <span>Постові чергування</span>
+          <span>Постових людино-змін</span>
           <strong>{formatNumber(postDutyCount)}</strong>
-          <small>{formatNumber(postDutyHours)} годин</small>
+          <small>
+            {formatNumber(postDutyRecordCount)} чергування ·{" "}
+            {formatNumber(postDutyCount)} співробітники ·{" "}
+            {formatNumber(postDutyHours)} год
+          </small>
         </div>
 
         <div className="stat-card">
@@ -381,7 +393,12 @@ export function DashboardPage() {
                 </div>
 
                 <div className="dashboard-metric">
-                  <span>Виходи</span>
+                  <span>Чергування</span>
+                  <strong>{formatNumber(postDutyRecordCount)}</strong>
+                </div>
+
+                <div className="dashboard-metric">
+                  <span>Людино-зміни</span>
                   <strong>{formatNumber(postDutyCount)}</strong>
                 </div>
               </div>

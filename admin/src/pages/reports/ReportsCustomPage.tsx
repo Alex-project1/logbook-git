@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { getAccessibleCities } from "../../api/cities.api";
 import type { City } from "../../api/cities.api";
 import { getTripGoals } from "../../api/trip-goals.api";
@@ -22,6 +22,7 @@ type CustomReportSectionId =
   | "compare"
   | "mainTable"
   | "compareTable"
+  | "dynamicsTable"
   | "charts";
 
 const metricOptions: {
@@ -147,6 +148,215 @@ function getMaxValue(values: number[]) {
   return Math.max(...values, 1);
 }
 
+
+type CustomReportTableColumn = CustomReportTable["columns"][number];
+type CustomReportTableRow = CustomReportTable["rows"][number];
+
+type DynamicComparisonRow = {
+  groupKey: string;
+  groupLabel: string;
+  metricKey: string;
+  metricLabel: string;
+  level: number;
+  main: number;
+  compare: number;
+  diff: number;
+  percent: number;
+};
+
+function getComparableColumns(table: CustomReportTable) {
+  return table.columns.filter((column) => column.key !== "total");
+}
+
+function getTableCellValue(row: CustomReportTableRow, columnKey: string) {
+  return columnKey === "total" ? row.total : row.groups[columnKey] ?? 0;
+}
+
+function getRowExtremes(
+  row: CustomReportTableRow,
+  columns: CustomReportTableColumn[],
+) {
+  const values = columns.map((column) => getTableCellValue(row, column.key));
+
+  if (values.length < 2) {
+    return null;
+  }
+
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+
+  if (max === min) {
+    return null;
+  }
+
+  return { max, min };
+}
+
+function getExtremeCellStyle(params: { isMax: boolean; isMin: boolean }): CSSProperties {
+  if (params.isMax) {
+    return {
+      background: "rgba(14, 116, 144, 0.12)",
+      boxShadow: "inset 0 0 0 1px rgba(14, 116, 144, 0.22)",
+      fontWeight: 700,
+    };
+  }
+
+  if (params.isMin) {
+    return {
+      background: "rgba(217, 119, 6, 0.11)",
+      boxShadow: "inset 0 0 0 1px rgba(217, 119, 6, 0.22)",
+      fontWeight: 700,
+    };
+  }
+
+  return {};
+}
+
+function getExtremeBadgeStyle(type: "max" | "min"): CSSProperties {
+  return {
+    display: "inline-flex",
+    alignItems: "center",
+    marginLeft: 6,
+    padding: "2px 6px",
+    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: 700,
+    background:
+      type === "max" ? "rgba(14, 116, 144, 0.14)" : "rgba(217, 119, 6, 0.14)",
+    color: type === "max" ? "#0e7490" : "#a16207",
+  };
+}
+
+function renderValueWithExtremeBadge(
+  value: number,
+  params: { isMax: boolean; isMin: boolean },
+) {
+  return (
+    <span>
+      {formatNumber(value)}
+      {params.isMax && <span style={getExtremeBadgeStyle("max")}>макс</span>}
+      {params.isMin && <span style={getExtremeBadgeStyle("min")}>мін</span>}
+    </span>
+  );
+}
+
+function calculatePercentChange(main: number, compare: number) {
+  if (compare === 0) {
+    return main === 0 ? 0 : 100;
+  }
+
+  return ((main - compare) / compare) * 100;
+}
+
+function formatSignedNumber(value: number) {
+  if (value > 0) {
+    return `+${formatNumber(value)}`;
+  }
+
+  return formatNumber(value);
+}
+
+function formatPercentChange(value: number) {
+  return `${value > 0 ? "+" : ""}${formatNumber(value)}%`;
+}
+
+function getChangeMeta(diff: number) {
+  if (diff > 0) {
+    const style: CSSProperties = {
+      background: "rgba(14, 116, 144, 0.12)",
+      border: "1px solid rgba(14, 116, 144, 0.24)",
+      color: "#0e7490",
+    };
+
+    return {
+      label: "зросло",
+      arrow: "↑",
+      style,
+    };
+  }
+
+  if (diff < 0) {
+    const style: CSSProperties = {
+      background: "rgba(217, 119, 6, 0.12)",
+      border: "1px solid rgba(217, 119, 6, 0.24)",
+      color: "#a16207",
+    };
+
+    return {
+      label: "впало",
+      arrow: "↓",
+      style,
+    };
+  }
+
+  const style: CSSProperties = {
+    background: "rgba(100, 116, 139, 0.10)",
+    border: "1px solid rgba(100, 116, 139, 0.20)",
+    color: "#475569",
+  };
+
+  return {
+    label: "без змін",
+    arrow: "→",
+    style,
+  };
+}
+
+function buildDynamicComparisonRows(
+  mainTable: CustomReportTable,
+  compareTable: CustomReportTable,
+): DynamicComparisonRow[] {
+  const compareRowsByKey = new Map(
+    compareTable.rows.map((row) => [row.key, row]),
+  );
+
+  return getComparableColumns(mainTable).flatMap((column) =>
+    mainTable.rows.map((row) => {
+      const compareRow = compareRowsByKey.get(row.key);
+      const main = getTableCellValue(row, column.key);
+      const compare = compareRow ? getTableCellValue(compareRow, column.key) : 0;
+      const diff = main - compare;
+
+      return {
+        groupKey: column.key,
+        groupLabel: column.label,
+        metricKey: row.key,
+        metricLabel: row.label,
+        level: row.level,
+        main,
+        compare,
+        diff,
+        percent: calculatePercentChange(main, compare),
+      };
+    }),
+  );
+}
+
+function groupDynamicRows(rows: DynamicComparisonRow[]) {
+  return rows.reduce<
+    {
+      groupKey: string;
+      groupLabel: string;
+      rows: DynamicComparisonRow[];
+    }[]
+  >((acc, row) => {
+    let group = acc.find((item) => item.groupKey === row.groupKey);
+
+    if (!group) {
+      group = {
+        groupKey: row.groupKey,
+        groupLabel: row.groupLabel,
+        rows: [],
+      };
+
+      acc.push(group);
+    }
+
+    group.rows.push(row);
+    return acc;
+  }, []);
+}
+
 function CustomReportTableView({
   title,
   table,
@@ -160,6 +370,8 @@ function CustomReportTableView({
   open: boolean;
   onToggle: () => void;
 }) {
+  const comparableColumns = getComparableColumns(table);
+
   return (
     <div className="panel-card custom-report-table-card">
       <AccordionSection
@@ -180,37 +392,221 @@ function CustomReportTableView({
             </thead>
 
             <tbody>
-              {table.rows.map((row) => (
-                <tr
-                  key={row.key}
-                  className={row.level > 0 ? "custom-report-subrow" : ""}
-                >
-                  <td className="custom-report-label-cell">
-                    <div
-                      className={`custom-report-label custom-report-label-level-${row.level}`}
-                    >
-                      {row.level > 0 && (
-                        <span className="custom-report-label-arrow">
-                          {row.level === 1 ? "↳" : "•"}
-                        </span>
-                      )}
-                      <span className="custom-report-label-text">
-                        {row.label}
-                      </span>
-                    </div>
-                  </td>
+              {table.rows.map((row) => {
+                const extremes = getRowExtremes(row, comparableColumns);
 
-                  {table.columns.map((column) => (
-                    <td key={column.key}>
-                      {formatNumber(
-                        column.key === "total"
-                          ? row.total
-                          : (row.groups[column.key] ?? 0),
-                      )}
+                return (
+                  <tr
+                    key={row.key}
+                    className={row.level > 0 ? "custom-report-subrow" : ""}
+                  >
+                    <td className="custom-report-label-cell">
+                      <div
+                        className={`custom-report-label custom-report-label-level-${row.level}`}
+                      >
+                        {row.level > 0 && (
+                          <span className="custom-report-label-arrow">
+                            {row.level === 1 ? "↳" : "•"}
+                          </span>
+                        )}
+                        <span className="custom-report-label-text">
+                          {row.label}
+                        </span>
+                      </div>
                     </td>
-                  ))}
+
+                    {table.columns.map((column) => {
+                      const value = getTableCellValue(row, column.key);
+                      const isComparableColumn = column.key !== "total";
+                      const isMax = Boolean(
+                        extremes && isComparableColumn && value === extremes.max,
+                      );
+                      const isMin = Boolean(
+                        extremes && isComparableColumn && value === extremes.min,
+                      );
+
+                      return (
+                        <td
+                          key={column.key}
+                          style={getExtremeCellStyle({ isMax, isMin })}
+                        >
+                          {renderValueWithExtremeBadge(value, { isMax, isMin })}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </AccordionSection>
+    </div>
+  );
+}
+
+function CustomReportDynamicsTable({
+  title,
+  mainTable,
+  compareTable,
+  periodLabel,
+  open,
+  onToggle,
+}: {
+  title: string;
+  mainTable: CustomReportTable;
+  compareTable: CustomReportTable;
+  periodLabel?: string;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const groups = groupDynamicRows(
+    buildDynamicComparisonRows(mainTable, compareTable),
+  );
+
+  return (
+    <div className="panel-card custom-report-table-card">
+      <AccordionSection
+        title={title}
+        subtitle={
+          periodLabel ||
+          "Порівняння основного періоду з періодом порівняння у значеннях і %"
+        }
+        open={open}
+        onToggle={onToggle}
+      >
+        <div className="table-wrap">
+          <table className="data-table custom-report-table custom-report-dynamics-table">
+            <thead>
+              <tr>
+                <th>Місто / група</th>
+                <th>Показник</th>
+                <th>Основний період</th>
+                <th>Порівняльний період</th>
+                <th>Різниця</th>
+                <th>Зміна</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {groups.length === 0 ? (
+                <tr>
+                  <td colSpan={6}>Немає даних для динаміки</td>
                 </tr>
-              ))}
+              ) : (
+                groups.map((group) => (
+                  <Fragment key={group.groupKey}>
+                    <tr>
+                      <td
+                        colSpan={6}
+                        style={{
+                          background:
+                            "linear-gradient(90deg, rgba(14, 116, 144, 0.18), rgba(14, 116, 144, 0.06))",
+                          borderTop: "3px solid rgba(14, 116, 144, 0.55)",
+                          borderBottom: "1px solid rgba(14, 116, 144, 0.24)",
+                          padding: "12px 14px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            gap: 12,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <strong
+                            style={{
+                              fontSize: 15,
+                              letterSpacing: 0.2,
+                            }}
+                          >
+                            {group.groupLabel}
+                          </strong>
+
+                          <span
+                            style={{
+                              padding: "4px 10px",
+                              borderRadius: 999,
+                              background: "rgba(255, 255, 255, 0.65)",
+                              color: "#0f766e",
+                              fontSize: 12,
+                              fontWeight: 700,
+                            }}
+                          >
+                            Показників: {group.rows.length}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {group.rows.map((row, index) => {
+                      const changeMeta = getChangeMeta(row.diff);
+
+                      return (
+                        <tr
+                          key={`${row.groupKey}_${row.metricKey}`}
+                          className={row.level > 0 ? "custom-report-subrow" : ""}
+                          style={{
+                            borderLeft: "3px solid rgba(14, 116, 144, 0.26)",
+                            background:
+                              index % 2 === 0
+                                ? "rgba(14, 116, 144, 0.025)"
+                                : undefined,
+                          }}
+                        >
+                          <td
+                            style={{
+                              color: "rgba(15, 23, 42, 0.55)",
+                              fontWeight: 600,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {index === 0 ? group.groupLabel : ""}
+                          </td>
+
+                          <td className="custom-report-label-cell">
+                            <div
+                              className={`custom-report-label custom-report-label-level-${row.level}`}
+                            >
+                              {row.level > 0 && (
+                                <span className="custom-report-label-arrow">
+                                  {row.level === 1 ? "↳" : "•"}
+                                </span>
+                              )}
+                              <span className="custom-report-label-text">
+                                {row.metricLabel}
+                              </span>
+                            </div>
+                          </td>
+
+                          <td>{formatNumber(row.main)}</td>
+                          <td>{formatNumber(row.compare)}</td>
+                          <td>{formatSignedNumber(row.diff)}</td>
+                          <td>
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 6,
+                                padding: "4px 8px",
+                                borderRadius: 999,
+                                fontWeight: 700,
+                                ...changeMeta.style,
+                              }}
+                            >
+                              <span>{changeMeta.arrow}</span>
+                              <span>{formatPercentChange(row.percent)}</span>
+                              <small>{changeMeta.label}</small>
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </Fragment>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -517,6 +913,7 @@ export function ReportsCustomPage() {
     compare: false,
     mainTable: true,
     compareTable: true,
+    dynamicsTable: true,
     charts: true,
   });
 
@@ -670,6 +1067,7 @@ export function ReportsCustomPage() {
         ...prev,
         mainTable: true,
         compareTable: Boolean(data.data.compare),
+        dynamicsTable: Boolean(data.data.compare),
         charts: true,
       }));
     } catch (err: any) {
@@ -1145,6 +1543,21 @@ export function ReportsCustomPage() {
               periodLabel={comparePeriodLabel}
               open={openedSections.compareTable}
               onToggle={() => toggleSection("compareTable")}
+            />
+          )}
+
+          {report.data.compare && (
+            <CustomReportDynamicsTable
+              title={
+                cityId && groupMode === "crew"
+                  ? "Динаміка по нарядах"
+                  : "Динаміка по містах"
+              }
+              mainTable={report.data.main.table}
+              compareTable={report.data.compare.table}
+              periodLabel="Порівняння основного періоду з періодом порівняння у значеннях і %"
+              open={openedSections.dynamicsTable}
+              onToggle={() => toggleSection("dynamicsTable")}
             />
           )}
 
