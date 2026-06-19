@@ -1,4 +1,4 @@
-﻿import { Request, Response } from "express";
+import { Request, Response } from "express";
 import { z } from "zod";
 import bcrypt from "bcrypt";
 import { CrewDutyType, CrewTransportType, DepartmentType, MobileUserKind } from "@prisma/client";
@@ -25,6 +25,9 @@ const createCrewSchema = z.object({
   dutyType: z.nativeEnum(CrewDutyType).optional(),
   transportType: z.nativeEnum(CrewTransportType).optional(),
   durationHours: z.number().positive().max(24).optional(),
+  telegramEnabled: z.boolean().optional(),
+  telegramChannelId: z.number().int().positive().optional().nullable(),
+  telegramChannelIds: z.array(z.number().int().positive()).optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -39,6 +42,9 @@ const updateCrewSchema = z.object({
   dutyType: z.nativeEnum(CrewDutyType).optional(),
   transportType: z.nativeEnum(CrewTransportType).optional(),
   durationHours: z.number().positive().max(24).optional(),
+  telegramEnabled: z.boolean().optional(),
+  telegramChannelId: z.number().int().positive().optional().nullable(),
+  telegramChannelIds: z.array(z.number().int().positive()).optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -47,6 +53,35 @@ function normalizeCrewDurationHours(dutyType: CrewDutyType, durationHours?: numb
   const value = Number(durationHours);
   if (!Number.isFinite(value) || value <= 0 || value > 24) throw new Error("Для дневного или ночного наряда укажите часы от 0 до 24");
   return Number(value.toFixed(2));
+}
+
+
+function normalizeTelegramChannelIds(data: {
+  telegramChannelId?: number | null;
+  telegramChannelIds?: number[];
+}) {
+  const ids = data.telegramChannelIds?.length
+    ? data.telegramChannelIds
+    : data.telegramChannelId
+      ? [data.telegramChannelId]
+      : [];
+
+  return Array.from(new Set(ids.filter((id) => Number.isInteger(id) && id > 0)));
+}
+
+async function validateTelegramChannels(channelIds: number[]) {
+  if (channelIds.length === 0) return true;
+
+  const count = await prisma.telegramChannel.count({
+    where: {
+      id: { in: channelIds },
+      deletedAt: null,
+      isActive: true,
+      bot: { deletedAt: null, isActive: true },
+    },
+  });
+
+  return count === channelIds.length;
 }
 
 function crewSelect() {
@@ -63,6 +98,14 @@ function crewSelect() {
     dutyType: true,
     transportType: true,
     durationHours: true,
+    telegramEnabled: true,
+    telegramChannelId: true,
+    telegramChannel: { select: { id: true, name: true, chatId: true, isActive: true } },
+    telegramChannels: {
+      include: {
+        channel: { select: { id: true, name: true, chatId: true, isActive: true } },
+      },
+    },
     city: { select: { id: true, name: true } },
     department: { select: { id: true, name: true, type: true } },
     mobileUsers: {
@@ -75,8 +118,18 @@ function crewSelect() {
 
 function sanitizeCrew(crew: any) {
   const mobileUser = crew.mobileUsers?.[0] ?? null;
-  const { mobileUsers, ...rest } = crew;
-  return { ...rest, mobileUser, login: mobileUser?.login ?? "" };
+  const telegramChannels = (crew.telegramChannels ?? [])
+    .map((link: any) => link.channel)
+    .filter(Boolean);
+  const { mobileUsers, telegramChannels: _telegramChannelLinks, ...rest } = crew;
+
+  return {
+    ...rest,
+    telegramChannels,
+    telegramChannelIds: telegramChannels.map((channel: any) => channel.id),
+    mobileUser,
+    login: mobileUser?.login ?? "",
+  };
 }
 
 export async function getCrews(req: Request, res: Response) {
@@ -153,6 +206,18 @@ export async function createCrew(req: Request, res: Response) {
     let durationHours = 24;
     try { durationHours = normalizeCrewDurationHours(dutyType, parsed.data.durationHours); } catch (error) { return res.status(400).json({ message: error instanceof Error ? error.message : "Некорректная длительность" }); }
 
+    const telegramChannelIds = parsed.data.telegramEnabled
+      ? normalizeTelegramChannelIds(parsed.data)
+      : [];
+
+    if (parsed.data.telegramEnabled && telegramChannelIds.length === 0) {
+      return res.status(400).json({ message: "Оберіть хоча б один Telegram-канал або вимкніть відправку" });
+    }
+
+    if (parsed.data.telegramEnabled && !(await validateTelegramChannels(telegramChannelIds))) {
+      return res.status(400).json({ message: "Оберіть активні Telegram-канали" });
+    }
+
     const passwordHash = await bcrypt.hash(parsed.data.password, 10);
 
     const crew = await prisma.$transaction(async (tx) => {
@@ -165,9 +230,21 @@ export async function createCrew(req: Request, res: Response) {
           dutyType,
           transportType,
           durationHours,
+          telegramEnabled: parsed.data.telegramEnabled ?? false,
+          telegramChannelId: telegramChannelIds[0] ?? null,
           isActive: parsed.data.isActive ?? true,
         },
       });
+
+      if (telegramChannelIds.length > 0) {
+        await tx.crewTelegramChannel.createMany({
+          data: telegramChannelIds.map((channelId) => ({
+            crewId: createdCrew.id,
+            channelId,
+          })),
+          skipDuplicates: true,
+        });
+      }
 
       await tx.mobileUser.create({
         data: {
@@ -207,6 +284,31 @@ export async function updateCrew(req: Request, res: Response) {
 
     const nextCityId = parsed.data.cityId ?? crew.cityId;
     const nextDepartmentId = parsed.data.departmentId ?? crew.departmentId;
+    const nextTelegramEnabled = parsed.data.telegramEnabled ?? crew.telegramEnabled;
+
+    const existingTelegramLinks = await prisma.crewTelegramChannel.findMany({
+      where: { crewId },
+      select: { channelId: true },
+    });
+
+    const nextTelegramChannelIds = nextTelegramEnabled
+      ? parsed.data.telegramChannelIds !== undefined || parsed.data.telegramChannelId !== undefined
+        ? normalizeTelegramChannelIds(parsed.data)
+        : existingTelegramLinks.length > 0
+          ? existingTelegramLinks.map((link) => link.channelId)
+          : crew.telegramChannelId
+            ? [crew.telegramChannelId]
+            : []
+      : [];
+
+    if (nextTelegramEnabled && nextTelegramChannelIds.length === 0) {
+      return res.status(400).json({ message: "Оберіть хоча б один Telegram-канал або вимкніть відправку" });
+    }
+
+    if (nextTelegramEnabled && !(await validateTelegramChannels(nextTelegramChannelIds))) {
+      return res.status(400).json({ message: "Оберіть активні Telegram-канали" });
+    }
+
     if (nextDepartmentId !== crew.departmentId && !(await canEditDepartmentData(req, nextDepartmentId))) return res.status(403).json({ message: "Недостатньо прав для нового підрозділу" });
 
     const department = await validateDepartmentInCity({ cityId: nextCityId, departmentId: nextDepartmentId, requiredType: DepartmentType.GBR });
@@ -243,12 +345,23 @@ export async function updateCrew(req: Request, res: Response) {
           departmentId: parsed.data.departmentId,
           name: parsed.data.name?.trim(),
           comment: parsed.data.comment === undefined ? undefined : parsed.data.comment?.trim() || null,
+          telegramEnabled: parsed.data.telegramEnabled,
+          telegramChannelId: nextTelegramEnabled ? nextTelegramChannelIds[0] ?? null : null,
           isActive: parsed.data.isActive,
           dutyType: nextDutyType,
           transportType: nextTransportType,
           durationHours: nextDurationHours,
         },
       });
+
+      await tx.crewTelegramChannel.deleteMany({ where: { crewId } });
+
+      if (nextTelegramChannelIds.length > 0) {
+        await tx.crewTelegramChannel.createMany({
+          data: nextTelegramChannelIds.map((channelId) => ({ crewId, channelId })),
+          skipDuplicates: true,
+        });
+      }
 
       if (mobileUser) {
         await tx.mobileUser.update({

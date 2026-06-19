@@ -93,6 +93,7 @@ export function AdminLayout() {
         id: "administration",
         label: "Адміністрування",
         items: [
+          ...(canWrite ? [{ to: "/telegram", label: "Telegram" }] : []),
           ...(isSuperAdmin
             ? [{ to: "/admin-users", label: "Адміністратори" }]
             : []),

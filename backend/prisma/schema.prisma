@@ -267,19 +267,24 @@ model Crew {
   comment       String?
   dutyType      CrewDutyType      @default(FULL_DAY)
   transportType CrewTransportType @default(AUTO)
-  durationHours Decimal           @default(24) @db.Decimal(5, 2)
-  isActive      Boolean           @default(true)
+  durationHours     Decimal @default(24) @db.Decimal(5, 2)
+  telegramEnabled Boolean @default(false)
+  telegramChannelId Int?
+  isActive          Boolean @default(true)
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
   deletedAt     DateTime?
 
   city       City       @relation(fields: [cityId], references: [id])
   department Department @relation(fields: [departmentId], references: [id])
+  telegramChannel TelegramChannel? @relation("CrewPrimaryTelegramChannel", fields: [telegramChannelId], references: [id])
+  telegramChannels CrewTelegramChannel[]
   shifts     Shift[]
   mobileUsers MobileUser[]
 
   @@index([cityId])
   @@index([departmentId])
+  @@index([telegramChannelId])
   @@map("crews")
 }
 
@@ -504,6 +509,90 @@ model TelegramSendLog {
   @@map("telegram_send_logs")
 }
 
+model TelegramBot {
+  id        Int       @id @default(autoincrement())
+  name      String    @db.VarChar(255)
+  token     String    @db.Text
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  channels TelegramChannel[]
+
+  @@index([deletedAt])
+  @@map("telegram_bots")
+}
+
+model TelegramChannel {
+  id        Int       @id @default(autoincrement())
+  botId     Int
+  name      String    @db.VarChar(255)
+  chatId    String    @db.VarChar(120)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  bot TelegramBot @relation(fields: [botId], references: [id])
+
+  primaryCrews     Crew[] @relation("CrewPrimaryTelegramChannel")
+  primaryDutyPosts DutyPost[] @relation("DutyPostPrimaryTelegramChannel")
+  crewLinks        CrewTelegramChannel[]
+  dutyPostLinks    DutyPostTelegramChannel[]
+  reportLogs       TelegramReportLog[]
+
+  @@index([botId])
+  @@index([deletedAt])
+  @@map("telegram_channels")
+}
+
+model CrewTelegramChannel {
+  id        Int      @id @default(autoincrement())
+  crewId    Int
+  channelId Int
+  createdAt DateTime @default(now())
+
+  crew    Crew            @relation(fields: [crewId], references: [id])
+  channel TelegramChannel @relation(fields: [channelId], references: [id])
+
+  @@unique([crewId, channelId])
+  @@index([channelId])
+  @@map("crew_telegram_channels")
+}
+
+model DutyPostTelegramChannel {
+  id         Int      @id @default(autoincrement())
+  dutyPostId Int
+  channelId  Int
+  createdAt  DateTime @default(now())
+
+  dutyPost DutyPost        @relation(fields: [dutyPostId], references: [id])
+  channel  TelegramChannel @relation(fields: [channelId], references: [id])
+
+  @@unique([dutyPostId, channelId])
+  @@index([channelId])
+  @@map("duty_post_telegram_channels")
+}
+
+model TelegramReportLog {
+  id             Int      @id @default(autoincrement())
+  reportType     String   @db.VarChar(40)
+  entityId       Int
+  channelId      Int?
+  telegramChatId String   @db.VarChar(120)
+  status         String   @db.VarChar(40)
+  messageId      String?  @db.VarChar(120)
+  errorMessage   String?  @db.Text
+  sentAt         DateTime @default(now())
+
+  channel TelegramChannel? @relation(fields: [channelId], references: [id])
+
+  @@index([reportType, entityId])
+  @@index([channelId])
+  @@map("telegram_report_logs")
+}
+
 model AuditLog {
   id         Int      @id @default(autoincrement())
   userId     Int?
@@ -567,18 +656,23 @@ model DutyPost {
 
   name      String    @db.VarChar(255)
   comment   String?   @db.VarChar(1000)
+  telegramEnabled Boolean @default(false)
+  telegramChannelId Int?
   isActive  Boolean   @default(true)
   deletedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  telegramChannel TelegramChannel? @relation("DutyPostPrimaryTelegramChannel", fields: [telegramChannelId], references: [id])
+  telegramChannels DutyPostTelegramChannel[]
   postDuties PostDuty[] @relation("DutyPostDuties")
   mobileUsers MobileUser[]
 
   @@unique([cityId, name])
   @@index([cityId])
   @@index([departmentId])
+  @@index([telegramChannelId])
   @@index([deletedAt])
   @@map("duty_posts")
 }

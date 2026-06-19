@@ -10,6 +10,7 @@ import { dedupeDepartments, formatDepartmentOption } from "../utils/department-o
 import { createDutyPost, deleteDutyPost, getDutyPosts, restoreDutyPost, updateDutyPost } from "../api/duty-posts.api";
 import type { DutyPost } from "../api/duty-posts.api";
 import { RowActionMenu } from "../components/RowActionMenu";
+import { getTelegramChannels, type TelegramChannel } from "../api/telegram.api";
 
 type FormState = {
   cityId: number;
@@ -21,6 +22,8 @@ type FormState = {
   newPassword: string;
   confirmNewPassword: string;
   comment: string;
+  telegramEnabled: boolean;
+  telegramChannelIds: number[];
   isActive: boolean;
 };
 
@@ -34,6 +37,8 @@ const initialForm: FormState = {
   newPassword: "",
   confirmNewPassword: "",
   comment: "",
+  telegramEnabled: false,
+  telegramChannelIds: [],
   isActive: true,
 };
 
@@ -46,6 +51,7 @@ export function DutyPostsPage() {
   const [cities, setCities] = useState<City[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [posts, setPosts] = useState<DutyPost[]>([]);
+  const [telegramChannels, setTelegramChannels] = useState<TelegramChannel[]>([]);
   const [selectedCityId, setSelectedCityId] = useState(0);
   const [selectedDepartmentId, setSelectedDepartmentId] = useState(0);
   const [showArchive, setShowArchive] = useState(false);
@@ -93,8 +99,12 @@ export function DutyPostsPage() {
         const firstCityId = citiesData[0]?.id ?? 0;
         const firstDepartmentId = departmentsData.find((department) => department.cityId === firstCityId)?.id ?? 0;
         setForm((prev) => ({ ...prev, cityId: prev.cityId || firstCityId, departmentId: prev.departmentId || firstDepartmentId }));
-        const postsData = await getDutyPosts({ includeInactive: true });
+        const [postsData, telegramChannelsData] = await Promise.all([
+          getDutyPosts({ includeInactive: true }),
+          getTelegramChannels({ activeOnly: true }),
+        ]);
         setPosts(postsData);
+        setTelegramChannels(telegramChannelsData);
       } catch (caught) {
         setError(getErrorMessage(caught, "Не вдалося завантажити пости"));
       } finally {
@@ -117,6 +127,19 @@ export function DutyPostsPage() {
     setForm((prev) => ({ ...prev, cityId, departmentId }));
   }
 
+  function toggleTelegramChannel(channelId: number) {
+    setForm((prev) => {
+      const selected = prev.telegramChannelIds.includes(channelId);
+
+      return {
+        ...prev,
+        telegramChannelIds: selected
+          ? prev.telegramChannelIds.filter((id) => id !== channelId)
+          : [...prev.telegramChannelIds, channelId],
+      };
+    });
+  }
+
   function startEdit(post: DutyPost) {
     setEditingPost(post);
     setForm({
@@ -129,6 +152,8 @@ export function DutyPostsPage() {
       newPassword: "",
       confirmNewPassword: "",
       comment: post.comment || "",
+      telegramEnabled: post.telegramEnabled ?? false,
+      telegramChannelIds: post.telegramChannelIds ?? post.telegramChannels?.map((channel) => channel.id) ?? (post.telegramChannelId ? [post.telegramChannelId] : []),
       isActive: post.isActive,
     });
     setError("");
@@ -141,6 +166,7 @@ export function DutyPostsPage() {
     if (!form.departmentId) return setError("Оберіть підрозділ");
     if (!form.name.trim()) return setError("Введіть назву поста");
     if (!form.login.trim()) return setError("Введіть логін застосунку");
+    if (form.telegramEnabled && form.telegramChannelIds.length === 0) return setError("Оберіть хоча б один Telegram-канал або вимкніть відправку");
 
     if (!editingPost) {
       if (!form.password) return setError("Введіть пароль");
@@ -163,6 +189,8 @@ export function DutyPostsPage() {
         name: form.name.trim(),
         login: form.login.trim(),
         comment: form.comment.trim() || null,
+        telegramEnabled: form.telegramEnabled,
+        telegramChannelIds: form.telegramEnabled ? form.telegramChannelIds : [],
         isActive: form.isActive,
       };
 
@@ -227,6 +255,70 @@ export function DutyPostsPage() {
 
   return (
     <div className="page-card">
+      <style>{`
+        .telegram-channel-field {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .telegram-channel-title {
+          font-weight: 600;
+        }
+
+        .telegram-channel-box {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          gap: 8px;
+          padding: 12px;
+          border: 1px solid var(--border-color, rgba(148, 163, 184, 0.45));
+          border-radius: 14px;
+          background: rgba(148, 163, 184, 0.08);
+        }
+
+        .telegram-channel-box.is-disabled {
+          opacity: 0.58;
+        }
+
+        .telegram-channel-option {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          padding: 10px;
+          border: 1px solid rgba(148, 163, 184, 0.35);
+          border-radius: 12px;
+          background: var(--card-bg, #ffffff);
+          cursor: pointer;
+          user-select: none;
+        }
+
+        .telegram-channel-option input {
+          margin-top: 3px;
+        }
+
+        .telegram-channel-option-text {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+
+        .telegram-channel-option-name {
+          font-weight: 600;
+        }
+
+        .telegram-channel-option-bot {
+          font-size: 12px;
+          opacity: 0.72;
+        }
+
+        .telegram-channel-empty {
+          padding: 10px;
+          border-radius: 12px;
+          background: rgba(245, 158, 11, 0.10);
+          color: #92400e;
+        }
+      `}</style>
+
       <div className="page-header"><div><h1>Додаткові пости</h1><p>Пост створюється разом із логіном застосунку та прив’язується до підрозділу.</p></div></div>
       {error && <div className="alert alert-error">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
@@ -240,6 +332,39 @@ export function DutyPostsPage() {
           {!editingPost && <><label>Пароль<input type="password" value={form.password} onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))} /></label><label>Підтвердити пароль<input type="password" value={form.confirmPassword} onChange={(event) => setForm((prev) => ({ ...prev, confirmPassword: event.target.value }))} /></label></>}
           {editingPost && <><div className="alert alert-info">Поточний пароль не зберігається у відкритому вигляді. Щоб змінити його, задайте новий пароль.</div><label>Новий пароль<input type="password" value={form.newPassword} onChange={(event) => setForm((prev) => ({ ...prev, newPassword: event.target.value }))} /></label><label>Підтвердити новий пароль<input type="password" value={form.confirmNewPassword} onChange={(event) => setForm((prev) => ({ ...prev, confirmNewPassword: event.target.value }))} /></label></>}
           <label>Коментар<input value={form.comment} onChange={(event) => setForm((prev) => ({ ...prev, comment: event.target.value }))} /></label>
+          <label className="checkbox-row"><input type="checkbox" checked={form.telegramEnabled} onChange={(event) => setForm((prev) => ({ ...prev, telegramEnabled: event.target.checked, telegramChannelIds: event.target.checked ? prev.telegramChannelIds : [] }))} />Відправляти звіт у Telegram</label>
+                    <div className="telegram-channel-field">
+            <span className="telegram-channel-title">Telegram-канали</span>
+            <div className={`telegram-channel-box ${!form.telegramEnabled ? "is-disabled" : ""}`}>
+              {telegramChannels.length === 0 ? (
+                <div className="telegram-channel-empty">
+                  Спочатку додайте активний Telegram-канал у розділі Telegram.
+                </div>
+              ) : (
+                telegramChannels.map((channel) => (
+                  <label className="telegram-channel-option" key={channel.id}>
+                    <input
+                      type="checkbox"
+                      disabled={!form.telegramEnabled}
+                      checked={form.telegramChannelIds.includes(channel.id)}
+                      onChange={() => toggleTelegramChannel(channel.id)}
+                    />
+                    <span className="telegram-channel-option-text">
+                      <span className="telegram-channel-option-name">
+                        {channel.name}
+                      </span>
+                      <span className="telegram-channel-option-bot">
+                        Бот: {channel.bot?.name || "бот"}
+                      </span>
+                    </span>
+                  </label>
+                ))
+              )}
+            </div>
+            <small>
+              Можна вибрати один або декілька каналів звичайними чекбоксами.
+            </small>
+          </div>
           <label className="checkbox-row"><input type="checkbox" checked={form.isActive} onChange={(event) => setForm((prev) => ({ ...prev, isActive: event.target.checked }))} />Активний</label>
           <div className="form-actions"><button type="submit" disabled={saving}>{saving ? "Збереження..." : editingPost ? "Оновити" : "Додати"}</button>{editingPost && <button type="button" className="secondary-button" onClick={resetForm}>Скасувати</button>}</div>
         </form>
@@ -251,7 +376,7 @@ export function DutyPostsPage() {
         <label>Стан<select value={showArchive ? "archive" : "active"} onChange={(event) => handleArchiveFilterChange(event.target.value)}><option value="active">Активні</option><option value="archive">Архів</option></select></label>
       </div>
 
-      {loading ? <p>Завантаження...</p> : <div className="table-wrapper"><table><thead><tr><th>Пост</th><th>Логін</th><th>Місто</th><th>Підрозділ</th><th>Коментар</th><th>Статус</th><th></th></tr></thead><tbody>{posts.map((post) => <tr key={post.id}><td>{post.name}</td><td>{post.login || post.mobileUser?.login || "—"}</td><td>{post.city?.name || post.cityId}</td><td>{post.department ? formatDepartmentOption(post.department, { showCity: !selectedCityId }) : post.departmentId}</td><td>{post.comment || "—"}</td><td>{post.deletedAt ? "Архів" : post.isActive ? "Активний" : "Вимкнений"}</td><td>{canEdit && <RowActionMenu items={showArchive ? [{ label: "Відновити", onClick: () => handleRestore(post), variant: "edit" }] : [{ label: "Редагувати", onClick: () => startEdit(post), variant: "edit" }, { label: "До архіву", onClick: () => handleArchive(post), variant: "danger" }]} />}</td></tr>)}{posts.length === 0 && <tr><td colSpan={7}>Немає постів</td></tr>}</tbody></table></div>}
+      {loading ? <p>Завантаження...</p> : <div className="table-wrapper"><table><thead><tr><th>Пост</th><th>Логін</th><th>Місто</th><th>Підрозділ</th><th>Коментар</th><th>Telegram</th><th>Статус</th><th></th></tr></thead><tbody>{posts.map((post) => <tr key={post.id}><td>{post.name}</td><td>{post.login || post.mobileUser?.login || "—"}</td><td>{post.city?.name || post.cityId}</td><td>{post.department ? formatDepartmentOption(post.department, { showCity: !selectedCityId }) : post.departmentId}</td><td>{post.comment || "—"}</td><td>{post.telegramEnabled ? (post.telegramChannels?.length ? post.telegramChannels.map((channel) => channel.name).join(", ") : post.telegramChannel?.name || "Увімкнено") : "Вимкнено"}</td><td>{post.deletedAt ? "Архів" : post.isActive ? "Активний" : "Вимкнений"}</td><td>{canEdit && <RowActionMenu items={showArchive ? [{ label: "Відновити", onClick: () => handleRestore(post), variant: "edit" }] : [{ label: "Редагувати", onClick: () => startEdit(post), variant: "edit" }, { label: "До архіву", onClick: () => handleArchive(post), variant: "danger" }]} />}</td></tr>)}{posts.length === 0 && <tr><td colSpan={8}>Немає постів</td></tr>}</tbody></table></div>}
     </div>
   );
 }

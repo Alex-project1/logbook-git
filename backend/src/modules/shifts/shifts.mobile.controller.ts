@@ -8,6 +8,7 @@ import {
   MobileUserKind,
 } from "@prisma/client";
 import { prisma } from "../../config/prisma";
+import { sendTelegramShiftReport } from "../telegram/telegram.service";
 
 const tripEventSchema = z.object({
   eventCategory: z.enum(["REGULAR_ALARM", "ADDITIONAL_ALARM"]),
@@ -464,6 +465,10 @@ export async function createMobileShift(req: Request, res: Response) {
       }
 
       return shift;
+    });
+
+    sendTelegramShiftReport(savedShift.id).catch((error) => {
+      console.error("sendTelegramShiftReport async error:", error);
     });
 
     return res.status(201).json({

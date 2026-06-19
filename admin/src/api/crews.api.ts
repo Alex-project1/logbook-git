@@ -17,6 +17,11 @@ export type Crew = {
   dutyType: CrewDutyType;
   transportType: CrewTransportType;
   durationHours: number;
+  telegramEnabled: boolean;
+  telegramChannelId?: number | null;
+  telegramChannelIds?: number[];
+  telegramChannel?: { id: number; name: string; chatId: string; isActive: boolean } | null;
+  telegramChannels?: { id: number; name: string; chatId: string; isActive: boolean }[];
   city?: { id: number; name: string };
   department?: { id: number; name: string; type: "GBR" | "POST" | "OTHER" };
   mobileUser?: { id: number; login: string; isActive: boolean; deletedAt?: string | null } | null;
@@ -51,6 +56,9 @@ export async function createCrew(data: {
   dutyType?: CrewDutyType;
   transportType?: CrewTransportType;
   durationHours?: number;
+  telegramEnabled?: boolean;
+  telegramChannelId?: number | null;
+  telegramChannelIds?: number[];
 }): Promise<Crew> {
   const response = await http.post<{ data: Crew }>("/api/admin/crews", data);
   return response.data.data;
@@ -70,6 +78,9 @@ export async function updateCrew(
     dutyType?: CrewDutyType;
     transportType?: CrewTransportType;
     durationHours?: number;
+    telegramEnabled?: boolean;
+    telegramChannelId?: number | null;
+    telegramChannelIds?: number[];
   },
 ): Promise<Crew> {
   const response = await http.put<{ data: Crew }>(`/api/admin/crews/${id}`, data);

@@ -10,6 +10,7 @@ import { dedupeDepartments, formatDepartmentOption } from "../utils/department-o
 import { createCrew, deleteCrew, getCrews, restoreCrew, updateCrew } from "../api/crews.api";
 import type { Crew, CrewDutyType, CrewTransportType } from "../api/crews.api";
 import { RowActionMenu } from "../components/RowActionMenu";
+import { getTelegramChannels, type TelegramChannel } from "../api/telegram.api";
 
 type FormState = {
   cityId: number;
@@ -24,6 +25,8 @@ type FormState = {
   dutyType: CrewDutyType;
   transportType: CrewTransportType;
   durationHours: string;
+  telegramEnabled: boolean;
+  telegramChannelIds: number[];
   isActive: boolean;
 };
 
@@ -40,6 +43,8 @@ const initialForm: FormState = {
   dutyType: "FULL_DAY",
   transportType: "AUTO",
   durationHours: "24",
+  telegramEnabled: false,
+  telegramChannelIds: [],
   isActive: true,
 };
 
@@ -55,6 +60,7 @@ export function CrewsPage() {
   const [cities, setCities] = useState<City[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [crews, setCrews] = useState<Crew[]>([]);
+  const [telegramChannels, setTelegramChannels] = useState<TelegramChannel[]>([]);
   const [selectedCityId, setSelectedCityId] = useState(0);
   const [selectedDepartmentId, setSelectedDepartmentId] = useState(0);
   const [showArchive, setShowArchive] = useState(false);
@@ -102,8 +108,12 @@ export function CrewsPage() {
         const firstCityId = citiesData[0]?.id ?? 0;
         const firstDepartmentId = departmentsData.find((department) => department.cityId === firstCityId && department.type === "GBR")?.id ?? 0;
         setForm((prev) => ({ ...prev, cityId: prev.cityId || firstCityId, departmentId: prev.departmentId || firstDepartmentId }));
-        const crewsData = await getCrews({ includeInactive: true });
+        const [crewsData, telegramChannelsData] = await Promise.all([
+          getCrews({ includeInactive: true }),
+          getTelegramChannels({ activeOnly: true }),
+        ]);
         setCrews(crewsData);
+        setTelegramChannels(telegramChannelsData);
       } catch (caught) {
         setError(getErrorMessage(caught, "Не вдалося завантажити наряди"));
       } finally {
@@ -134,6 +144,19 @@ export function CrewsPage() {
     }));
   }
 
+  function toggleTelegramChannel(channelId: number) {
+    setForm((prev) => {
+      const selected = prev.telegramChannelIds.includes(channelId);
+
+      return {
+        ...prev,
+        telegramChannelIds: selected
+          ? prev.telegramChannelIds.filter((id) => id !== channelId)
+          : [...prev.telegramChannelIds, channelId],
+      };
+    });
+  }
+
   function startEdit(crew: Crew) {
     setEditingCrew(crew);
     setForm({
@@ -149,6 +172,8 @@ export function CrewsPage() {
       dutyType: crew.dutyType,
       transportType: crew.transportType,
       durationHours: String(crew.durationHours ?? 24),
+      telegramEnabled: crew.telegramEnabled ?? false,
+      telegramChannelIds: crew.telegramChannelIds ?? crew.telegramChannels?.map((channel) => channel.id) ?? (crew.telegramChannelId ? [crew.telegramChannelId] : []),
       isActive: crew.isActive,
     });
     setError("");
@@ -161,6 +186,7 @@ export function CrewsPage() {
     if (!form.departmentId) return setError("Оберіть підрозділ ГШР");
     if (!form.name.trim()) return setError("Введіть позивний наряду");
     if (!form.login.trim()) return setError("Введіть логін застосунку");
+    if (form.telegramEnabled && form.telegramChannelIds.length === 0) return setError("Оберіть хоча б один Telegram-канал або вимкніть відправку");
 
     const durationHours = form.dutyType === "FULL_DAY" ? 24 : Number(form.durationHours);
     if (!Number.isFinite(durationHours) || durationHours <= 0 || durationHours > 24) return setError("Вкажіть тривалість від 0 до 24 годин");
@@ -189,6 +215,8 @@ export function CrewsPage() {
         dutyType: form.dutyType,
         transportType: form.transportType,
         durationHours,
+        telegramEnabled: form.telegramEnabled,
+        telegramChannelIds: form.telegramEnabled ? form.telegramChannelIds : [],
         isActive: form.isActive,
       };
 
@@ -254,6 +282,70 @@ export function CrewsPage() {
 
   return (
     <div className="page-card">
+      <style>{`
+        .telegram-channel-field {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .telegram-channel-title {
+          font-weight: 600;
+        }
+
+        .telegram-channel-box {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          gap: 8px;
+          padding: 12px;
+          border: 1px solid var(--border-color, rgba(148, 163, 184, 0.45));
+          border-radius: 14px;
+          background: rgba(148, 163, 184, 0.08);
+        }
+
+        .telegram-channel-box.is-disabled {
+          opacity: 0.58;
+        }
+
+        .telegram-channel-option {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          padding: 10px;
+          border: 1px solid rgba(148, 163, 184, 0.35);
+          border-radius: 12px;
+          background: var(--card-bg, #ffffff);
+          cursor: pointer;
+          user-select: none;
+        }
+
+        .telegram-channel-option input {
+          margin-top: 3px;
+        }
+
+        .telegram-channel-option-text {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+
+        .telegram-channel-option-name {
+          font-weight: 600;
+        }
+
+        .telegram-channel-option-bot {
+          font-size: 12px;
+          opacity: 0.72;
+        }
+
+        .telegram-channel-empty {
+          padding: 10px;
+          border-radius: 12px;
+          background: rgba(245, 158, 11, 0.10);
+          color: #92400e;
+        }
+      `}</style>
+
       <div className="page-header"><div><h1>Наряди ГШР</h1><p>Наряд створюється разом із логіном застосунку та прив’язується до підрозділу ГШР.</p></div></div>
       {error && <div className="alert alert-error">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
@@ -270,6 +362,39 @@ export function CrewsPage() {
           <label>Транспорт<select value={form.transportType} onChange={(event) => setForm((prev) => ({ ...prev, transportType: event.target.value as CrewTransportType }))}><option value="AUTO">Авто</option><option value="MOTO">Мото</option></select></label>
           <label>Тривалість, годин<input disabled={form.dutyType === "FULL_DAY"} value={form.durationHours} onChange={(event) => setForm((prev) => ({ ...prev, durationHours: event.target.value.replace(/[^0-9.,]/g, "").replace(",", ".") }))} /></label>
           <label>Коментар<input value={form.comment} onChange={(event) => setForm((prev) => ({ ...prev, comment: event.target.value }))} /></label>
+          <label className="checkbox-row"><input type="checkbox" checked={form.telegramEnabled} onChange={(event) => setForm((prev) => ({ ...prev, telegramEnabled: event.target.checked, telegramChannelIds: event.target.checked ? prev.telegramChannelIds : [] }))} />Відправляти звіт у Telegram</label>
+                    <div className="telegram-channel-field">
+            <span className="telegram-channel-title">Telegram-канали</span>
+            <div className={`telegram-channel-box ${!form.telegramEnabled ? "is-disabled" : ""}`}>
+              {telegramChannels.length === 0 ? (
+                <div className="telegram-channel-empty">
+                  Спочатку додайте активний Telegram-канал у розділі Telegram.
+                </div>
+              ) : (
+                telegramChannels.map((channel) => (
+                  <label className="telegram-channel-option" key={channel.id}>
+                    <input
+                      type="checkbox"
+                      disabled={!form.telegramEnabled}
+                      checked={form.telegramChannelIds.includes(channel.id)}
+                      onChange={() => toggleTelegramChannel(channel.id)}
+                    />
+                    <span className="telegram-channel-option-text">
+                      <span className="telegram-channel-option-name">
+                        {channel.name}
+                      </span>
+                      <span className="telegram-channel-option-bot">
+                        Бот: {channel.bot?.name || "бот"}
+                      </span>
+                    </span>
+                  </label>
+                ))
+              )}
+            </div>
+            <small>
+              Можна вибрати один або декілька каналів звичайними чекбоксами.
+            </small>
+          </div>
           <label className="checkbox-row"><input type="checkbox" checked={form.isActive} onChange={(event) => setForm((prev) => ({ ...prev, isActive: event.target.checked }))} />Активний</label>
           <div className="form-actions"><button type="submit" disabled={saving}>{saving ? "Збереження..." : editingCrew ? "Оновити" : "Додати"}</button>{editingCrew && <button type="button" className="secondary-button" onClick={resetForm}>Скасувати</button>}</div>
         </form>
@@ -281,7 +406,7 @@ export function CrewsPage() {
         <label>Стан<select value={showArchive ? "archive" : "active"} onChange={(event) => handleArchiveFilterChange(event.target.value)}><option value="active">Активні</option><option value="archive">Архів</option></select></label>
       </div>
 
-      {loading ? <p>Завантаження...</p> : <div className="table-wrapper"><table><thead><tr><th>Позивний</th><th>Логін</th><th>Місто</th><th>Підрозділ</th><th>Тип</th><th>Транспорт</th><th>Години</th><th>Статус</th><th></th></tr></thead><tbody>{crews.map((crew) => <tr key={crew.id}><td>{crew.name}</td><td>{crew.login || crew.mobileUser?.login || "—"}</td><td>{crew.city?.name || crew.cityId}</td><td>{crew.department ? formatDepartmentOption(crew.department, { showCity: !selectedCityId, showType: false }) : crew.departmentId}</td><td>{dutyTypeLabels[crew.dutyType]}</td><td>{transportTypeLabels[crew.transportType]}</td><td>{crew.durationHours}</td><td>{crew.deletedAt ? "Архів" : crew.isActive ? "Активний" : "Вимкнений"}</td><td>{canEdit && <RowActionMenu items={showArchive ? [{ label: "Відновити", onClick: () => handleRestore(crew), variant: "edit" }] : [{ label: "Редагувати", onClick: () => startEdit(crew), variant: "edit" }, { label: "До архіву", onClick: () => handleArchive(crew), variant: "danger" }]} />}</td></tr>)}{crews.length === 0 && <tr><td colSpan={9}>Немає нарядів</td></tr>}</tbody></table></div>}
+      {loading ? <p>Завантаження...</p> : <div className="table-wrapper"><table><thead><tr><th>Позивний</th><th>Логін</th><th>Місто</th><th>Підрозділ</th><th>Тип</th><th>Транспорт</th><th>Години</th><th>Telegram</th><th>Статус</th><th></th></tr></thead><tbody>{crews.map((crew) => <tr key={crew.id}><td>{crew.name}</td><td>{crew.login || crew.mobileUser?.login || "—"}</td><td>{crew.city?.name || crew.cityId}</td><td>{crew.department ? formatDepartmentOption(crew.department, { showCity: !selectedCityId, showType: false }) : crew.departmentId}</td><td>{dutyTypeLabels[crew.dutyType]}</td><td>{transportTypeLabels[crew.transportType]}</td><td>{crew.durationHours}</td><td>{crew.telegramEnabled ? (crew.telegramChannels?.length ? crew.telegramChannels.map((channel) => channel.name).join(", ") : crew.telegramChannel?.name || "Увімкнено") : "Вимкнено"}</td><td>{crew.deletedAt ? "Архів" : crew.isActive ? "Активний" : "Вимкнений"}</td><td>{canEdit && <RowActionMenu items={showArchive ? [{ label: "Відновити", onClick: () => handleRestore(crew), variant: "edit" }] : [{ label: "Редагувати", onClick: () => startEdit(crew), variant: "edit" }, { label: "До архіву", onClick: () => handleArchive(crew), variant: "danger" }]} />}</td></tr>)}{crews.length === 0 && <tr><td colSpan={10}>Немає нарядів</td></tr>}</tbody></table></div>}
     </div>
   );
 }

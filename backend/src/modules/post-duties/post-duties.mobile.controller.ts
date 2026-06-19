@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { z } from "zod";
 import { MobileUserKind } from "@prisma/client";
 import { prisma } from "../../config/prisma";
+import { sendTelegramPostDutyReport } from "../telegram/telegram.service";
 
 const mobilePostDutyMemberSchema = z.object({
   employeeId: z.number().int().positive(),
@@ -215,6 +216,10 @@ export async function createMobilePostDuty(req: Request, res: Response) {
           },
         },
       },
+    });
+
+    sendTelegramPostDutyReport(duty.id).catch((error) => {
+      console.error("sendTelegramPostDutyReport async error:", error);
     });
 
     return res.status(201).json({

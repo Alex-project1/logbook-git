@@ -1,4 +1,4 @@
-﻿import type { Request, Response } from "express";
+import type { Request, Response } from "express";
 import { z } from "zod";
 import bcrypt from "bcrypt";
 import { MobileUserKind } from "@prisma/client";
@@ -21,6 +21,9 @@ const createDutyPostSchema = z.object({
   password: z.string().min(6, "Пароль должен быть минимум 6 символов"),
   confirmPassword: z.string().min(1),
   comment: z.string().optional().nullable(),
+  telegramEnabled: z.boolean().optional(),
+  telegramChannelId: z.number().int().positive().optional().nullable(),
+  telegramChannelIds: z.array(z.number().int().positive()).optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -32,8 +35,40 @@ const updateDutyPostSchema = z.object({
   newPassword: z.string().optional(),
   confirmNewPassword: z.string().optional(),
   comment: z.string().optional().nullable(),
+  telegramEnabled: z.boolean().optional(),
+  telegramChannelId: z.number().int().positive().optional().nullable(),
+  telegramChannelIds: z.array(z.number().int().positive()).optional(),
   isActive: z.boolean().optional(),
 });
+
+
+function normalizeTelegramChannelIds(data: {
+  telegramChannelId?: number | null;
+  telegramChannelIds?: number[];
+}) {
+  const ids = data.telegramChannelIds?.length
+    ? data.telegramChannelIds
+    : data.telegramChannelId
+      ? [data.telegramChannelId]
+      : [];
+
+  return Array.from(new Set(ids.filter((id) => Number.isInteger(id) && id > 0)));
+}
+
+async function validateTelegramChannels(channelIds: number[]) {
+  if (channelIds.length === 0) return true;
+
+  const count = await prisma.telegramChannel.count({
+    where: {
+      id: { in: channelIds },
+      deletedAt: null,
+      isActive: true,
+      bot: { deletedAt: null, isActive: true },
+    },
+  });
+
+  return count === channelIds.length;
+}
 
 function postSelect() {
   return {
@@ -46,6 +81,14 @@ function postSelect() {
     deletedAt: true,
     createdAt: true,
     updatedAt: true,
+    telegramEnabled: true,
+    telegramChannelId: true,
+    telegramChannel: { select: { id: true, name: true, chatId: true, isActive: true } },
+    telegramChannels: {
+      include: {
+        channel: { select: { id: true, name: true, chatId: true, isActive: true } },
+      },
+    },
     city: { select: { id: true, name: true } },
     department: { select: { id: true, name: true, type: true } },
     mobileUsers: {
@@ -58,8 +101,18 @@ function postSelect() {
 
 function sanitizePost(post: any) {
   const mobileUser = post.mobileUsers?.[0] ?? null;
-  const { mobileUsers, ...rest } = post;
-  return { ...rest, mobileUser, login: mobileUser?.login ?? "" };
+  const telegramChannels = (post.telegramChannels ?? [])
+    .map((link: any) => link.channel)
+    .filter(Boolean);
+  const { mobileUsers, telegramChannels: _telegramChannelLinks, ...rest } = post;
+
+  return {
+    ...rest,
+    telegramChannels,
+    telegramChannelIds: telegramChannels.map((channel: any) => channel.id),
+    mobileUser,
+    login: mobileUser?.login ?? "",
+  };
 }
 
 export async function getDutyPosts(req: Request, res: Response) {
@@ -131,6 +184,18 @@ export async function createDutyPost(req: Request, res: Response) {
     const existingLogin = await prisma.mobileUser.findUnique({ where: { login: parsed.data.login.trim() } });
     if (existingLogin) return res.status(409).json({ message: "Такой логин уже используется" });
 
+    const telegramChannelIds = parsed.data.telegramEnabled
+      ? normalizeTelegramChannelIds(parsed.data)
+      : [];
+
+    if (parsed.data.telegramEnabled && telegramChannelIds.length === 0) {
+      return res.status(400).json({ message: "Оберіть хоча б один Telegram-канал або вимкніть відправку" });
+    }
+
+    if (parsed.data.telegramEnabled && !(await validateTelegramChannels(telegramChannelIds))) {
+      return res.status(400).json({ message: "Оберіть активні Telegram-канали" });
+    }
+
     const passwordHash = await bcrypt.hash(parsed.data.password, 10);
 
     const post = await prisma.$transaction(async (tx) => {
@@ -140,9 +205,21 @@ export async function createDutyPost(req: Request, res: Response) {
           departmentId: parsed.data.departmentId,
           name: parsed.data.name.trim(),
           comment: parsed.data.comment?.trim() || null,
+          telegramEnabled: parsed.data.telegramEnabled ?? false,
+          telegramChannelId: telegramChannelIds[0] ?? null,
           isActive: parsed.data.isActive ?? true,
         },
       });
+
+      if (telegramChannelIds.length > 0) {
+        await tx.dutyPostTelegramChannel.createMany({
+          data: telegramChannelIds.map((channelId) => ({
+            dutyPostId: createdPost.id,
+            channelId,
+          })),
+          skipDuplicates: true,
+        });
+      }
 
       await tx.mobileUser.create({
         data: {
@@ -191,6 +268,31 @@ export async function updateDutyPost(req: Request, res: Response) {
 
     const nextCityId = parsed.data.cityId ?? post.cityId;
     const nextDepartmentId = parsed.data.departmentId ?? post.departmentId;
+    const nextTelegramEnabled = parsed.data.telegramEnabled ?? post.telegramEnabled;
+
+    const existingTelegramLinks = await prisma.dutyPostTelegramChannel.findMany({
+      where: { dutyPostId: postId },
+      select: { channelId: true },
+    });
+
+    const nextTelegramChannelIds = nextTelegramEnabled
+      ? parsed.data.telegramChannelIds !== undefined || parsed.data.telegramChannelId !== undefined
+        ? normalizeTelegramChannelIds(parsed.data)
+        : existingTelegramLinks.length > 0
+          ? existingTelegramLinks.map((link) => link.channelId)
+          : post.telegramChannelId
+            ? [post.telegramChannelId]
+            : []
+      : [];
+
+    if (nextTelegramEnabled && nextTelegramChannelIds.length === 0) {
+      return res.status(400).json({ message: "Оберіть хоча б один Telegram-канал або вимкніть відправку" });
+    }
+
+    if (nextTelegramEnabled && !(await validateTelegramChannels(nextTelegramChannelIds))) {
+      return res.status(400).json({ message: "Оберіть активні Telegram-канали" });
+    }
+
     if (nextDepartmentId !== post.departmentId && !(await canEditDepartmentData(req, nextDepartmentId))) return res.status(403).json({ message: "Недостатньо прав для нового підрозділу" });
 
     const department = await validateDepartmentInCity({ cityId: nextCityId, departmentId: nextDepartmentId });
@@ -222,9 +324,20 @@ export async function updateDutyPost(req: Request, res: Response) {
           departmentId: parsed.data.departmentId,
           name: parsed.data.name?.trim(),
           comment: parsed.data.comment === undefined ? undefined : parsed.data.comment?.trim() || null,
+          telegramEnabled: parsed.data.telegramEnabled,
+          telegramChannelId: nextTelegramEnabled ? nextTelegramChannelIds[0] ?? null : null,
           isActive: parsed.data.isActive,
         },
       });
+
+      await tx.dutyPostTelegramChannel.deleteMany({ where: { dutyPostId: postId } });
+
+      if (nextTelegramChannelIds.length > 0) {
+        await tx.dutyPostTelegramChannel.createMany({
+          data: nextTelegramChannelIds.map((channelId) => ({ dutyPostId: postId, channelId })),
+          skipDuplicates: true,
+        });
+      }
 
       if (mobileUser) {
         await tx.mobileUser.update({

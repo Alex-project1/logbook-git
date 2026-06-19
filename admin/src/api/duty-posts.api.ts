@@ -11,6 +11,11 @@ export type DutyPost = {
   deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+  telegramEnabled: boolean;
+  telegramChannelId?: number | null;
+  telegramChannelIds?: number[];
+  telegramChannel?: { id: number; name: string; chatId: string; isActive: boolean } | null;
+  telegramChannels?: { id: number; name: string; chatId: string; isActive: boolean }[];
   city?: { id: number; name: string };
   department?: { id: number; name: string; type: "GBR" | "POST" | "OTHER" };
   mobileUser?: { id: number; login: string; isActive: boolean; deletedAt?: string | null } | null;
@@ -42,6 +47,9 @@ export async function createDutyPost(data: {
   confirmPassword: string;
   comment?: string | null;
   isActive?: boolean;
+  telegramEnabled?: boolean;
+  telegramChannelId?: number | null;
+  telegramChannelIds?: number[];
 }): Promise<DutyPost> {
   const response = await http.post<{ data: DutyPost }>("/api/admin/duty-posts", data);
   return response.data.data;
@@ -58,6 +66,9 @@ export async function updateDutyPost(
     confirmNewPassword?: string;
     comment?: string | null;
     isActive?: boolean;
+    telegramEnabled?: boolean;
+    telegramChannelId?: number | null;
+    telegramChannelIds?: number[];
   },
 ): Promise<DutyPost> {
   const response = await http.put<{ data: DutyPost }>(`/api/admin/duty-posts/${id}`, data);

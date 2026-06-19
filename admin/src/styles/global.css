@@ -4099,3 +4099,132 @@ text-align: left;
     grid-template-columns: 1fr;
   }
 }
+/* Telegram channel checkbox picker */
+
+.telegram-channel-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  grid-column: 1 / -1;
+}
+
+.telegram-channel-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-color, #1f2937);
+}
+
+.telegram-channel-box {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+
+  padding: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 16px;
+
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(248, 250, 252, 0.9)),
+    rgba(248, 250, 252, 0.9);
+
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.telegram-channel-box.is-disabled {
+  opacity: 0.55;
+  filter: grayscale(0.25);
+}
+
+.telegram-channel-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+
+  min-height: 58px;
+  padding: 11px 12px;
+
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  border-radius: 14px;
+
+  background: #ffffff;
+  cursor: pointer;
+  user-select: none;
+
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.telegram-channel-option:hover {
+  border-color: rgba(37, 99, 235, 0.45);
+  background: rgba(239, 246, 255, 0.75);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
+}
+
+.telegram-channel-option:has(input:checked) {
+  border-color: rgba(37, 99, 235, 0.7);
+  background: rgba(219, 234, 254, 0.85);
+  box-shadow:
+    0 0 0 1px rgba(37, 99, 235, 0.18),
+    0 8px 18px rgba(37, 99, 235, 0.12);
+}
+
+.telegram-channel-option:has(input:disabled) {
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.telegram-channel-option input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
+.telegram-channel-option input:disabled {
+  cursor: not-allowed;
+}
+
+.telegram-channel-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.telegram-channel-option-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.25;
+}
+
+.telegram-channel-option-bot {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.25;
+}
+
+.telegram-channel-empty {
+  grid-column: 1 / -1;
+
+  padding: 12px 14px;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 14px;
+
+  background: rgba(245, 158, 11, 0.1);
+  color: #92400e;
+
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.telegram-channel-field small {
+  color: #64748b;
+  font-size: 12px;
+}
