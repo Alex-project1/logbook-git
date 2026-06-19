@@ -17,6 +17,15 @@ type CustomReportMetric =
 
 type CustomReportGroupMode = "city" | "crew";
 
+type AlarmBreakdown = {
+  oh: number;
+  partner: number;
+};
+
+type AdditionalReasonBreakdown = AlarmBreakdown & {
+  total: number;
+};
+
 type ReportTotals = {
   totalShifts: number;
   totalTrips: number;
@@ -29,13 +38,26 @@ type ReportTotals = {
   totalPartner: number;
 
   falseTotal: number;
+  falseOh: number;
+  falsePartner: number;
+
   combatTotal: number;
+  combatOh: number;
+  combatPartner: number;
 
   additionalTotal: number;
+  additionalOh: number;
+  additionalPartner: number;
   additionalByReason: Record<string, number>;
+  additionalByReasonBreakdown: Record<string, AdditionalReasonBreakdown>;
 
   detained: number;
+  detainedOh: number;
+  detainedPartner: number;
+
   transferred: number;
+  transferredOh: number;
+  transferredPartner: number;
 };
 
 const allowedMetrics: CustomReportMetric[] = [
@@ -148,13 +170,26 @@ function createEmptyTotals(): ReportTotals {
     totalPartner: 0,
 
     falseTotal: 0,
+    falseOh: 0,
+    falsePartner: 0,
+
     combatTotal: 0,
+    combatOh: 0,
+    combatPartner: 0,
 
     additionalTotal: 0,
+    additionalOh: 0,
+    additionalPartner: 0,
     additionalByReason: {},
+    additionalByReasonBreakdown: {},
 
     detained: 0,
+    detainedOh: 0,
+    detainedPartner: 0,
+
     transferred: 0,
+    transferredOh: 0,
+    transferredPartner: 0,
   };
 }
 
@@ -176,6 +211,99 @@ function addToReasonMap(
   map[reasonName] = (map[reasonName] ?? 0) + value;
 }
 
+function addToReasonBreakdownMap(
+  map: Record<string, AdditionalReasonBreakdown>,
+  reasonName: string,
+  breakdown: AlarmBreakdown,
+) {
+  const current = map[reasonName] ?? {
+    total: 0,
+    oh: 0,
+    partner: 0,
+  };
+
+  current.oh += breakdown.oh;
+  current.partner += breakdown.partner;
+  current.total = current.oh + current.partner;
+
+  map[reasonName] = current;
+}
+
+function splitByAlarmSource(params: {
+  count: number;
+  alarmSource?: string | null;
+  oh?: number;
+  partner?: number;
+}): AlarmBreakdown {
+  const count = toNumber(params.count);
+
+  if (count <= 0) {
+    return { oh: 0, partner: 0 };
+  }
+
+  if (params.alarmSource === "OH") {
+    return { oh: count, partner: 0 };
+  }
+
+  if (params.alarmSource === "PARTNER") {
+    return { oh: 0, partner: count };
+  }
+
+  const oh = toNumber(params.oh);
+  const partner = toNumber(params.partner);
+  const total = oh + partner;
+
+  if (total <= 0) {
+    return { oh: 0, partner: 0 };
+  }
+
+  if (oh > 0 && partner <= 0) {
+    return { oh: count, partner: 0 };
+  }
+
+  if (partner > 0 && oh <= 0) {
+    return { oh: 0, partner: count };
+  }
+
+  const ohShare = roundNumber((count * oh) / total);
+
+  return {
+    oh: ohShare,
+    partner: roundNumber(count - ohShare),
+  };
+}
+
+function addBreakdownToDetainedAndTransferred(params: {
+  totals: ReportTotals;
+  detained: number;
+  transferred: number;
+  alarmSource?: string | null;
+  oh?: number;
+  partner?: number;
+}) {
+  const detainedBreakdown = splitByAlarmSource({
+    count: params.detained,
+    alarmSource: params.alarmSource,
+    oh: params.oh,
+    partner: params.partner,
+  });
+
+  const transferredBreakdown = splitByAlarmSource({
+    count: params.transferred,
+    alarmSource: params.alarmSource,
+    oh: params.oh,
+    partner: params.partner,
+  });
+
+  params.totals.detained += toNumber(params.detained);
+  params.totals.detainedOh += detainedBreakdown.oh;
+  params.totals.detainedPartner += detainedBreakdown.partner;
+
+  params.totals.transferred += toNumber(params.transferred);
+  params.totals.transferredOh += transferredBreakdown.oh;
+  params.totals.transferredPartner += transferredBreakdown.partner;
+}
+
 function addShiftToTotals(totals: ReportTotals, shift: any) {
   totals.totalShifts += getShiftEquivalent(shift);
 
@@ -187,8 +315,8 @@ function addShiftToTotals(totals: ReportTotals, shift: any) {
     totals.tripGoalCounts[goalKey] = (totals.tripGoalCounts[goalKey] ?? 0) + 1;
 
     for (const event of trip.events ?? []) {
-      totals.detained += event.detainedCount ?? 0;
-      totals.transferred += event.transferredCount ?? 0;
+      const detained = event.detainedCount ?? 0;
+      const transferred = event.transferredCount ?? 0;
 
       if (event.eventCategory === "REGULAR_ALARM") {
         totals.totalAlarms += 1;
@@ -203,9 +331,32 @@ function addShiftToTotals(totals: ReportTotals, shift: any) {
 
         if (event.isCombat) {
           totals.combatTotal += 1;
+
+          if (event.alarmSource === "OH") {
+            totals.combatOh += 1;
+          }
+
+          if (event.alarmSource === "PARTNER") {
+            totals.combatPartner += 1;
+          }
         } else {
           totals.falseTotal += 1;
+
+          if (event.alarmSource === "OH") {
+            totals.falseOh += 1;
+          }
+
+          if (event.alarmSource === "PARTNER") {
+            totals.falsePartner += 1;
+          }
         }
+
+        addBreakdownToDetainedAndTransferred({
+          totals,
+          detained,
+          transferred,
+          alarmSource: event.alarmSource,
+        });
       }
 
       if (event.eventCategory === "ADDITIONAL_ALARM") {
@@ -216,25 +367,66 @@ function addShiftToTotals(totals: ReportTotals, shift: any) {
         totals.totalAlarms += total;
         totals.totalOh += oh;
         totals.totalPartner += partner;
+
         totals.additionalTotal += total;
+        totals.additionalOh += oh;
+        totals.additionalPartner += partner;
 
         const reasonName =
           event.reason?.name ?? event.customReasonText ?? "Без причини";
 
         addToReasonMap(totals.additionalByReason, reasonName, total);
+        addToReasonBreakdownMap(totals.additionalByReasonBreakdown, reasonName, {
+          oh,
+          partner,
+        });
+
+        addBreakdownToDetainedAndTransferred({
+          totals,
+          detained,
+          transferred,
+          oh,
+          partner,
+        });
       }
     }
   }
 }
+function roundBreakdown(value: AlarmBreakdown): AlarmBreakdown {
+  return {
+    oh: roundNumber(value.oh),
+    partner: roundNumber(value.partner),
+  };
+}
+
 function finalizeTotals(totals: ReportTotals): ReportTotals {
   return {
     ...totals,
     totalShifts: roundNumber(totals.totalShifts),
     totalDistanceKm: roundNumber(totals.totalDistanceKm),
+    falseOh: roundNumber(totals.falseOh),
+    falsePartner: roundNumber(totals.falsePartner),
+    combatOh: roundNumber(totals.combatOh),
+    combatPartner: roundNumber(totals.combatPartner),
+    additionalOh: roundNumber(totals.additionalOh),
+    additionalPartner: roundNumber(totals.additionalPartner),
+    detainedOh: roundNumber(totals.detainedOh),
+    detainedPartner: roundNumber(totals.detainedPartner),
+    transferredOh: roundNumber(totals.transferredOh),
+    transferredPartner: roundNumber(totals.transferredPartner),
     additionalByReason: Object.fromEntries(
       Object.entries(totals.additionalByReason).map(([key, value]) => [
         key,
         roundNumber(value),
+      ]),
+    ),
+    additionalByReasonBreakdown: Object.fromEntries(
+      Object.entries(totals.additionalByReasonBreakdown).map(([key, value]) => [
+        key,
+        {
+          total: roundNumber(value.total),
+          ...roundBreakdown(value),
+        },
       ]),
     ),
   };
@@ -271,6 +463,61 @@ function getTableRowValue(totals: ReportTotals, row: CustomTableRowDefinition) {
   }
 
   return 0;
+}
+
+function getTableRowBreakdown(
+  totals: ReportTotals,
+  row: CustomTableRowDefinition,
+): AlarmBreakdown | null {
+  if (row.kind === "additionalReason" && row.reasonName) {
+    const breakdown = totals.additionalByReasonBreakdown[row.reasonName];
+
+    return breakdown ? roundBreakdown(breakdown) : null;
+  }
+
+  if (row.kind === "transferred") {
+    return {
+      oh: roundNumber(totals.transferredOh),
+      partner: roundNumber(totals.transferredPartner),
+    };
+  }
+
+  if (row.metric === "totalAlarms") {
+    return {
+      oh: roundNumber(totals.totalOh),
+      partner: roundNumber(totals.totalPartner),
+    };
+  }
+
+  if (row.metric === "falseTotal") {
+    return {
+      oh: roundNumber(totals.falseOh),
+      partner: roundNumber(totals.falsePartner),
+    };
+  }
+
+  if (row.metric === "combatTotal") {
+    return {
+      oh: roundNumber(totals.combatOh),
+      partner: roundNumber(totals.combatPartner),
+    };
+  }
+
+  if (row.metric === "additionalTotal") {
+    return {
+      oh: roundNumber(totals.additionalOh),
+      partner: roundNumber(totals.additionalPartner),
+    };
+  }
+
+  if (row.metric === "detained") {
+    return {
+      oh: roundNumber(totals.detainedOh),
+      partner: roundNumber(totals.detainedPartner),
+    };
+  }
+
+  return null;
 }
 
 function collectAdditionalReasonNames(params: {
@@ -321,7 +568,7 @@ function buildTableRowDefinitions(params: {
     alarmGroupAdded = true;
 
     rows.push({
-      key: "alarmsGroup",
+      key: "totalAlarms",
       label: "Спрацювання",
       level: 0,
       metric: "totalAlarms",
@@ -628,18 +875,31 @@ function buildTable(params: {
         label: group.name,
       })),
     ],
-    rows: params.rowDefinitions.map((row) => ({
-      key: row.key,
-      label: row.label,
-      level: row.level,
-      total: getTableRowValue(params.totals, row),
-      groups: Object.fromEntries(
-        params.groups.map((group) => [
-          String(group.id),
-          getTableRowValue(group.totals, row),
-        ]),
-      ),
-    })),
+    rows: params.rowDefinitions.map((row) => {
+      const breakdowns = Object.fromEntries(
+        [
+          ["total", getTableRowBreakdown(params.totals, row)] as const,
+          ...params.groups.map((group) => [
+            String(group.id),
+            getTableRowBreakdown(group.totals, row),
+          ] as const),
+        ].filter(([, breakdown]) => breakdown !== null),
+      );
+
+      return {
+        key: row.key,
+        label: row.label,
+        level: row.level,
+        total: getTableRowValue(params.totals, row),
+        groups: Object.fromEntries(
+          params.groups.map((group) => [
+            String(group.id),
+            getTableRowValue(group.totals, row),
+          ]),
+        ),
+        breakdowns,
+      };
+    }),
   };
 }
 

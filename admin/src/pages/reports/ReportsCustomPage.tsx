@@ -216,7 +216,9 @@ function getExtremeBadgeStyle(type: "max" | "min"): CSSProperties {
   return {
     display: "inline-flex",
     alignItems: "center",
-    marginLeft: 6,
+    justifyContent: "center",
+    alignSelf: "center",
+    marginTop: 4,
     padding: "2px 6px",
     borderRadius: 999,
     fontSize: 11,
@@ -227,13 +229,221 @@ function getExtremeBadgeStyle(type: "max" | "min"): CSSProperties {
   };
 }
 
-function renderValueWithExtremeBadge(
-  value: number,
-  params: { isMax: boolean; isMin: boolean },
-) {
+type AlarmBreakdown = {
+  oh: number;
+  partner: number;
+};
+
+const breakdownMetricKeys = new Set([
+  "totalAlarms",
+  "falseTotal",
+  "combatTotal",
+  "additionalTotal",
+  "detained",
+  "transferred",
+]);
+
+function normalizeReportKey(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function isAdditionalReasonRow(row: CustomReportTableRow) {
+  const key = normalizeReportKey(String(row.key));
   return (
-    <span>
-      {formatNumber(value)}
+    row.level >= 2 ||
+    key.startsWith("additionalreason") ||
+    key.startsWith("additional_reason") ||
+    key.startsWith("additionalReason") ||
+    key.startsWith("additional_alarm_reason")
+  );
+}
+
+function shouldShowBreakdown(row: CustomReportTableRow) {
+  return breakdownMetricKeys.has(String(row.key)) || isAdditionalReasonRow(row);
+}
+
+function toOptionalNumber(value: unknown) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function getNestedBreakdownValue(source: unknown, columnKey: string): AlarmBreakdown | null {
+  if (!source || typeof source !== "object") {
+    return null;
+  }
+
+  const value = source as Record<string, any>;
+
+  const directCandidates = [
+    value[columnKey],
+    value.groups?.[columnKey],
+    value.groupBreakdowns?.[columnKey],
+    value.breakdowns?.[columnKey],
+    value.breakdown?.[columnKey],
+  ];
+
+  for (const candidate of directCandidates) {
+    if (!candidate || typeof candidate !== "object") {
+      continue;
+    }
+
+    const oh = toOptionalNumber(candidate.oh ?? candidate.totalOh ?? candidate.ohCount);
+    const partner = toOptionalNumber(
+      candidate.partner ?? candidate.totalPartner ?? candidate.partnerCount,
+    );
+
+    if (oh !== null || partner !== null) {
+      return {
+        oh: oh ?? 0,
+        partner: partner ?? 0,
+      };
+    }
+  }
+
+  const directOh =
+    columnKey === "total"
+      ? toOptionalNumber(value.oh ?? value.totalOh ?? value.ohCount)
+      : toOptionalNumber(
+          value[`${columnKey}Oh`] ??
+            value[`${columnKey}_oh`] ??
+            value[`${columnKey}TotalOh`],
+        );
+
+  const directPartner =
+    columnKey === "total"
+      ? toOptionalNumber(value.partner ?? value.totalPartner ?? value.partnerCount)
+      : toOptionalNumber(
+          value[`${columnKey}Partner`] ??
+            value[`${columnKey}_partner`] ??
+            value[`${columnKey}TotalPartner`],
+        );
+
+  if (directOh !== null || directPartner !== null) {
+    return {
+      oh: directOh ?? 0,
+      partner: directPartner ?? 0,
+    };
+  }
+
+  return null;
+}
+
+function findSiblingRowValue(
+  table: CustomReportTable,
+  rowKey: string,
+  columnKey: string,
+) {
+  const sibling = table.rows.find((row) => row.key === rowKey);
+
+  if (!sibling) {
+    return null;
+  }
+
+  return getTableCellValue(sibling, columnKey);
+}
+
+function getSyntheticBreakdownFromRows(
+  row: CustomReportTableRow,
+  columnKey: string,
+  table: CustomReportTable,
+): AlarmBreakdown | null {
+  const key = String(row.key);
+
+  const keyPairs: Record<string, [string, string]> = {
+    totalAlarms: ["totalOh", "totalPartner"],
+    falseTotal: ["falseOh", "falsePartner"],
+    combatTotal: ["combatOh", "combatPartner"],
+    additionalTotal: ["additionalOh", "additionalPartner"],
+    detained: ["detainedOh", "detainedPartner"],
+    transferred: ["transferredOh", "transferredPartner"],
+  };
+
+  const pair = keyPairs[key];
+
+  if (!pair) {
+    return null;
+  }
+
+  const oh = findSiblingRowValue(table, pair[0], columnKey);
+  const partner = findSiblingRowValue(table, pair[1], columnKey);
+
+  if (oh === null && partner === null) {
+    return null;
+  }
+
+  return {
+    oh: oh ?? 0,
+    partner: partner ?? 0,
+  };
+}
+
+function getCellBreakdown(params: {
+  row: CustomReportTableRow;
+  columnKey: string;
+  table: CustomReportTable;
+}) {
+  if (!shouldShowBreakdown(params.row)) {
+    return null;
+  }
+
+  return (
+    getNestedBreakdownValue(params.row, params.columnKey) ??
+    getSyntheticBreakdownFromRows(params.row, params.columnKey, params.table)
+  );
+}
+
+function formatBreakdownLabel(breakdown: AlarmBreakdown | null) {
+  if (!breakdown) {
+    return null;
+  }
+
+  return `(${formatNumber(breakdown.oh)}/${formatNumber(breakdown.partner)})`;
+}
+
+function renderValueWithExtremeBadge(params: {
+  value: number;
+  row: CustomReportTableRow;
+  columnKey: string;
+  table: CustomReportTable;
+  isMax: boolean;
+  isMin: boolean;
+}) {
+  const breakdown = getCellBreakdown({
+    row: params.row,
+    columnKey: params.columnKey,
+    table: params.table,
+  });
+
+  const breakdownLabel = formatBreakdownLabel(breakdown);
+
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: 46,
+        width: "100%",
+        lineHeight: 1.2,
+        textAlign: "center",
+      }}
+    >
+      <span style={{ fontWeight: 700 }}>{formatNumber(params.value)}</span>
+
+      {breakdownLabel && (
+        <span
+          style={{
+            marginTop: 2,
+            color: "rgba(71, 85, 105, 0.68)",
+            fontSize: 12,
+            fontWeight: 600,
+          }}
+        >
+          {breakdownLabel}
+        </span>
+      )}
+
       {params.isMax && <span style={getExtremeBadgeStyle("max")}>макс</span>}
       {params.isMin && <span style={getExtremeBadgeStyle("min")}>мін</span>}
     </span>
@@ -428,9 +638,20 @@ function CustomReportTableView({
                       return (
                         <td
                           key={column.key}
-                          style={getExtremeCellStyle({ isMax, isMin })}
+                          style={{
+                            ...getExtremeCellStyle({ isMax, isMin }),
+                            textAlign: "center",
+                            verticalAlign: "middle",
+                          }}
                         >
-                          {renderValueWithExtremeBadge(value, { isMax, isMin })}
+                          {renderValueWithExtremeBadge({
+                            value,
+                            row,
+                            columnKey: column.key,
+                            table,
+                            isMax,
+                            isMin,
+                          })}
                         </td>
                       );
                     })}

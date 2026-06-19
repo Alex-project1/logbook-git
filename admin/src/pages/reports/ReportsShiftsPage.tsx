@@ -43,9 +43,9 @@ function formatTime(value: string | null) {
   return new Date(value).toLocaleTimeString("uk-UA", {
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "UTC",
   });
 }
-
 function formatNumber(value: number) {
   return value.toLocaleString("uk-UA");
 }

@@ -476,6 +476,8 @@ fun NewShiftScreen(
 
     var resetDialogOpen by remember { mutableStateOf(false) }
 
+    var sendConfirmDialogKind by remember { mutableStateOf<ShiftKind?>(null) }
+
 
 
     val scrollState = rememberScrollState()
@@ -2334,11 +2336,7 @@ fun validateGbrForm(data: MobileBootstrapDto): GbrFormErrors {
 
                             onSave = {
 
-                                scope.launch {
-
-                                    saveGbrShift()
-
-                                }
+                                sendConfirmDialogKind = ShiftKind.GBR
 
                             }
 
@@ -2380,11 +2378,7 @@ fun validateGbrForm(data: MobileBootstrapDto): GbrFormErrors {
 
                             onSave = {
 
-                                scope.launch {
-
-                                    savePostDuty()
-
-                                }
+                                sendConfirmDialogKind = ShiftKind.POST
 
                             }
 
@@ -2469,6 +2463,42 @@ fun validateGbrForm(data: MobileBootstrapDto): GbrFormErrors {
             onDismiss = {
 
                 resetDialogOpen = false
+
+            }
+
+        )
+
+    }
+
+
+
+    sendConfirmDialogKind?.let { confirmKind ->
+
+        SendReportConfirmDialog(
+
+            kind = confirmKind,
+
+            onConfirm = {
+
+                sendConfirmDialogKind = null
+
+                scope.launch {
+
+                    when (confirmKind) {
+
+                        ShiftKind.GBR -> saveGbrShift()
+
+                        ShiftKind.POST -> savePostDuty()
+
+                    }
+
+                }
+
+            },
+
+            onDismiss = {
+
+                sendConfirmDialogKind = null
 
             }
 
@@ -5943,6 +5973,102 @@ private fun PostSummaryCard(
     }
 
 }
+
+
+
+@Composable
+
+private fun SendReportConfirmDialog(
+
+    kind: ShiftKind,
+
+    onConfirm: () -> Unit,
+
+    onDismiss: () -> Unit
+
+) {
+
+    val reportName = when (kind) {
+
+        ShiftKind.GBR -> "звіт наряду ГШР"
+
+        ShiftKind.POST -> "звіт постового чергування"
+
+    }
+
+
+
+    val description = when (kind) {
+
+        ShiftKind.GBR -> "Перевірте дані наряду, поїздки, пробіг і спрацювання. Після відправлення звіт буде передано на сервер. Якщо для наряду увімкнено Telegram, звіт також буде надіслано у вибрані канали."
+
+        ShiftKind.POST -> "Перевірте дані поста, дату, тривалість, автомобіль і співробітників. Після відправлення звіт буде передано на сервер. Якщо для поста увімкнено Telegram, звіт також буде надіслано у вибрані канали."
+
+    }
+
+
+
+    AlertDialog(
+
+        onDismissRequest = onDismiss,
+
+        title = {
+
+            Text("Відправити звіт?")
+
+        },
+
+        text = {
+
+            Column(
+
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+
+            ) {
+
+                Text("Ви збираєтесь відправити $reportName.")
+
+                Text(description)
+
+                Text(
+
+                    text = "Якщо зараз немає інтернету, звіт буде збережено в чергу та відправлено пізніше.",
+
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+
+                    style = MaterialTheme.typography.bodySmall
+
+                )
+
+            }
+
+        },
+
+        confirmButton = {
+
+            Button(onClick = onConfirm) {
+
+                Text("Відправити")
+
+            }
+
+        },
+
+        dismissButton = {
+
+            TextButton(onClick = onDismiss) {
+
+                Text("Скасувати")
+
+            }
+
+        }
+
+    )
+
+}
+
+
 
 
 

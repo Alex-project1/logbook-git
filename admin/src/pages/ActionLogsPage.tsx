@@ -35,13 +35,16 @@ const entityTypeLabels: Record<string, string> = {
   POST_DUTY: "Чергування на посту",
 };
 
-function formatDateTime(value: string) {
+function formatDateTime(value: string | null) {
+  if (!value) return "—";
+
   return new Date(value).toLocaleString("uk-UA", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "UTC",
   });
 }
 

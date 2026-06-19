@@ -34,10 +34,13 @@ function formatDate(value: string) {
   return new Date(value).toLocaleDateString("uk-UA");
 }
 
-function formatTime(value: string) {
+function formatTime(value: string | null) {
+  if (!value) return "—";
+
   return new Date(value).toLocaleTimeString("uk-UA", {
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "UTC",
   });
 }
 
