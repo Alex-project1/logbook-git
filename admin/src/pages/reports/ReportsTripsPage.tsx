@@ -253,6 +253,28 @@ export function ReportsTripsPage() {
 
   return (
     <div className="page">
+      <style>{`
+        .trips-table tbody tr.trip-row-with-events > td {
+          background: rgba(245, 158, 11, 0.08);
+          border-top: 1px solid rgba(245, 158, 11, 0.18);
+          border-bottom: 1px solid rgba(245, 158, 11, 0.18);
+        }
+
+        .trips-table tbody tr.trip-row-with-events:hover > td {
+          background: rgba(245, 158, 11, 0.13);
+        }
+
+        .trips-table tbody tr.trip-row-with-events > td:first-child {
+          border-left: 3px solid rgba(245, 158, 11, 0.75);
+        }
+
+        .row-toggle-placeholder {
+          display: inline-block;
+          width: 28px;
+          height: 28px;
+        }
+      `}</style>
+
       <div className="page-header">
         <div>
           <h1>Усі поїздки</h1>
@@ -553,18 +575,27 @@ export function ReportsTripsPage() {
 
                 <tbody>
                   {rows.map((row) => {
-                    const expanded = expandedRows[row.id];
+                    const hasAlarmEvents = row.events.length > 0;
+                    const expanded = hasAlarmEvents && expandedRows[row.id];
 
                     return (
                       <>
-                        <tr key={row.id}>
+                        <tr
+                          key={row.id}
+                          className={hasAlarmEvents ? "trip-row-with-events" : undefined}
+                        >
                           <td>
-                            <button
-                              className="row-toggle-button"
-                              onClick={() => toggleRow(row.id)}
-                            >
-                              {expanded ? "−" : "+"}
-                            </button>
+                            {hasAlarmEvents ? (
+                              <button
+                                className="row-toggle-button"
+                                onClick={() => toggleRow(row.id)}
+                                title={expanded ? "Згорнути спрацювання" : "Показати спрацювання"}
+                              >
+                                {expanded ? "−" : "+"}
+                              </button>
+                            ) : (
+                              <span className="row-toggle-placeholder" />
+                            )}
                           </td>
                           <td>{formatDate(row.shiftDate)}</td>
                           <td>{row.city.name}</td>

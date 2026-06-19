@@ -37,12 +37,16 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.google.gson.Gson
+import com.oh.routemaster.data.local.MobileBootstrapStore
+import com.oh.routemaster.data.local.PendingSubmissionStore
 import com.oh.routemaster.data.local.TokenStore
 import com.oh.routemaster.data.remote.ApiClient
 import com.oh.routemaster.data.remote.BootstrapMobileUserDto
 import com.oh.routemaster.data.remote.MobileBootstrapDto
 import com.oh.routemaster.data.remote.MobileLoginRequest
 import com.oh.routemaster.services.PendingSubmissionWorkScheduler
+import com.oh.routemaster.services.syncPendingSubmissions
 import com.oh.routemaster.services.registerFcmToken
 import com.oh.routemaster.ui.screens.HistoryScreen
 import com.oh.routemaster.ui.screens.HomeScreen
@@ -72,6 +76,9 @@ fun RouteMasterApp() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val tokenStore = remember { TokenStore(context.applicationContext) }
+    val bootstrapStore = remember { MobileBootstrapStore(context.applicationContext) }
+    val pendingStore = remember { PendingSubmissionStore(context.applicationContext) }
+    val gson = remember { Gson() }
     val settings = remember {
         context.applicationContext.getSharedPreferences(
             SETTINGS_NAME,
@@ -99,6 +106,22 @@ fun RouteMasterApp() {
         var status by remember { mutableStateOf("") }
         var error by remember { mutableStateOf("") }
 
+        fun applyBootstrapContext(data: MobileBootstrapDto) {
+            mobileUser = data.mobileUser
+            canUseObjects = data.permissions?.canUseObjects
+                ?: (data.mobileUser?.userKind == "CREW" && data.mobileUser?.department?.type == "GBR")
+            unreadCount = data.notifications?.unreadCount ?: unreadCount
+        }
+
+        suspend fun loadCachedBootstrapContext(): Boolean {
+            val cachedBootstrap = withContext(Dispatchers.IO) {
+                bootstrapStore.getBootstrap(gson)
+            } ?: return false
+
+            applyBootstrapContext(cachedBootstrap)
+            return true
+        }
+
         suspend fun refreshBootstrapContext(token: String): MobileBootstrapDto? {
             return try {
                 val data = withContext(Dispatchers.IO) {
@@ -107,14 +130,20 @@ fun RouteMasterApp() {
                     )
                 }
 
-                mobileUser = data.mobileUser
-                canUseObjects = data.permissions?.canUseObjects
-                    ?: (data.mobileUser?.userKind == "CREW" && data.mobileUser?.department?.type == "GBR")
+                withContext(Dispatchers.IO) {
+                    bootstrapStore.saveBootstrap(data, gson)
+                }
+
+                applyBootstrapContext(data)
                 unreadCount = data.notifications?.unreadCount ?: loadUnreadCount(token)
                 data
             } catch (exception: Exception) {
                 exception.printStackTrace()
-                canUseObjects = false
+
+                if (mobileUser == null) {
+                    loadCachedBootstrapContext()
+                }
+
                 null
             }
         }
@@ -126,9 +155,14 @@ fun RouteMasterApp() {
                 PendingSubmissionWorkScheduler.schedulePeriodic(context.applicationContext)
                 PendingSubmissionWorkScheduler.enqueueNow(context.applicationContext)
 
-                val data = refreshBootstrapContext(savedToken.orEmpty())
-                if (data == null) {
-                    unreadCount = loadUnreadCount(savedToken.orEmpty())
+                val hasCachedBootstrap = loadCachedBootstrapContext()
+
+                if (!hasCachedBootstrap) {
+                    val data = refreshBootstrapContext(savedToken.orEmpty())
+
+                    if (data == null) {
+                        unreadCount = loadUnreadCount(savedToken.orEmpty())
+                    }
                 }
             }
         }
@@ -211,13 +245,6 @@ fun RouteMasterApp() {
                             canUseObjects = canUseObjects,
                             onSelectScreen = { screen ->
                                 currentScreen = screen
-
-                                scope.launch {
-                                    val data = refreshBootstrapContext(savedToken.orEmpty())
-                                    if (data == null) {
-                                        unreadCount = loadUnreadCount(savedToken.orEmpty())
-                                    }
-                                }
                             }
                         )
                     }
@@ -243,6 +270,7 @@ fun RouteMasterApp() {
                                     onLogout = {
                                         scope.launch {
                                             tokenStore.clear()
+                                            bootstrapStore.clear()
                                             savedToken = null
                                             currentScreen = AppScreen.HOME
                                             mobileUser = null
@@ -252,6 +280,7 @@ fun RouteMasterApp() {
                                             unreadCount = 0
                                         }
                                     },
+                                    refreshing = loading,
                                     onRegisterFcm = {
                                         registerFcmToken(
                                             accessToken = savedToken.orEmpty(),
@@ -259,11 +288,34 @@ fun RouteMasterApp() {
                                             onError = { error = it }
                                         )
                                     },
-                                    onRefreshUnread = {
+                                    onRefreshData = {
                                         scope.launch {
-                                            val data = refreshBootstrapContext(savedToken.orEmpty())
-                                            if (data == null) {
-                                                unreadCount = loadUnreadCount(savedToken.orEmpty())
+                                            loading = true
+                                            status = "Оновлюємо дані..."
+
+                                            try {
+                                                val data = refreshBootstrapContext(savedToken.orEmpty())
+
+                                                val syncResult = withContext(Dispatchers.IO) {
+                                                    syncPendingSubmissions(
+                                                        accessToken = savedToken.orEmpty(),
+                                                        store = pendingStore,
+                                                        gson = gson
+                                                    )
+                                                }
+
+                                                status = when {
+                                                    data == null -> "Не вдалося оновити дані. Перевірте інтернет."
+                                                    syncResult.sent > 0 && syncResult.remaining == 0 ->
+                                                        "Дані оновлено. Чергу відправлено: ${syncResult.sent}"
+                                                    syncResult.sent > 0 ->
+                                                        "Дані оновлено. Відправлено з черги: ${syncResult.sent}. Очікує: ${syncResult.remaining}"
+                                                    syncResult.remaining > 0 ->
+                                                        "Дані оновлено. Очікує відправки: ${syncResult.remaining}"
+                                                    else -> "Дані оновлено"
+                                                }
+                                            } finally {
+                                                loading = false
                                             }
                                         }
                                     }
@@ -296,6 +348,7 @@ fun RouteMasterApp() {
                                         onLogout = {
                                             scope.launch {
                                                 tokenStore.clear()
+                                                bootstrapStore.clear()
                                                 savedToken = null
                                                 currentScreen = AppScreen.HOME
                                                 mobileUser = null
@@ -305,6 +358,7 @@ fun RouteMasterApp() {
                                                 unreadCount = 0
                                             }
                                         },
+                                        refreshing = loading,
                                         onRegisterFcm = {
                                             registerFcmToken(
                                                 accessToken = savedToken.orEmpty(),
@@ -312,11 +366,34 @@ fun RouteMasterApp() {
                                                 onError = { error = it }
                                             )
                                         },
-                                        onRefreshUnread = {
+                                        onRefreshData = {
                                             scope.launch {
-                                                val data = refreshBootstrapContext(savedToken.orEmpty())
-                                                if (data == null) {
-                                                    unreadCount = loadUnreadCount(savedToken.orEmpty())
+                                                loading = true
+                                                status = "Оновлюємо дані..."
+
+                                                try {
+                                                    val data = refreshBootstrapContext(savedToken.orEmpty())
+
+                                                    val syncResult = withContext(Dispatchers.IO) {
+                                                        syncPendingSubmissions(
+                                                            accessToken = savedToken.orEmpty(),
+                                                            store = pendingStore,
+                                                            gson = gson
+                                                        )
+                                                    }
+
+                                                    status = when {
+                                                        data == null -> "Не вдалося оновити дані. Перевірте інтернет."
+                                                        syncResult.sent > 0 && syncResult.remaining == 0 ->
+                                                            "Дані оновлено. Чергу відправлено: ${syncResult.sent}"
+                                                        syncResult.sent > 0 ->
+                                                            "Дані оновлено. Відправлено з черги: ${syncResult.sent}. Очікує: ${syncResult.remaining}"
+                                                        syncResult.remaining > 0 ->
+                                                            "Дані оновлено. Очікує відправки: ${syncResult.remaining}"
+                                                        else -> "Дані оновлено"
+                                                    }
+                                                } finally {
+                                                    loading = false
                                                 }
                                             }
                                         }
@@ -335,12 +412,6 @@ fun RouteMasterApp() {
                                     accessToken = savedToken.orEmpty(),
                                     onBack = {
                                         currentScreen = AppScreen.HOME
-                                        scope.launch {
-                                            val data = refreshBootstrapContext(savedToken.orEmpty())
-                                            if (data == null) {
-                                                unreadCount = loadUnreadCount(savedToken.orEmpty())
-                                            }
-                                        }
                                     }
                                 )
                             }

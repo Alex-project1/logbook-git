@@ -349,6 +349,38 @@ export function ReportsShiftsPage() {
 
   return (
     <div className="page">
+      <style>{`
+        .shift-trip-card-with-events {
+          background: rgba(245, 158, 11, 0.08) !important;
+          border-color: rgba(245, 158, 11, 0.45) !important;
+          border-left: 4px solid rgba(245, 158, 11, 0.85) !important;
+        }
+
+        .shift-trip-card-with-events strong {
+          color: #92400e;
+        }
+
+        .shift-trip-card-with-events .event-grid {
+          background: rgba(255, 255, 255, 0.38);
+          border-radius: 10px;
+          padding: 8px;
+        }
+
+        .shift-trip-alarm-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          margin-left: 8px;
+          padding: 3px 8px;
+          border-radius: 999px;
+          background: rgba(245, 158, 11, 0.16);
+          color: #92400e;
+          font-size: 12px;
+          font-weight: 700;
+          vertical-align: middle;
+        }
+      `}</style>
+
       <div className="page-header">
         <div>
           <h1>Підсумки за змінами</h1>
@@ -753,40 +785,59 @@ export function ReportsShiftsPage() {
                                   </div>
                                 ) : (
                                   <div className="shift-trip-list">
-                                    {row.trips.map((trip) => (
-                                      <div className="event-card" key={trip.id}>
-                                        <strong>
-                                          {formatTime(trip.departureTime)} ·{" "}
-                                          {trip.fromLocation} →{" "}
-                                          {trip.toLocation}
-                                        </strong>
+                                    {row.trips.map((trip) => {
+                                      const hasTripEvents =
+                                        trip.eventSummary &&
+                                        trip.eventSummary.trim() !== "" &&
+                                        trip.eventSummary.trim() !== "—";
 
-                                        <div className="event-grid">
-                                          <span>Ціль: {trip.goal.name}</span>
-                                          <span>Км: {trip.distanceKm}</span>
-                                          <span>
-                                            Хв.: {trip.arrivalMinutes}
-                                          </span>
-                                          <span>
-                                            Спрацювання: {trip.eventSummary}
-                                          </span>
-                                          <span>
-                                            Затримано:{" "}
-                                            {trip.eventTotals.detained}
-                                          </span>
-                                          <span>
-                                            Передано:{" "}
-                                            {trip.eventTotals.transferred}
-                                          </span>
-                                        </div>
+                                      return (
+                                        <div
+                                          className={`event-card ${
+                                            hasTripEvents
+                                              ? "shift-trip-card-with-events"
+                                              : ""
+                                          }`}
+                                          key={trip.id}
+                                        >
+                                          <strong>
+                                            {formatTime(trip.departureTime)} ·{" "}
+                                            {trip.fromLocation} →{" "}
+                                            {trip.toLocation}
+                                            {hasTripEvents && (
+                                              <span className="shift-trip-alarm-badge">
+                                                Спрацювання
+                                              </span>
+                                            )}
+                                          </strong>
 
-                                        {trip.note && (
-                                          <div className="muted-text">
-                                            {trip.note}
+                                          <div className="event-grid">
+                                            <span>Ціль: {trip.goal.name}</span>
+                                            <span>Км: {trip.distanceKm}</span>
+                                            <span>
+                                              Хв.: {trip.arrivalMinutes}
+                                            </span>
+                                            <span>
+                                              Спрацювання: {trip.eventSummary}
+                                            </span>
+                                            <span>
+                                              Затримано:{" "}
+                                              {trip.eventTotals.detained}
+                                            </span>
+                                            <span>
+                                              Передано:{" "}
+                                              {trip.eventTotals.transferred}
+                                            </span>
                                           </div>
-                                        )}
-                                      </div>
-                                    ))}
+
+                                          {trip.note && (
+                                            <div className="muted-text">
+                                              {trip.note}
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 )}
                               </div>

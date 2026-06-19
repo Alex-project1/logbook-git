@@ -29,10 +29,11 @@ fun HomeScreen(
     unreadCount: Int,
     mobileUser: BootstrapMobileUserDto?,
     darkTheme: Boolean,
+    refreshing: Boolean,
     onThemeChange: (Boolean) -> Unit,
     onLogout: () -> Unit,
     onRegisterFcm: () -> Unit,
-    onRefreshUnread: () -> Unit
+    onRefreshData: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -135,10 +136,11 @@ fun HomeScreen(
         Spacer(modifier = Modifier.height(18.dp))
 
         Button(
-            onClick = onRefreshUnread,
+            onClick = onRefreshData,
+            enabled = !refreshing,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Оновити дані")
+            Text(if (refreshing) "Оновлюємо..." else "Оновити дані")
         }
 
         Button(

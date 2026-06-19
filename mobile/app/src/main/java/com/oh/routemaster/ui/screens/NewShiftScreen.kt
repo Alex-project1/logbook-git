@@ -78,6 +78,8 @@ import androidx.compose.ui.platform.LocalContext
 
 import com.google.gson.Gson
 
+import com.oh.routemaster.data.local.MobileBootstrapStore
+
 import com.oh.routemaster.data.local.ShiftDraftStore
 
 import com.oh.routemaster.data.local.PendingSubmissionItem
@@ -125,8 +127,6 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 
 import kotlinx.coroutines.withContext
-
-import com.oh.routemaster.services.syncPendingSubmissions
 
 import com.oh.routemaster.services.PendingSubmissionWorkScheduler
 
@@ -340,6 +340,8 @@ fun NewShiftScreen(
 
     val context = LocalContext.current
 
+    val bootstrapStore = remember { MobileBootstrapStore(context.applicationContext) }
+
     val draftStore = remember { ShiftDraftStore(context.applicationContext) }
 
     val pendingStore = remember { PendingSubmissionStore(context.applicationContext) }
@@ -522,7 +524,7 @@ fun NewShiftScreen(
 
 
 
-    suspend fun loadBootstrap() {
+    suspend fun loadBootstrapFromCache() {
 
         loading = true
 
@@ -532,25 +534,35 @@ fun NewShiftScreen(
 
         try {
 
-            val data = withContext(Dispatchers.IO) {
+            val cachedBootstrap = withContext(Dispatchers.IO) {
 
-                ApiClient.api.getBootstrap(
-
-                    authorization = "Bearer $accessToken"
-
-                )
+                bootstrapStore.getBootstrap(gson)
 
             }
 
 
 
-            bootstrap = data
+            if (cachedBootstrap == null) {
 
-            applyMobileUserDefaults(data)
+                bootstrap = null
+
+                error = "Дані для зміни ще не збережені на телефоні. Підключіть інтернет і натисніть «Оновити дані» на головній сторінці."
+
+                return
+
+            }
+
+
+
+            bootstrap = cachedBootstrap
+
+            applyMobileUserDefaults(cachedBootstrap)
 
         } catch (exception: Exception) {
 
-            error = "Не вдалося завантажити дані для зміни: ${getApiErrorMessage(exception)}"
+            bootstrap = null
+
+            error = "Не вдалося відкрити локально збережені дані для зміни"
 
             exception.printStackTrace()
 
@@ -1708,51 +1720,10 @@ fun validateGbrForm(data: MobileBootstrapDto): GbrFormErrors {
 
     LaunchedEffect(Unit) {
 
-        loadBootstrap()
+        loadBootstrapFromCache()
 
     }
 
-
-
-    LaunchedEffect(accessToken) {
-
-        val result = withContext(Dispatchers.IO) {
-
-            syncPendingSubmissions(
-
-                accessToken = accessToken,
-
-                store = pendingStore,
-
-                gson = gson
-
-            )
-
-        }
-
-
-
-        val remaining = withContext(Dispatchers.IO) {
-
-            pendingStore.getPending(gson).size
-
-        }
-
-
-
-        pendingStatus = when {
-
-            result.sent > 0 && remaining == 0 -> "Чергу відправлено: ${result.sent}"
-
-            result.sent > 0 -> "Відправлено з черги: ${result.sent}. Очікує: $remaining"
-
-            remaining > 0 -> "Очікує відправки: $remaining"
-
-            else -> ""
-
-        }
-
-    }
 
 
 
@@ -1986,7 +1957,7 @@ fun validateGbrForm(data: MobileBootstrapDto): GbrFormErrors {
 
                         scope.launch {
 
-                            loadBootstrap()
+                            loadBootstrapFromCache()
 
                         }
 
@@ -2008,7 +1979,7 @@ fun validateGbrForm(data: MobileBootstrapDto): GbrFormErrors {
 
                         scope.launch {
 
-                            loadBootstrap()
+                            loadBootstrapFromCache()
 
                         }
 
@@ -3313,7 +3284,7 @@ private fun PostMainFields(
 
         singleLine = true,
 
-        enabled = postDutyType != PostDutyType.FULL_DAY,
+        enabled = true,
 
         keyboardOptions = KeyboardOptions(
 
