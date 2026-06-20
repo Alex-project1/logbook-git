@@ -4474,7 +4474,7 @@ private fun TripAccordionCard(
 
                             minTime = trip.departureTime,
 
-                            supportingText = "Після виїзду (+1 хв)",
+                            preferCurrentTimeOnOpen = true,
 
                             onTimeSelected = onChangeArrivalTime
 
@@ -6140,6 +6140,8 @@ private fun TimeSelectField(
 
     minTime: String? = null,
 
+    preferCurrentTimeOnOpen: Boolean = false,
+
     supportingText: String? = null,
 
     onTimeSelected: (String) -> Unit
@@ -6154,15 +6156,45 @@ private fun TimeSelectField(
 
         val minMinutes = parseTimeToMinutes(minTime)
 
-        val currentMinutes =
+        val nowMinutes = parseTimeToMinutes(getCurrentTimeInput())
+
+        val preferredMinutes = if (preferCurrentTimeOnOpen) {
+
+            nowMinutes
+
+                ?: parseTimeToMinutes(value)
+
+                ?: minMinutes?.let { (it + 1).coerceAtMost(23 * 60 + 59) }
+
+                ?: 0
+
+        } else {
 
             parseTimeToMinutes(value)
 
                 ?: minMinutes?.let { (it + 1).coerceAtMost(23 * 60 + 59) }
 
-                ?: parseTimeToMinutes(getCurrentTimeInput())
+                ?: nowMinutes
 
                 ?: 0
+
+        }
+
+        val currentMinutes = if (
+
+            minMinutes != null &&
+
+            preferredMinutes <= minMinutes
+
+        ) {
+
+            (minMinutes + 1).coerceAtMost(23 * 60 + 59)
+
+        } else {
+
+            preferredMinutes
+
+        }
 
 
 

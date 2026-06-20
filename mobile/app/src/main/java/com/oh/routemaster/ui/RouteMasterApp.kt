@@ -3,6 +3,7 @@ package com.oh.routemaster.ui
 import android.app.Activity
 import android.content.Context
 import android.graphics.Color as AndroidColor
+import android.os.Build
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AddCircle
 import androidx.compose.material.icons.rounded.History
@@ -174,12 +175,15 @@ fun RouteMasterApp() {
         }
 
         Surface(
-            modifier = Modifier
-                .fillMaxSize()
-                .safeDrawingPadding(),
+            modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            if (savedToken.isNullOrBlank()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .safeDrawingPadding()
+            ) {
+                if (savedToken.isNullOrBlank()) {
                 LoginScreen(
                     login = login,
                     password = password,
@@ -423,6 +427,8 @@ fun RouteMasterApp() {
     }
 }
 
+}
+
 @Composable
 private fun RouteMasterBottomBar(
     currentScreen: AppScreen,
@@ -515,12 +521,29 @@ private fun ApplySystemBars(darkTheme: Boolean) {
     SideEffect {
         val window = (view.context as? Activity)?.window ?: return@SideEffect
 
+        val systemBarsColor = if (darkTheme) {
+            // Цвет фона темной темы Route Master, чтобы верхняя и нижняя системные зоны
+            // не оставались белыми вокруг светлых иконок Android.
+            AndroidColor.rgb(7, 10, 18)
+        } else {
+            AndroidColor.WHITE
+        }
+
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
+        // В edge-to-edge режиме Android может делать системные бары прозрачными.
+        // Поэтому фон должен рисоваться самим Compose под системными зонами.
         window.statusBarColor = AndroidColor.TRANSPARENT
         window.navigationBarColor = AndroidColor.TRANSPARENT
+        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(systemBarsColor))
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isStatusBarContrastEnforced = false
+            window.isNavigationBarContrastEnforced = false
+        }
 
         WindowInsetsControllerCompat(window, view).apply {
+            // true = темные иконки на светлом фоне, false = светлые иконки на темном фоне.
             isAppearanceLightStatusBars = !darkTheme
             isAppearanceLightNavigationBars = !darkTheme
         }
