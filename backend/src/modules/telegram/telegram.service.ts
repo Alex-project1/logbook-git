@@ -152,54 +152,160 @@ async function getPostDutyForTelegram(postDutyId: number) {
   });
 }
 
-type AlarmReasonTotals = {
-  label: string;
+type BreakdownTotals = {
   total: number;
+  oh: number;
+  partner: number;
 };
 
+type AlarmReasonTotals = BreakdownTotals & {
+  label: string;
+};
+
+function createBreakdownTotals(): BreakdownTotals {
+  return {
+    total: 0,
+    oh: 0,
+    partner: 0,
+  };
+}
+
+function addBreakdown(target: BreakdownTotals, total = 0, oh = 0, partner = 0) {
+  target.total += total;
+  target.oh += oh;
+  target.partner += partner;
+}
+
+function getRegularAlarmBreakdown(event: any) {
+  if (event.alarmSource === "OH") {
+    return { oh: 1, partner: 0 };
+  }
+
+  if (event.alarmSource === "PARTNER") {
+    return { oh: 0, partner: 1 };
+  }
+
+  return { oh: 0, partner: 0 };
+}
+
+function splitCountByAlarmCounts(total: number, ohCount: number, partnerCount: number) {
+  if (!total) {
+    return { oh: 0, partner: 0 };
+  }
+
+  const alarmTotal = ohCount + partnerCount;
+
+  if (alarmTotal <= 0) {
+    return { oh: 0, partner: 0 };
+  }
+
+  const oh = Math.round((total * ohCount) / alarmTotal);
+
+  return {
+    oh,
+    partner: total - oh,
+  };
+}
+
+function formatWithBreakdown(value: unknown, breakdown?: Pick<BreakdownTotals, "oh" | "partner">) {
+  return `${formatNumber(value)} (${formatNumber(breakdown?.oh ?? 0)}/${formatNumber(
+    breakdown?.partner ?? 0,
+  )})`;
+}
+
 function buildShiftSummary(trips: NonNullable<ShiftWithTelegram>["trips"]) {
-  let falseTotal = 0;
-  let combatTotal = 0;
-  let additionalTotal = 0;
-  let detained = 0;
-  let transferred = 0;
+  const falseAlarms = createBreakdownTotals();
+  const combatAlarms = createBreakdownTotals();
+  const additionalAlarms = createBreakdownTotals();
+  const detainedTotals = createBreakdownTotals();
+  const transferredTotals = createBreakdownTotals();
   const additionalReasonMap = new Map<string, AlarmReasonTotals>();
 
   for (const trip of trips) {
     for (const event of trip.events) {
-      detained += event.detainedCount ?? 0;
-      transferred += event.transferredCount ?? 0;
-
       if (event.eventCategory === "REGULAR_ALARM") {
+        const source = getRegularAlarmBreakdown(event);
+
         if (event.isCombat) {
-          combatTotal += 1;
+          addBreakdown(combatAlarms, 1, source.oh, source.partner);
         } else {
-          falseTotal += 1;
+          addBreakdown(falseAlarms, 1, source.oh, source.partner);
         }
+
+        const detainedCount = event.detainedCount ?? 0;
+        const transferredCount = event.transferredCount ?? 0;
+
+        addBreakdown(
+          detainedTotals,
+          detainedCount,
+          source.oh ? detainedCount : 0,
+          source.partner ? detainedCount : 0,
+        );
+
+        addBreakdown(
+          transferredTotals,
+          transferredCount,
+          source.oh ? transferredCount : 0,
+          source.partner ? transferredCount : 0,
+        );
       }
 
       if (event.eventCategory === "ADDITIONAL_ALARM") {
-        const total = (event.ohCount ?? 0) + (event.partnerCount ?? 0);
-        const label = event.reason?.name || event.customReasonText || "Без причини";
-        const current = additionalReasonMap.get(label) ?? { label, total: 0 };
+        const oh = event.ohCount ?? 0;
+        const partner = event.partnerCount ?? 0;
+        const total = oh + partner;
 
-        current.total += total;
-        additionalTotal += total;
+        addBreakdown(additionalAlarms, total, oh, partner);
+
+        const label = event.reason?.name || event.customReasonText || "Без причини";
+        const current = additionalReasonMap.get(label) ?? {
+          label,
+          total: 0,
+          oh: 0,
+          partner: 0,
+        };
+
+        addBreakdown(current, total, oh, partner);
         additionalReasonMap.set(label, current);
+
+        const detainedCount = event.detainedCount ?? 0;
+        const transferredCount = event.transferredCount ?? 0;
+        const detainedSplit = splitCountByAlarmCounts(detainedCount, oh, partner);
+        const transferredSplit = splitCountByAlarmCounts(transferredCount, oh, partner);
+
+        addBreakdown(
+          detainedTotals,
+          detainedCount,
+          detainedSplit.oh,
+          detainedSplit.partner,
+        );
+
+        addBreakdown(
+          transferredTotals,
+          transferredCount,
+          transferredSplit.oh,
+          transferredSplit.partner,
+        );
       }
     }
   }
 
+  const totalAlarms = {
+    total: falseAlarms.total + combatAlarms.total + additionalAlarms.total,
+    oh: falseAlarms.oh + combatAlarms.oh + additionalAlarms.oh,
+    partner: falseAlarms.partner + combatAlarms.partner + additionalAlarms.partner,
+  };
+
   return {
-    totalAlarms: falseTotal + combatTotal + additionalTotal,
-    falseTotal,
-    combatTotal,
-    additionalTotal,
+    totalAlarms,
+    falseAlarms,
+    combatAlarms,
+    additionalAlarms,
     additionalReasons: Array.from(additionalReasonMap.values()).sort((a, b) =>
       a.label.localeCompare(b.label, "uk")
     ),
-    detained,
-    transferred,
+    detained: detainedTotals,
+    transferred: transferredTotals,
   };
 }
 
@@ -211,7 +317,7 @@ function buildShiftReportText(shift: NonNullable<ShiftWithTelegram>) {
 
   const additionalReasonLines = summary.additionalReasons.length
     ? summary.additionalReasons
-        .map((reason) => `     ${escapeHtml(reason.label)}: ${formatNumber(reason.total)}`)
+        .map((reason) => `     ${escapeHtml(reason.label)}: ${formatWithBreakdown(reason.total, reason)}`)
         .join("\n")
     : "     —";
 
@@ -227,8 +333,8 @@ function buildShiftReportText(shift: NonNullable<ShiftWithTelegram>) {
     
       "",
       "👤 <b>Екіпаж:</b>",
-      `🚗 Водій: ${escapeHtml(shift.driverEmployee.fullName)}${shift.driverHasWeapon ? "✔️" : "✖️"}`,
-      `🧑‍✈️ Старший: ${escapeHtml(shift.seniorEmployee.fullName)}${shift.seniorHasWeapon ? "✔️" : "✖️"}`,
+      `🚗 Водій: ${escapeHtml(shift.driverEmployee.fullName)}${shift.driverHasWeapon ? "☑️" : "✖️"}`,
+      `🧑‍✈️ Старший: ${escapeHtml(shift.seniorEmployee.fullName)}${shift.seniorHasWeapon ? "☑️" : "✖️"}`,
     
       "",
       "📊 <b>Пробіг:</b>",
@@ -240,15 +346,15 @@ function buildShiftReportText(shift: NonNullable<ShiftWithTelegram>) {
       `🚶 <b>Поїздок:</b> ${formatNumber(shift.trips.length)}`,
     
       "",
-      `🚨 <b>Спрацювань:</b> ${formatNumber(summary.totalAlarms)}`,
-      `   ⚠️ хибних: ${formatNumber(summary.falseTotal)}`,
-      `   🔥 бойових: ${formatNumber(summary.combatTotal)}`,
-      `   ➕ додатково: ${formatNumber(summary.additionalTotal)}`,
+      `🚨 <b>Спрацювань:</b> ${formatWithBreakdown(summary.totalAlarms.total, summary.totalAlarms)}`,
+      `   ⚠️ хибних: ${formatWithBreakdown(summary.falseAlarms.total, summary.falseAlarms)}`,
+      `   🔥 бойових: ${formatWithBreakdown(summary.combatAlarms.total, summary.combatAlarms)}`,
+      `   ➕ додатково: ${formatWithBreakdown(summary.additionalAlarms.total, summary.additionalAlarms)}`,
       additionalReasonLines,
     
       "",
-      `⛓️ <b>Затримано:</b> ${formatNumber(summary.detained)}`,
-      `👮 передано до поліції: ${formatNumber(summary.transferred)}`,
+      `⛓️ <b>Затримано:</b> ${formatWithBreakdown(summary.detained.total, summary.detained)}`,
+      `👮 передано до поліції: ${formatWithBreakdown(summary.transferred.total, summary.transferred)}`,
     ].join("\n");
 }
 
@@ -261,7 +367,7 @@ function buildPostDutyReportText(duty: NonNullable<PostDutyWithTelegram>) {
     ? duty.members
         .map((member) => {
           const details = [
-            member.hasWeapon ? "✔️" : "✖️",
+            member.hasWeapon ? "☑️" : "✖️",
             member.isDriver ? "🚗 водій" : "",
             member.comment || "",
           ].filter(Boolean);
