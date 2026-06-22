@@ -2240,6 +2240,8 @@ fun validateGbrForm(data: MobileBootstrapDto): GbrFormErrors {
 
                             trips = trips,
 
+                            odometerStart = odometerStart,
+
                             tripErrors = gbrFormErrors.tripErrors,
 
                             tripGoals = data.tripGoals,
@@ -3404,6 +3406,8 @@ private fun TripsSection(
 
     trips: List<TripDraft>,
 
+    odometerStart: String,
+
     tripErrors: Map<Long, List<String>>,
 
     tripGoals: List<TripGoalDto>,
@@ -3623,6 +3627,78 @@ private fun TripsSection(
                 }
 
             )
+
+        }
+
+
+
+        if (trips.isNotEmpty()) {
+
+            val tripDistanceKm = calculateTripsDistanceKm(trips)
+
+            val odometerStartNumber = odometerStart.toDoubleOrNull()
+
+            val odometerEndLabel = if (odometerStartNumber == null) {
+
+                "Не вказано"
+
+            } else {
+
+                "${formatDistanceValue(odometerStartNumber + tripDistanceKm)} км"
+
+            }
+
+
+
+            Card(
+
+                modifier = Modifier.fillMaxWidth(),
+
+                shape = MaterialTheme.shapes.medium,
+
+                colors = CardDefaults.cardColors(
+
+                    containerColor = MaterialTheme.colorScheme.surface
+
+                ),
+
+                border = BorderStroke(
+
+                    width = 1.dp,
+
+                    color = MaterialTheme.colorScheme.outline
+
+                )
+
+            ) {
+
+                Column(
+
+                    modifier = Modifier.padding(14.dp),
+
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+
+                ) {
+
+                    Text(
+
+                        text = "Підсумок маршрутів",
+
+                        style = MaterialTheme.typography.titleSmall,
+
+                        fontWeight = FontWeight.SemiBold
+
+                    )
+
+
+
+                    Text("Спідометр кінець: $odometerEndLabel")
+
+                    Text("Поточний пробіг: ${formatDistanceValue(tripDistanceKm)} км")
+
+                }
+
+            }
 
         }
 
@@ -4431,6 +4507,8 @@ private fun TripAccordionCard(
                             label = "Виїзд",
 
                             modifier = Modifier.weight(1f),
+
+                            preferCurrentTimeOnOpen = true,
 
                             onTimeSelected = { selectedTime ->
 
@@ -6625,7 +6703,9 @@ private fun buildGbrTripsSectionSubtitle(
         "${formatDistanceValue(odometerStartNumber + tripDistanceKm)} км"
     }
 
-    return "· Додано поїздок: ${trips.size}\n· Спідометр кінець: $odometerEndLabel"
+    val currentMileageLabel = "${formatDistanceValue(tripDistanceKm)} км"
+
+    return "· Додано поїздок: ${trips.size}\n· Спідометр кінець: $odometerEndLabel\n· Поточний пробіг: $currentMileageLabel"
 }
 
 
