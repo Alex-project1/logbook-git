@@ -64,6 +64,7 @@ export function AdminLayout() {
           { to: "/crews", label: "Наряди ГШР" },
           { to: "/duty-posts", label: "Дод. пости" },
           { to: "/vehicles", label: "Автомобілі" },
+          ...(isSuperAdmin ? [{ to: "/streets", label: "Вулиці" }] : []),
           ...(isSuperAdmin
             ? [
                 { to: "/trip-goals", label: "Цілі поїздок" },
@@ -93,7 +94,6 @@ export function AdminLayout() {
         id: "administration",
         label: "Адміністрування",
         items: [
-          ...(canWrite ? [{ to: "/telegram", label: "Telegram" }] : []),
           ...(isSuperAdmin
             ? [{ to: "/admin-users", label: "Адміністратори" }]
             : []),

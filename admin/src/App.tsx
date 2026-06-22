@@ -31,7 +31,7 @@ import { ReportsCustomPage } from "./pages/reports/ReportsCustomPage";
 import { NotificationsCreatePage } from "./pages/NotificationsCreatePage";
 import { NotificationsHistoryPage } from "./pages/NotificationsHistoryPage";
 import { AccessDeniedPage } from "./pages/AccessDeniedPage";
-import { TelegramPage } from "./pages/TelegramPage";
+import { StreetsPage } from "./pages/StreetsPage";
 
 export default function App() {
   return (
@@ -155,6 +155,14 @@ export default function App() {
               }
             />
             <Route
+              path="streets"
+              element={
+                <RequireRole allowedRoles={["super_admin"]}>
+                  <StreetsPage />
+                </RequireRole>
+              }
+            />
+            <Route
               path="trip-goals"
               element={
                 <RequireRole allowedRoles={["super_admin"]}>
@@ -183,14 +191,6 @@ export default function App() {
               element={
                 <RequireRole allowedRoles={["super_admin"]}>
                   <ActionLogsPage />
-                </RequireRole>
-              }
-            />
-            <Route
-              path="telegram"
-              element={
-                <RequireRole allowedRoles={["super_admin", "admin"]}>
-                  <TelegramPage />
                 </RequireRole>
               }
             />

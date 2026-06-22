@@ -66,6 +66,8 @@ import androidx.compose.runtime.setValue
 
 import androidx.compose.ui.Alignment
 
+import androidx.compose.ui.focus.onFocusChanged
+
 import androidx.compose.ui.Modifier
 
 import androidx.compose.ui.text.font.FontWeight
@@ -113,6 +115,8 @@ import com.oh.routemaster.data.remote.DutyPostDto
 import com.oh.routemaster.data.remote.EmployeeDto
 
 import com.oh.routemaster.data.remote.MobileBootstrapDto
+
+import com.oh.routemaster.data.remote.StreetDto
 
 import com.oh.routemaster.data.remote.TripGoalDto
 
@@ -534,9 +538,13 @@ fun NewShiftScreen(
 
 
 
+        var cachedBootstrap: MobileBootstrapDto? = null
+
+
+
         try {
 
-            val cachedBootstrap = withContext(Dispatchers.IO) {
+            cachedBootstrap = withContext(Dispatchers.IO) {
 
                 bootstrapStore.getBootstrap(gson)
 
@@ -544,7 +552,59 @@ fun NewShiftScreen(
 
 
 
-            if (cachedBootstrap == null) {
+            var nextBootstrap = cachedBootstrap
+
+
+
+            if (nextBootstrap == null || nextBootstrap.streets.orEmpty().isEmpty()) {
+
+                try {
+
+                    val refreshedBootstrap = withContext(Dispatchers.IO) {
+
+                        ApiClient.api.getBootstrap(
+
+                            authorization = "Bearer $accessToken"
+
+                        )
+
+                    }
+
+
+
+                    withContext(Dispatchers.IO) {
+
+                        bootstrapStore.saveBootstrap(refreshedBootstrap, gson)
+
+                    }
+
+
+
+                    nextBootstrap = refreshedBootstrap
+
+                } catch (refreshException: Exception) {
+
+                    refreshException.printStackTrace()
+
+
+
+                    if (nextBootstrap == null) {
+
+                        bootstrap = null
+
+                        error = "Дані для зміни ще не збережені на телефоні. Підключіть інтернет і натисніть «Оновити дані» на головній сторінці."
+
+                        return
+
+                    }
+
+                }
+
+            }
+
+
+
+            if (nextBootstrap == null) {
 
                 bootstrap = null
 
@@ -556,15 +616,19 @@ fun NewShiftScreen(
 
 
 
-            bootstrap = cachedBootstrap
+            bootstrap = nextBootstrap
 
-            applyMobileUserDefaults(cachedBootstrap)
+            applyMobileUserDefaults(nextBootstrap)
 
         } catch (exception: Exception) {
 
-            bootstrap = null
+            bootstrap = cachedBootstrap
 
-            error = "Не вдалося відкрити локально збережені дані для зміни"
+            if (cachedBootstrap == null) {
+
+                error = "Не вдалося відкрити локально збережені дані для зміни"
+
+            }
 
             exception.printStackTrace()
 
@@ -575,7 +639,6 @@ fun NewShiftScreen(
         }
 
     }
-
 
 
     fun updateTrip(localId: Long, update: (TripDraft) -> TripDraft) {
@@ -2240,6 +2303,8 @@ fun validateGbrForm(data: MobileBootstrapDto): GbrFormErrors {
 
                             trips = trips,
 
+                            streets = data.streets.orEmpty(),
+
                             odometerStart = odometerStart,
 
                             tripErrors = gbrFormErrors.tripErrors,
@@ -3406,6 +3471,8 @@ private fun TripsSection(
 
     trips: List<TripDraft>,
 
+    streets: List<StreetDto>,
+
     odometerStart: String,
 
     tripErrors: Map<Long, List<String>>,
@@ -3453,6 +3520,8 @@ private fun TripsSection(
                 index = index,
 
                 trip = trip,
+
+                streets = streets,
 
                 tripGoals = tripGoals,
 
@@ -4220,6 +4289,8 @@ private fun TripAccordionCard(
 
     trip: TripDraft,
 
+    streets: List<StreetDto>,
+
     tripGoals: List<TripGoalDto>,
 
     additionalAlarmReasons: List<AdditionalAlarmReasonDto>,
@@ -4460,33 +4531,29 @@ private fun TripAccordionCard(
 
 
 
-                    OutlinedTextField(
+                    StreetSuggestionField(
 
                         value = trip.fromLocation,
 
-                        onValueChange = onChangeFrom,
+                        label = "Звідки",
 
-                        modifier = Modifier.fillMaxWidth(),
+                        streets = streets,
 
-                        label = { Text("Звідки") },
-
-                        singleLine = true
+                        onValueChange = onChangeFrom
 
                     )
 
 
 
-                    OutlinedTextField(
+                    StreetSuggestionField(
 
                         value = trip.toLocation,
 
-                        onValueChange = onChangeTo,
+                        label = "Куди",
 
-                        modifier = Modifier.fillMaxWidth(),
+                        streets = streets,
 
-                        label = { Text("Куди") },
-
-                        singleLine = true
+                        onValueChange = onChangeTo
 
                     )
 
@@ -4673,6 +4740,206 @@ private fun TripAccordionCard(
         }
 
     }
+
+}
+
+
+
+@Composable
+
+private fun StreetSuggestionField(
+
+    value: String,
+
+    label: String,
+
+    streets: List<StreetDto>,
+
+    onValueChange: (String) -> Unit
+
+) {
+
+    var focused by remember { mutableStateOf(false) }
+
+    val suggestions = remember(value, streets) {
+
+        val query = normalizeStreetQuery(value)
+
+        if (query.isBlank()) {
+
+            emptyList()
+
+        } else {
+
+            streets
+
+                .asSequence()
+
+                .map { street -> street to normalizeStreetQuery(street.name) }
+
+                .filter { (_, normalizedName) ->
+
+                    normalizedName.contains(query)
+
+                }
+
+                .sortedWith(
+
+                    compareBy<Pair<StreetDto, String>> {
+
+                        if (it.second.startsWith(query)) 0 else 1
+
+                    }.thenBy {
+
+                        it.first.name
+
+                    }
+
+                )
+
+                .take(8)
+
+                .map { it.first }
+
+                .toList()
+
+        }
+
+    }
+
+
+
+    Column(
+
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+
+    ) {
+
+        OutlinedTextField(
+
+            value = value,
+
+            onValueChange = onValueChange,
+
+            modifier = Modifier
+
+                .fillMaxWidth()
+
+                .onFocusChanged { focusState ->
+
+                    focused = focusState.isFocused
+
+                },
+
+            label = { Text(label) },
+
+            singleLine = true
+
+        )
+
+
+
+        if (focused && value.isNotBlank() && streets.isEmpty()) {
+
+            Text(
+
+                text = "Список вулиць ще не завантажено. Натисніть «Оновити дані» на головній сторінці.",
+
+                style = MaterialTheme.typography.bodySmall,
+
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+
+            )
+
+        }
+
+
+
+        if (focused && suggestions.isNotEmpty()) {
+
+            Card(
+
+                modifier = Modifier.fillMaxWidth(),
+
+                shape = MaterialTheme.shapes.medium,
+
+                colors = CardDefaults.cardColors(
+
+                    containerColor = MaterialTheme.colorScheme.surface
+
+                ),
+
+                border = BorderStroke(
+
+                    width = 1.dp,
+
+                    color = MaterialTheme.colorScheme.outline
+
+                )
+
+            ) {
+
+                Column(
+
+                    modifier = Modifier.padding(vertical = 4.dp)
+
+                ) {
+
+                    suggestions.forEach { street ->
+
+                        Text(
+
+                            text = street.name,
+
+                            modifier = Modifier
+
+                                .fillMaxWidth()
+
+                                .clickable {
+
+                                    onValueChange(street.name)
+
+                                    focused = false
+
+                                }
+
+                                .padding(horizontal = 12.dp, vertical = 9.dp),
+
+                            style = MaterialTheme.typography.bodyMedium
+
+                        )
+
+                    }
+
+                }
+
+            }
+
+        }
+
+    }
+
+}
+
+
+
+private fun normalizeStreetQuery(value: String): String {
+
+    return value
+
+        .trim()
+
+        .lowercase(Locale.getDefault())
+
+        .replace("ё", "е")
+
+        .replace("є", "е")
+
+        .replace("і", "и")
+
+        .replace("ї", "и")
+
+        .replace(Regex("\\s+"), " ")
 
 }
 

@@ -83,7 +83,7 @@ data class MobileBootstrapDto(
     val dutyPosts: List<DutyPostDto>,
     val tripGoals: List<TripGoalDto>,
     val additionalAlarmReasons: List<AdditionalAlarmReasonDto>,
-    val streets: List<StreetDto>,
+    val streets: List<StreetDto>? = emptyList(),
     val settings: MobileSettingsDto?,
     val notifications: BootstrapNotificationsDto?
 )

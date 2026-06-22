@@ -1,4 +1,4 @@
-﻿import { Request, Response } from "express";
+import { Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../../config/prisma";
 
@@ -13,6 +13,40 @@ const updateStreetSchema = z.object({
   name: z.string().min(1, "Street name is required").optional(),
   isActive: z.boolean().optional(),
 });
+
+const bulkImportStreetsSchema = z.object({
+  cityId: z.number().int().positive(),
+  text: z.string().min(1, "Street list is required"),
+  replaceExisting: z.boolean().optional(),
+});
+
+function normalizeStreetName(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function parseStreetList(text: string) {
+  const seen = new Set<string>();
+  const names: string[] = [];
+
+  for (const rawLine of text.split(/\r?\n/)) {
+    const name = normalizeStreetName(rawLine);
+
+    if (!name) {
+      continue;
+    }
+
+    const key = name.toLocaleLowerCase("uk-UA");
+
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    names.push(name);
+  }
+
+  return names;
+}
 
 export async function getStreets(req: Request, res: Response) {
   try {
@@ -47,7 +81,7 @@ export async function getStreets(req: Request, res: Response) {
     return res.json({ data: streets });
   } catch (error) {
     console.error("getStreets error:", error);
-    return res.status(500).json({ message: "Внутрішня помилка сервера" });
+    return res.status(500).json({ message: "Internal server error" });
   }
 }
 
@@ -87,7 +121,7 @@ export async function getStreetById(req: Request, res: Response) {
     return res.json({ data: street });
   } catch (error) {
     console.error("getStreetById error:", error);
-    return res.status(500).json({ message: "Внутрішня помилка сервера" });
+    return res.status(500).json({ message: "Internal server error" });
   }
 }
 
@@ -147,7 +181,7 @@ export async function createStreet(req: Request, res: Response) {
     return res.status(201).json({ data: street });
   } catch (error) {
     console.error("createStreet error:", error);
-    return res.status(500).json({ message: "Внутрішня помилка сервера" });
+    return res.status(500).json({ message: "Internal server error" });
   }
 }
 
@@ -235,7 +269,124 @@ export async function updateStreet(req: Request, res: Response) {
     return res.json({ data: updatedStreet });
   } catch (error) {
     console.error("updateStreet error:", error);
-    return res.status(500).json({ message: "Внутрішня помилка сервера" });
+    return res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+export async function bulkImportStreets(req: Request, res: Response) {
+  try {
+    const parsed = bulkImportStreetsSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      return res.status(400).json({
+        message: "Validation error",
+        errors: parsed.error.flatten(),
+      });
+    }
+
+    const city = await prisma.city.findFirst({
+      where: {
+        id: parsed.data.cityId,
+        deletedAt: null,
+        isActive: true,
+      },
+    });
+
+    if (!city) {
+      return res.status(404).json({ message: "City not found or inactive" });
+    }
+
+    const names = parseStreetList(parsed.data.text);
+
+    if (names.length === 0) {
+      return res.status(400).json({ message: "Street list is empty" });
+    }
+
+    const existingStreets = await prisma.street.findMany({
+      where: {
+        cityId: parsed.data.cityId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+
+    const existingByName = new Map(
+      existingStreets.map((street) => [street.name.toLocaleLowerCase("uk-UA"), street])
+    );
+
+    let created = 0;
+    let skipped = 0;
+
+    await prisma.$transaction(async (tx) => {
+      if (parsed.data.replaceExisting) {
+        await tx.street.updateMany({
+          where: {
+            cityId: parsed.data.cityId,
+            deletedAt: null,
+          },
+          data: {
+            deletedAt: new Date(),
+            isActive: false,
+          },
+        });
+
+        await tx.street.createMany({
+          data: names.map((name) => ({
+            cityId: parsed.data.cityId,
+            name,
+            isActive: true,
+          })),
+        });
+
+        created = names.length;
+        return;
+      }
+
+      const toCreate = names.filter((name) => {
+        const exists = existingByName.has(name.toLocaleLowerCase("uk-UA"));
+
+        if (exists) {
+          skipped += 1;
+        }
+
+        return !exists;
+      });
+
+      if (toCreate.length > 0) {
+        await tx.street.createMany({
+          data: toCreate.map((name) => ({
+            cityId: parsed.data.cityId,
+            name,
+            isActive: true,
+          })),
+        });
+      }
+
+      created = toCreate.length;
+    });
+
+    const total = await prisma.street.count({
+      where: {
+        cityId: parsed.data.cityId,
+        deletedAt: null,
+        isActive: true,
+      },
+    });
+
+    return res.json({
+      data: {
+        parsed: names.length,
+        created,
+        skipped,
+        total,
+      },
+    });
+  } catch (error) {
+    console.error("bulkImportStreets error:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 }
 
@@ -271,6 +422,6 @@ export async function deleteStreet(req: Request, res: Response) {
     return res.json({ message: "Street deleted successfully" });
   } catch (error) {
     console.error("deleteStreet error:", error);
-    return res.status(500).json({ message: "Внутрішня помилка сервера" });
+    return res.status(500).json({ message: "Internal server error" });
   }
 }
