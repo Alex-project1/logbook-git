@@ -32,6 +32,17 @@ const initialForm: FormState = {
 
 const departmentTypeLabels: Record<string, string> = { GBR: "ГШР", POST: "Пост", OTHER: "Інше" };
 
+function formatDepartmentLabel(department: Department) {
+  const typeLabel = departmentTypeLabels[department.type] || department.type;
+  const name = department.name.trim();
+
+  if (!typeLabel || name.toLowerCase() === typeLabel.toLowerCase()) {
+    return name;
+  }
+
+  return `${name} · ${typeLabel}`;
+}
+
 function getErrorMessage(error: unknown, fallback: string) {
   const maybe = error as { response?: { data?: { message?: string } } };
   return maybe.response?.data?.message || fallback;
@@ -54,7 +65,18 @@ export function VehiclesPage() {
 
   const activeCities = useMemo(() => cities.filter((city) => city.isActive), [cities]);
   const formDepartments = useMemo(() => departments.filter((department) => department.isActive && department.cityId === form.cityId), [departments, form.cityId]);
-  const filterDepartments = useMemo(() => departments.filter((department) => !selectedCityId || department.cityId === selectedCityId), [departments, selectedCityId]);
+  const filterDepartments = useMemo(
+    () =>
+      selectedCityId
+        ? departments.filter(
+            (department) =>
+              department.isActive &&
+              !department.deletedAt &&
+              department.cityId === selectedCityId,
+          )
+        : [],
+    [departments, selectedCityId],
+  );
   const roleCode = currentUser?.role?.code;
   const canEdit = roleCode === "super_admin" || roleCode === "admin";
 
@@ -203,7 +225,7 @@ export function VehiclesPage() {
       {canEdit && !showArchive && (
         <form className="form-grid" onSubmit={handleSubmit}>
           <label>Місто<select value={form.cityId} onChange={(event) => handleFormCityChange(Number(event.target.value))}><option value={0}>Оберіть місто</option>{activeCities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></label>
-          <label>Підрозділ<select value={form.departmentId} onChange={(event) => setForm((prev) => ({ ...prev, departmentId: Number(event.target.value) }))}><option value={0}>Оберіть підрозділ</option>{formDepartments.map((department) => <option key={department.id} value={department.id}>{department.name} · {departmentTypeLabels[department.type]}</option>)}</select></label>
+          <label>Підрозділ<select value={form.departmentId} onChange={(event) => setForm((prev) => ({ ...prev, departmentId: Number(event.target.value) }))}><option value={0}>Оберіть підрозділ</option>{formDepartments.map((department) => <option key={department.id} value={department.id}>{formatDepartmentLabel(department)}</option>)}</select></label>
           <label>Назва<input value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} /></label>
           <label>Державний номер<input value={form.licensePlate} onChange={(event) => setForm((prev) => ({ ...prev, licensePlate: event.target.value }))} /></label>
           <label>Початковий пробіг<input value={form.startOdometer} onChange={(event) => setForm((prev) => ({ ...prev, startOdometer: event.target.value.replace(/\D/g, "") }))} /></label>
@@ -215,7 +237,7 @@ export function VehiclesPage() {
 
       <div className="filters-row">
         <label>Місто<select value={selectedCityId} onChange={(event) => handleCityFilterChange(Number(event.target.value))}><option value={0}>Усі міста</option>{cities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></label>
-        <label>Підрозділ<select value={selectedDepartmentId} onChange={(event) => handleDepartmentFilterChange(Number(event.target.value))}><option value={0}>Усі підрозділи</option>{filterDepartments.map((department) => <option key={department.id} value={department.id}>{department.name} · {departmentTypeLabels[department.type]}</option>)}</select></label>
+        <label>Підрозділ<select value={selectedDepartmentId} onChange={(event) => handleDepartmentFilterChange(Number(event.target.value))} disabled={!selectedCityId}><option value={0}>{selectedCityId ? "Усі підрозділи" : "Оберіть підрозділ"}</option>{filterDepartments.map((department) => <option key={department.id} value={department.id}>{formatDepartmentLabel(department)}</option>)}</select></label>
         <label>Стан<select value={showArchive ? "archive" : "active"} onChange={(event) => handleArchiveFilterChange(event.target.value)}><option value="active">Активні</option><option value="archive">Архів</option></select></label>
       </div>
 
