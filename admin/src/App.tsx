@@ -32,6 +32,7 @@ import { NotificationsCreatePage } from "./pages/NotificationsCreatePage";
 import { NotificationsHistoryPage } from "./pages/NotificationsHistoryPage";
 import { AccessDeniedPage } from "./pages/AccessDeniedPage";
 import { StreetsPage } from "./pages/StreetsPage";
+import { TelegramPage } from "./pages/TelegramPage";
 
 export default function App() {
   return (
@@ -191,6 +192,14 @@ export default function App() {
               element={
                 <RequireRole allowedRoles={["super_admin"]}>
                   <ActionLogsPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="telegram"
+              element={
+                <RequireRole allowedRoles={["super_admin", "admin"]}>
+                  <TelegramPage />
                 </RequireRole>
               }
             />

@@ -24,6 +24,7 @@ import mobileNotificationsRoutes from "./modules/notifications/notifications.mob
 import mobilePostDutiesRoutes from "./modules/post-duties/post-duties.mobile.routes";
 import mobileHistoryRoutes from "./modules/mobile-history/mobile-history.routes";
 import mobileObjectsRoutes from "./modules/mobile-objects/objects.mobile.routes";
+import adminTelegramRoutes from "./modules/telegram/telegram.routes";
 
 const app = express();
 
@@ -52,6 +53,7 @@ app.use("/api/admin/streets", adminStreetsRoutes);
 app.use("/api/admin/mobile-users", adminMobileUsersRoutes);
 app.use("/api/admin", adminShiftsRoutes);
 app.use("/api/admin/reports", adminReportsRoutes);
+app.use("/api/admin/telegram", adminTelegramRoutes);
 
 app.use("/api/mobile", mobileRoutes);
 app.use("/api/mobile/shifts", mobileShiftRoutes);

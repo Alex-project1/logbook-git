@@ -333,8 +333,8 @@ function buildShiftReportText(shift: NonNullable<ShiftWithTelegram>) {
     
       "",
       "👤 <b>Екіпаж:</b>",
-      `🚗 Водій: ${escapeHtml(shift.driverEmployee.fullName)}${shift.driverHasWeapon ? "☑️" : "✖️"}`,
-      `🧑‍✈️ Старший: ${escapeHtml(shift.seniorEmployee.fullName)}${shift.seniorHasWeapon ? "☑️" : "✖️"}`,
+      `🚗 Водій: ${escapeHtml(shift.driverEmployee.fullName)}${shift.driverHasWeapon ? "✔️" : "✖️"}`,
+      `🧑‍✈️ Старший: ${escapeHtml(shift.seniorEmployee.fullName)}${shift.seniorHasWeapon ? "✔️" : "✖️"}`,
     
       "",
       "📊 <b>Пробіг:</b>",
@@ -367,7 +367,7 @@ function buildPostDutyReportText(duty: NonNullable<PostDutyWithTelegram>) {
     ? duty.members
         .map((member) => {
           const details = [
-            member.hasWeapon ? "☑️" : "✖️",
+            member.hasWeapon ? "✔️" : "✖️",
             member.isDriver ? "🚗 водій" : "",
             member.comment || "",
           ].filter(Boolean);
