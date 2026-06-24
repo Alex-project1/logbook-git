@@ -480,6 +480,8 @@ fun NewShiftScreen(
 
     var resetDialogOpen by remember { mutableStateOf(false) }
 
+    var tripDeleteDialogId by remember { mutableStateOf<Long?>(null) }
+
     var sendConfirmDialogKind by remember { mutableStateOf<ShiftKind?>(null) }
 
 
@@ -2321,7 +2323,11 @@ fun validateGbrForm(data: MobileBootstrapDto): GbrFormErrors {
 
                             onUpdateTrip = ::updateTrip,
 
-                            onRemoveTrip = ::removeTrip
+                            onRemoveTrip = { localId ->
+
+                                tripDeleteDialogId = localId
+
+                            }
 
                         )
 
@@ -2470,6 +2476,38 @@ fun validateGbrForm(data: MobileBootstrapDto): GbrFormErrors {
             Text("Видалити всі дані")
 
         }
+
+    }
+
+
+
+    tripDeleteDialogId?.let { localId ->
+
+        val trip = trips.firstOrNull { it.localId == localId }
+
+        DeleteTripDialog(
+
+            tripLabel = trip?.let { selectedTrip ->
+
+                findTripGoalLabel(bootstrap?.tripGoals.orEmpty(), selectedTrip.goalId)
+
+            }.orEmpty(),
+
+            onConfirm = {
+
+                removeTrip(localId)
+
+                tripDeleteDialogId = null
+
+            },
+
+            onDismiss = {
+
+                tripDeleteDialogId = null
+
+            }
+
+        )
 
     }
 
@@ -4687,11 +4725,7 @@ private fun TripAccordionCard(
 
                             onChangeOhCount = onChangeOhCount,
 
-                            onChangePartnerCount = onChangePartnerCount,
-
-                            onChangeDetainedCount = onChangeDetainedCount,
-
-                            onChangeTransferredCount = onChangeTransferredCount
+                            onChangePartnerCount = onChangePartnerCount
 
                         )
 
@@ -5099,11 +5133,7 @@ private fun AdditionalAlarmFields(
 
     onChangeOhCount: (String) -> Unit,
 
-    onChangePartnerCount: (String) -> Unit,
-
-    onChangeDetainedCount: (String) -> Unit,
-
-    onChangeTransferredCount: (String) -> Unit
+    onChangePartnerCount: (String) -> Unit
 
 ) {
 
@@ -5261,51 +5291,7 @@ private fun AdditionalAlarmFields(
 
 
 
-            OutlinedTextField(
 
-                value = trip.detainedCount,
-
-                onValueChange = onChangeDetainedCount,
-
-                modifier = Modifier.fillMaxWidth(),
-
-                label = { Text("Затримано") },
-
-                placeholder = { Text("0") },
-
-                singleLine = true,
-
-                keyboardOptions = KeyboardOptions(
-
-                    keyboardType = KeyboardType.Number
-
-                )
-
-            )
-
-
-
-            OutlinedTextField(
-
-                value = trip.transferredCount,
-
-                onValueChange = onChangeTransferredCount,
-
-                modifier = Modifier.fillMaxWidth(),
-
-                label = { Text("Передано в поліцію") },
-
-                placeholder = { Text("0") },
-
-                singleLine = true,
-
-                keyboardOptions = KeyboardOptions(
-
-                    keyboardType = KeyboardType.Number
-
-                )
-
-            )
 
         }
 
@@ -5631,31 +5617,69 @@ private fun WeaponSwitchRow(
 
 
 
-private data class GbrAlarmReasonSummary(
+private data class GbrAlarmCountSummary(
 
-    val label: String,
+    val total: Int,
 
-    val total: Int
+    val oh: Int,
+
+    val partner: Int
 
 )
 
 
 
+private data class GbrAlarmReasonSummary(
+
+    val label: String,
+
+    val counts: GbrAlarmCountSummary
+
+)
+
+
+
+private data class GbrAlarmReasonAccumulator(
+
+    var oh: Int = 0,
+
+    var partner: Int = 0
+
+) {
+
+    fun toSummary(): GbrAlarmCountSummary {
+
+        return GbrAlarmCountSummary(
+
+            total = oh + partner,
+
+            oh = oh,
+
+            partner = partner
+
+        )
+
+    }
+
+}
+
+
+
 private data class GbrAlarmSummary(
 
-    val totalAlarms: Int,
+    val totalAlarms: GbrAlarmCountSummary,
 
-    val falseTotal: Int,
+    val falseAlarms: GbrAlarmCountSummary,
 
-    val combatTotal: Int,
+    val combatAlarms: GbrAlarmCountSummary,
 
-    val additionalTotal: Int,
+    val additionalAlarms: GbrAlarmCountSummary,
 
     val additionalReasons: List<GbrAlarmReasonSummary>,
 
-    val detained: Int,
+    val detained: GbrAlarmCountSummary,
 
-    val transferred: Int
+    val transferred: GbrAlarmCountSummary
 
 )
 
@@ -5671,19 +5695,29 @@ private fun buildGbrAlarmSummary(
 
 ): GbrAlarmSummary {
 
-    var falseTotal = 0
+    var falseOh = 0
 
-    var combatTotal = 0
+    var falsePartner = 0
 
-    var additionalTotal = 0
+    var combatOh = 0
 
-    var detained = 0
+    var combatPartner = 0
 
-    var transferred = 0
+    var additionalOh = 0
+
+    var additionalPartner = 0
+
+    var detainedOh = 0
+
+    var detainedPartner = 0
+
+    var transferredOh = 0
+
+    var transferredPartner = 0
 
 
 
-    val additionalReasonMap = linkedMapOf<String, Int>()
+    val additionalReasonMap = linkedMapOf<String, GbrAlarmReasonAccumulator>()
 
 
 
@@ -5693,15 +5727,27 @@ private fun buildGbrAlarmSummary(
 
 
 
-        if (isRegularAlarmGoal(goal)) {
+        if (isOhAlarmGoal(goal)) {
 
             if (trip.regularAlarmType.isCombat) {
 
-                combatTotal += 1
+                combatOh += 1
 
             } else {
 
-                falseTotal += 1
+                falseOh += 1
+
+            }
+
+        } else if (isPartnerAlarmGoal(goal)) {
+
+            if (trip.regularAlarmType.isCombat) {
+
+                combatPartner += 1
+
+            } else {
+
+                falsePartner += 1
 
             }
 
@@ -5733,9 +5779,23 @@ private fun buildGbrAlarmSummary(
 
 
 
-                additionalTotal += total
+                additionalOh += oh
 
-                additionalReasonMap[reasonLabel] = (additionalReasonMap[reasonLabel] ?: 0) + total
+                additionalPartner += partner
+
+
+
+                val accumulator = additionalReasonMap.getOrPut(reasonLabel) {
+
+                    GbrAlarmReasonAccumulator()
+
+                }
+
+
+
+                accumulator.oh += oh
+
+                accumulator.partner += partner
 
             }
 
@@ -5743,33 +5803,115 @@ private fun buildGbrAlarmSummary(
 
 
 
-        detained += trip.detainedCount.toIntOrNull() ?: 0
+        if (isOhAlarmGoal(goal)) {
 
-        transferred += trip.transferredCount.toIntOrNull() ?: 0
+            detainedOh += trip.detainedCount.toIntOrNull() ?: 0
+
+            transferredOh += trip.transferredCount.toIntOrNull() ?: 0
+
+        } else if (isPartnerAlarmGoal(goal)) {
+
+            detainedPartner += trip.detainedCount.toIntOrNull() ?: 0
+
+            transferredPartner += trip.transferredCount.toIntOrNull() ?: 0
+
+        }
 
     }
 
 
 
+    val falseAlarms = GbrAlarmCountSummary(
+
+        total = falseOh + falsePartner,
+
+        oh = falseOh,
+
+        partner = falsePartner
+
+    )
+
+
+
+    val combatAlarms = GbrAlarmCountSummary(
+
+        total = combatOh + combatPartner,
+
+        oh = combatOh,
+
+        partner = combatPartner
+
+    )
+
+
+
+    val additionalAlarms = GbrAlarmCountSummary(
+
+        total = additionalOh + additionalPartner,
+
+        oh = additionalOh,
+
+        partner = additionalPartner
+
+    )
+
+
+
+    val totalAlarms = GbrAlarmCountSummary(
+
+        total = falseAlarms.total + combatAlarms.total + additionalAlarms.total,
+
+        oh = falseAlarms.oh + combatAlarms.oh + additionalAlarms.oh,
+
+        partner = falseAlarms.partner + combatAlarms.partner + additionalAlarms.partner
+
+    )
+
+
+
+    val detained = GbrAlarmCountSummary(
+
+        total = detainedOh + detainedPartner,
+
+        oh = detainedOh,
+
+        partner = detainedPartner
+
+    )
+
+
+
+    val transferred = GbrAlarmCountSummary(
+
+        total = transferredOh + transferredPartner,
+
+        oh = transferredOh,
+
+        partner = transferredPartner
+
+    )
+
+
+
     return GbrAlarmSummary(
 
-        totalAlarms = falseTotal + combatTotal + additionalTotal,
+        totalAlarms = totalAlarms,
 
-        falseTotal = falseTotal,
+        falseAlarms = falseAlarms,
 
-        combatTotal = combatTotal,
+        combatAlarms = combatAlarms,
 
-        additionalTotal = additionalTotal,
+        additionalAlarms = additionalAlarms,
 
         additionalReasons = additionalReasonMap
 
-            .map { (label, total) ->
+            .map { (label, accumulator) ->
 
                 GbrAlarmReasonSummary(
 
                     label = label,
 
-                    total = total
+                    counts = accumulator.toSummary()
 
                 )
 
@@ -5782,6 +5924,14 @@ private fun buildGbrAlarmSummary(
         transferred = transferred
 
     )
+
+}
+
+
+
+private fun formatAlarmCountSummary(counts: GbrAlarmCountSummary): String {
+
+    return "${counts.total} (${counts.oh}/${counts.partner})"
 
 }
 
@@ -5839,7 +5989,7 @@ private fun GbrAlarmSummaryCascade(
 
             CascadeText(
 
-                text = "Спрацювань: ${summary.totalAlarms}",
+                text = "Спрацювань: ${formatAlarmCountSummary(summary.totalAlarms)}",
 
                 level = 0,
 
@@ -5851,7 +6001,7 @@ private fun GbrAlarmSummaryCascade(
 
             CascadeText(
 
-                text = "− хибних: ${summary.falseTotal}",
+                text = "− хибних: ${formatAlarmCountSummary(summary.falseAlarms)}",
 
                 level = 1
 
@@ -5861,7 +6011,7 @@ private fun GbrAlarmSummaryCascade(
 
             CascadeText(
 
-                text = "− бойових: ${summary.combatTotal}",
+                text = "− бойових: ${formatAlarmCountSummary(summary.combatAlarms)}",
 
                 level = 1
 
@@ -5871,7 +6021,7 @@ private fun GbrAlarmSummaryCascade(
 
             CascadeText(
 
-                text = "− додатково: ${summary.additionalTotal}",
+                text = "− додатково: ${formatAlarmCountSummary(summary.additionalAlarms)}",
 
                 level = 1
 
@@ -5897,7 +6047,7 @@ private fun GbrAlarmSummaryCascade(
 
                     CascadeText(
 
-                        text = "${reason.label}: ${reason.total}",
+                        text = "${reason.label}: ${formatAlarmCountSummary(reason.counts)}",
 
                         level = 2
 
@@ -5911,7 +6061,7 @@ private fun GbrAlarmSummaryCascade(
 
             CascadeText(
 
-                text = "Затримано: ${summary.detained}",
+                text = "Затримано: ${formatAlarmCountSummary(summary.detained)}",
 
                 level = 0,
 
@@ -5923,7 +6073,7 @@ private fun GbrAlarmSummaryCascade(
 
             CascadeText(
 
-                text = "− передано до поліції: ${summary.transferred}",
+                text = "− передано до поліції: ${formatAlarmCountSummary(summary.transferred)}",
 
                 level = 1
 
@@ -6404,6 +6554,84 @@ private fun SendReportConfirmDialog(
             TextButton(onClick = onDismiss) {
 
                 Text("Скасувати")
+
+            }
+
+        }
+
+    )
+
+}
+
+
+
+
+
+@Composable
+
+private fun DeleteTripDialog(
+
+    tripLabel: String,
+
+    onConfirm: () -> Unit,
+
+    onDismiss: () -> Unit
+
+) {
+
+    val displayLabel = tripLabel.ifBlank { "обрану поїздку" }
+
+
+
+    AlertDialog(
+
+        onDismissRequest = onDismiss,
+
+        title = {
+
+            Text("Видалити поїздку?")
+
+        },
+
+        text = {
+
+            Column(
+
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+
+            ) {
+
+                Text("Видалити $displayLabel?")
+
+                Text(
+
+                    text = "Цю дію не можна скасувати. Дані маршруту буде прибрано з поточної зміни.",
+
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+
+                    style = MaterialTheme.typography.bodySmall
+
+                )
+
+            }
+
+        },
+
+        confirmButton = {
+
+            Button(onClick = onConfirm) {
+
+                Text("Видалити")
+
+            }
+
+        },
+
+        dismissButton = {
+
+            TextButton(onClick = onDismiss) {
+
+                Text("Ні")
 
             }
 
@@ -7153,20 +7381,6 @@ private fun getTripValidationErrors(
 
 
 
-        if (trip.detainedCount.isNotBlank() && trip.detainedCount.toIntOrNull() == null) {
-
-            errors.add("затримано має бути числом")
-
-        }
-
-
-
-        if (trip.transferredCount.isNotBlank() && trip.transferredCount.toIntOrNull() == null) {
-
-            errors.add("передано має бути числом")
-
-        }
-
     }
 
 
@@ -7333,9 +7547,9 @@ private fun buildTripEvents(
 
                 partnerCount = trip.partnerCount.toIntOrNull() ?: 0,
 
-                detainedCount = trip.detainedCount.toIntOrNull() ?: 0,
+                detainedCount = 0,
 
-                transferredCount = trip.transferredCount.toIntOrNull() ?: 0,
+                transferredCount = 0,
 
                 note = null
 
@@ -7377,13 +7591,17 @@ private fun isOhAlarmGoal(goal: TripGoalDto?): Boolean {
 
 
 
-    return text.contains("ох") ||
+    return hasAlarmWord(text) && (
 
-        text.contains("oh") ||
+        text.contains("ох") ||
 
-        text.contains("охрана") ||
+            text.contains("oh") ||
 
-        text.contains("охорона")
+            text.contains("охрана") ||
+
+            text.contains("охорона")
+
+    )
 
 }
 
@@ -7403,13 +7621,17 @@ private fun isPartnerAlarmGoal(goal: TripGoalDto?): Boolean {
 
 
 
-    return text.contains("партнер") ||
+    return hasAlarmWord(text) && (
 
-        text.contains("партнеры") ||
+        text.contains("партнер") ||
 
-        text.contains("партнери") ||
+            text.contains("партнеры") ||
 
-        text.contains("partner")
+            text.contains("партнери") ||
+
+            text.contains("partner")
+
+    )
 
 }
 
@@ -7429,13 +7651,33 @@ private fun isAdditionalAlarmGoal(goal: TripGoalDto?): Boolean {
 
 
 
-    return (text.contains("список") && text.contains("спрац")) ||
+    return (text.contains("список") && hasAlarmWord(text)) ||
 
-        text.contains("додатков") ||
+        (hasAlarmWord(text) && (
 
-        text.contains("дополн") ||
+            text.contains("додатков") ||
 
-        text.contains("additional")
+                text.contains("дополн") ||
+
+                text.contains("additional")
+
+        ))
+
+}
+
+
+
+private fun hasAlarmWord(text: String): Boolean {
+
+    return text.contains("спрац") ||
+
+        text.contains("сработ") ||
+
+        text.contains("alarm") ||
+
+        text.contains("тривог") ||
+
+        text.contains("тревог")
 
 }
 
