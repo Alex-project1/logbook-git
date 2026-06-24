@@ -46,6 +46,27 @@ function formatTime(value: string | null) {
     timeZone: "UTC",
   });
 }
+const KYIV_TIME_ZONE = "Europe/Kyiv";
+
+function formatRouteTime(value: string | null) {
+  if (!value) return "—";
+
+  return new Date(value).toLocaleTimeString("uk-UA", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "UTC",
+  });
+}
+
+function formatSubmittedTime(value: string | null) {
+  if (!value) return "—";
+
+  return new Date(value).toLocaleTimeString("uk-UA", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: KYIV_TIME_ZONE,
+  });
+}
 function formatNumber(value: number) {
   return value.toLocaleString("uk-UA");
 }
@@ -687,7 +708,7 @@ export function ReportsShiftsPage() {
                             </button>
                           </td>
                           <td>{formatDate(row.shiftDate)}</td>
-                          <td>{formatTime(row.submittedAt)}</td>
+                          <td>{formatSubmittedTime(row.submittedAt)}</td>
                           <td>{row.city.name}</td>
                           <td>{row.department?.name ?? "—"}</td>
                           <td>{row.crew.name}</td>
@@ -801,7 +822,7 @@ export function ReportsShiftsPage() {
                                           key={trip.id}
                                         >
                                           <strong>
-                                            {formatTime(trip.departureTime)} ·{" "}
+                                          {formatRouteTime(trip.departureTime)} ·{" "}
                                             {trip.fromLocation} →{" "}
                                             {trip.toLocation}
                                             {hasTripEvents && (
