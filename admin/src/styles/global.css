@@ -1563,6 +1563,7 @@ body,
   width: 100%;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 9px;
   border: 0;
   border-radius: 12px;

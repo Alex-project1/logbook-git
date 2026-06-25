@@ -162,6 +162,8 @@ type DynamicComparisonRow = {
   compare: number;
   diff: number;
   percent: number;
+  mainDistanceKm: number | null;
+  compareDistanceKm: number | null;
 };
 
 function getComparableColumns(table: CustomReportTable) {
@@ -400,6 +402,171 @@ function formatBreakdownLabel(breakdown: AlarmBreakdown | null) {
   return `(${formatNumber(breakdown.oh)}/${formatNumber(breakdown.partner)})`;
 }
 
+const distanceMetricKey = "totalDistanceKm";
+
+function getDistanceFromCandidate(
+  candidate: unknown,
+  allowPlainNumber = false,
+): number | null {
+  if (candidate === null || candidate === undefined) {
+    return null;
+  }
+
+  if (typeof candidate === "number" || typeof candidate === "string") {
+    return allowPlainNumber ? toOptionalNumber(candidate) : null;
+  }
+
+  if (typeof candidate !== "object") {
+    return null;
+  }
+
+  const value = candidate as Record<string, any>;
+
+  return toOptionalNumber(
+    value.distanceKm ??
+      value.distanceKms ??
+      value.totalDistanceKm ??
+      value.totalKm ??
+      value.distance ??
+      value.km,
+  );
+}
+
+function getDistanceFromContainer(container: unknown, columnKey: string): number | null {
+  if (container === null || container === undefined) {
+    return null;
+  }
+
+  if (typeof container === "number" || typeof container === "string") {
+    return columnKey === "total" ? toOptionalNumber(container) : null;
+  }
+
+  if (typeof container !== "object") {
+    return null;
+  }
+
+  const value = container as Record<string, any>;
+
+  return (
+    getDistanceFromCandidate(value[columnKey], true) ??
+    getDistanceFromCandidate(value.groups?.[columnKey], true) ??
+    getDistanceFromCandidate(value.groupValues?.[columnKey], true) ??
+    getDistanceFromCandidate(value.byGroup?.[columnKey], true) ??
+    (columnKey === "total" ? getDistanceFromCandidate(value.total, true) : null)
+  );
+}
+
+function getNestedDistanceValue(source: unknown, columnKey: string): number | null {
+  if (!source || typeof source !== "object") {
+    return null;
+  }
+
+  const value = source as Record<string, any>;
+
+  const directCandidates = [
+    value[columnKey],
+    value.groups?.[columnKey],
+    value.groupMetrics?.[columnKey],
+    value.groupBreakdowns?.[columnKey],
+    value.breakdowns?.[columnKey],
+    value.breakdown?.[columnKey],
+  ];
+
+  for (const candidate of directCandidates) {
+    const distance = getDistanceFromCandidate(candidate);
+
+    if (distance !== null) {
+      return distance;
+    }
+  }
+
+  const containerCandidates = [
+    value.distanceKm,
+    value.totalDistanceKm,
+    value.distance,
+    value.totalKm,
+    value.km,
+    value.distances,
+    value.distanceKms,
+    value.distanceByGroup,
+    value.groupDistances,
+    value.groupDistanceKm,
+    value.groupDistanceKms,
+    value.kmByGroup,
+    value.metricDistances,
+    value.distanceBreakdowns,
+    value.groupsDistanceKm,
+  ];
+
+  for (const candidate of containerCandidates) {
+    const distance = getDistanceFromContainer(candidate, columnKey);
+
+    if (distance !== null) {
+      return distance;
+    }
+  }
+
+  return columnKey === "total"
+    ? getDistanceFromCandidate(value)
+    : getDistanceFromCandidate(
+        value[`${columnKey}DistanceKm`] ??
+          value[`${columnKey}_distanceKm`] ??
+          value[`${columnKey}TotalDistanceKm`] ??
+          value[`${columnKey}_totalDistanceKm`] ??
+          value[`${columnKey}Km`] ??
+          value[`${columnKey}_km`],
+        true,
+      );
+}
+
+function getCellDistanceKm(params: {
+  row: CustomReportTableRow;
+  columnKey: string;
+  table: CustomReportTable;
+}) {
+  if (String(params.row.key) === distanceMetricKey) {
+    return null;
+  }
+
+  return getNestedDistanceValue(params.row, params.columnKey);
+}
+
+function formatDistanceLabel(distanceKm: number | null) {
+  if (distanceKm === null) {
+    return null;
+  }
+
+  return `(${formatNumber(distanceKm)} км)`;
+}
+
+function renderValueWithDistance(value: number, distanceKm: number | null) {
+  const distanceLabel = formatDistanceLabel(distanceKm);
+
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 2,
+      }}
+    >
+      <span>{formatNumber(value)}</span>
+      {distanceLabel && (
+        <span
+          style={{
+            color: "rgba(15, 118, 110, 0.78)",
+            fontSize: 12,
+            fontWeight: 700,
+          }}
+        >
+          {distanceLabel}
+        </span>
+      )}
+    </span>
+  );
+}
+
 function renderValueWithExtremeBadge(params: {
   value: number;
   row: CustomReportTableRow;
@@ -415,6 +582,13 @@ function renderValueWithExtremeBadge(params: {
   });
 
   const breakdownLabel = formatBreakdownLabel(breakdown);
+  const distanceLabel = formatDistanceLabel(
+    getCellDistanceKm({
+      row: params.row,
+      columnKey: params.columnKey,
+      table: params.table,
+    }),
+  );
 
   return (
     <span
@@ -441,6 +615,19 @@ function renderValueWithExtremeBadge(params: {
           }}
         >
           {breakdownLabel}
+        </span>
+      )}
+
+      {distanceLabel && (
+        <span
+          style={{
+            marginTop: 2,
+            color: "rgba(15, 118, 110, 0.78)",
+            fontSize: 12,
+            fontWeight: 700,
+          }}
+        >
+          {distanceLabel}
         </span>
       )}
 
@@ -526,6 +713,18 @@ function buildDynamicComparisonRows(
       const main = getTableCellValue(row, column.key);
       const compare = compareRow ? getTableCellValue(compareRow, column.key) : 0;
       const diff = main - compare;
+      const mainDistanceKm = getCellDistanceKm({
+        row,
+        columnKey: column.key,
+        table: mainTable,
+      });
+      const compareDistanceKm = compareRow
+        ? getCellDistanceKm({
+            row: compareRow,
+            columnKey: column.key,
+            table: compareTable,
+          })
+        : null;
 
       return {
         groupKey: column.key,
@@ -537,6 +736,8 @@ function buildDynamicComparisonRows(
         compare,
         diff,
         percent: calculatePercentChange(main, compare),
+        mainDistanceKm,
+        compareDistanceKm,
       };
     }),
   );
@@ -802,8 +1003,13 @@ function CustomReportDynamicsTable({
                             </div>
                           </td>
 
-                          <td>{formatNumber(row.main)}</td>
-                          <td>{formatNumber(row.compare)}</td>
+                          <td>{renderValueWithDistance(row.main, row.mainDistanceKm)}</td>
+                          <td>
+                            {renderValueWithDistance(
+                              row.compare,
+                              row.compareDistanceKm,
+                            )}
+                          </td>
                           <td>{formatSignedNumber(row.diff)}</td>
                           <td>
                             <span

@@ -12,6 +12,13 @@ export type GeneralTotals = {
   totalShifts: number;
   totalTrips: number;
   totalDistanceKm: number;
+  totalAlarmsDistanceKm?: number;
+  falseDistanceKm?: number;
+  combatDistanceKm?: number;
+  additionalDistanceKm?: number;
+  detainedDistanceKm?: number;
+  transferredDistanceKm?: number;
+  tripGoalDistanceKm?: Record<string, number>;
 
   totalAlarms: number;
   totalOh: number;
@@ -578,6 +585,13 @@ export type EmployeeTableRow = {
 
   totalTrips: number;
   totalDistanceKm: number;
+  totalAlarmsDistanceKm?: number;
+  falseDistanceKm?: number;
+  combatDistanceKm?: number;
+  additionalDistanceKm?: number;
+  detainedDistanceKm?: number;
+  transferredDistanceKm?: number;
+  tripGoalDistanceKm?: Record<string, number>;
 
   totalAlarms: number;
   totalOh: number;
@@ -740,6 +754,13 @@ export type CrewTableRow = {
   totalShifts: number;
   totalTrips: number;
   totalDistanceKm: number;
+  totalAlarmsDistanceKm?: number;
+  falseDistanceKm?: number;
+  combatDistanceKm?: number;
+  additionalDistanceKm?: number;
+  detainedDistanceKm?: number;
+  transferredDistanceKm?: number;
+  tripGoalDistanceKm?: Record<string, number>;
 
   totalAlarms: number;
   totalOh: number;
@@ -1169,12 +1190,19 @@ export type CustomReportTableColumn = {
   label: string;
 };
 
+export type CustomReportTableBreakdown = {
+  oh: number;
+  partner: number;
+};
+
 export type CustomReportTableRow = {
   key: string;
   label: string;
   level: number;
   total: number;
   groups: Record<string, number>;
+  breakdowns?: Record<string, CustomReportTableBreakdown>;
+  distanceKms?: Record<string, number>;
 };
 
 export type CustomReportTable = {
@@ -1186,6 +1214,13 @@ export type CustomReportTotals = {
   totalShifts: number;
   totalTrips: number;
   totalDistanceKm: number;
+  totalAlarmsDistanceKm?: number;
+  falseDistanceKm?: number;
+  combatDistanceKm?: number;
+  additionalDistanceKm?: number;
+  detainedDistanceKm?: number;
+  transferredDistanceKm?: number;
+  tripGoalDistanceKm?: Record<string, number>;
 
   totalAlarms: number;
   totalOh: number;
@@ -1196,6 +1231,7 @@ export type CustomReportTotals = {
 
   additionalTotal: number;
   additionalByReason: Record<string, number>;
+  additionalByReasonDistanceKm?: Record<string, number>;
 
   detained: number;
   transferred: number;

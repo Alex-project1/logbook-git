@@ -32,8 +32,15 @@ type ReportTotals = {
   totalDistanceKm: number;
 
   tripGoalCounts: Record<string, number>;
+  tripGoalDistanceKm: Record<string, number>;
 
   totalAlarms: number;
+  totalAlarmsDistanceKm: number;
+  falseDistanceKm: number;
+  combatDistanceKm: number;
+  additionalDistanceKm: number;
+  detainedDistanceKm: number;
+  transferredDistanceKm: number;
   totalOh: number;
   totalPartner: number;
 
@@ -50,6 +57,7 @@ type ReportTotals = {
   additionalPartner: number;
   additionalByReason: Record<string, number>;
   additionalByReasonBreakdown: Record<string, AdditionalReasonBreakdown>;
+  additionalByReasonDistanceKm: Record<string, number>;
 
   detained: number;
   detainedOh: number;
@@ -164,8 +172,15 @@ function createEmptyTotals(): ReportTotals {
     totalDistanceKm: 0,
 
     tripGoalCounts: {},
+    tripGoalDistanceKm: {},
 
     totalAlarms: 0,
+    totalAlarmsDistanceKm: 0,
+    falseDistanceKm: 0,
+    combatDistanceKm: 0,
+    additionalDistanceKm: 0,
+    detainedDistanceKm: 0,
+    transferredDistanceKm: 0,
     totalOh: 0,
     totalPartner: 0,
 
@@ -182,6 +197,7 @@ function createEmptyTotals(): ReportTotals {
     additionalPartner: 0,
     additionalByReason: {},
     additionalByReasonBreakdown: {},
+    additionalByReasonDistanceKm: {},
 
     detained: 0,
     detainedOh: 0,
@@ -209,6 +225,14 @@ function addToReasonMap(
   value: number,
 ) {
   map[reasonName] = (map[reasonName] ?? 0) + value;
+}
+
+function addToDistanceMap(
+  map: Record<string, number>,
+  key: string,
+  distanceKm: number,
+) {
+  map[key] = (map[key] ?? 0) + distanceKm;
 }
 
 function addToReasonBreakdownMap(
@@ -277,6 +301,7 @@ function addBreakdownToDetainedAndTransferred(params: {
   totals: ReportTotals;
   detained: number;
   transferred: number;
+  distanceKm?: number;
   alarmSource?: string | null;
   oh?: number;
   partner?: number;
@@ -295,24 +320,39 @@ function addBreakdownToDetainedAndTransferred(params: {
     partner: params.partner,
   });
 
-  params.totals.detained += toNumber(params.detained);
+  const detained = toNumber(params.detained);
+  const transferred = toNumber(params.transferred);
+  const distanceKm = toNumber(params.distanceKm);
+
+  params.totals.detained += detained;
   params.totals.detainedOh += detainedBreakdown.oh;
   params.totals.detainedPartner += detainedBreakdown.partner;
 
-  params.totals.transferred += toNumber(params.transferred);
+  params.totals.transferred += transferred;
   params.totals.transferredOh += transferredBreakdown.oh;
   params.totals.transferredPartner += transferredBreakdown.partner;
+
+  if (detained > 0) {
+    params.totals.detainedDistanceKm += distanceKm;
+  }
+
+  if (transferred > 0) {
+    params.totals.transferredDistanceKm += distanceKm;
+  }
 }
 
 function addShiftToTotals(totals: ReportTotals, shift: any) {
   totals.totalShifts += getShiftEquivalent(shift);
 
   for (const trip of shift.trips ?? []) {
+    const tripDistanceKm = toNumber(trip.distanceKm);
+
     totals.totalTrips += 1;
-    totals.totalDistanceKm += toNumber(trip.distanceKm);
+    totals.totalDistanceKm += tripDistanceKm;
 
     const goalKey = String(trip.goalId);
     totals.tripGoalCounts[goalKey] = (totals.tripGoalCounts[goalKey] ?? 0) + 1;
+    addToDistanceMap(totals.tripGoalDistanceKm, goalKey, tripDistanceKm);
 
     for (const event of trip.events ?? []) {
       const detained = event.detainedCount ?? 0;
@@ -320,6 +360,7 @@ function addShiftToTotals(totals: ReportTotals, shift: any) {
 
       if (event.eventCategory === "REGULAR_ALARM") {
         totals.totalAlarms += 1;
+        totals.totalAlarmsDistanceKm += tripDistanceKm;
 
         if (event.alarmSource === "OH") {
           totals.totalOh += 1;
@@ -331,6 +372,7 @@ function addShiftToTotals(totals: ReportTotals, shift: any) {
 
         if (event.isCombat) {
           totals.combatTotal += 1;
+          totals.combatDistanceKm += tripDistanceKm;
 
           if (event.alarmSource === "OH") {
             totals.combatOh += 1;
@@ -341,6 +383,7 @@ function addShiftToTotals(totals: ReportTotals, shift: any) {
           }
         } else {
           totals.falseTotal += 1;
+          totals.falseDistanceKm += tripDistanceKm;
 
           if (event.alarmSource === "OH") {
             totals.falseOh += 1;
@@ -355,6 +398,7 @@ function addShiftToTotals(totals: ReportTotals, shift: any) {
           totals,
           detained,
           transferred,
+          distanceKm: tripDistanceKm,
           alarmSource: event.alarmSource,
         });
       }
@@ -365,10 +409,12 @@ function addShiftToTotals(totals: ReportTotals, shift: any) {
         const total = oh + partner;
 
         totals.totalAlarms += total;
+        totals.totalAlarmsDistanceKm += total > 0 ? tripDistanceKm : 0;
         totals.totalOh += oh;
         totals.totalPartner += partner;
 
         totals.additionalTotal += total;
+        totals.additionalDistanceKm += total > 0 ? tripDistanceKm : 0;
         totals.additionalOh += oh;
         totals.additionalPartner += partner;
 
@@ -381,10 +427,19 @@ function addShiftToTotals(totals: ReportTotals, shift: any) {
           partner,
         });
 
+        if (total > 0) {
+          addToDistanceMap(
+            totals.additionalByReasonDistanceKm,
+            reasonName,
+            tripDistanceKm,
+          );
+        }
+
         addBreakdownToDetainedAndTransferred({
           totals,
           detained,
           transferred,
+          distanceKm: tripDistanceKm,
           oh,
           partner,
         });
@@ -404,6 +459,18 @@ function finalizeTotals(totals: ReportTotals): ReportTotals {
     ...totals,
     totalShifts: roundNumber(totals.totalShifts),
     totalDistanceKm: roundNumber(totals.totalDistanceKm),
+    totalAlarmsDistanceKm: roundNumber(totals.totalAlarmsDistanceKm),
+    falseDistanceKm: roundNumber(totals.falseDistanceKm),
+    combatDistanceKm: roundNumber(totals.combatDistanceKm),
+    additionalDistanceKm: roundNumber(totals.additionalDistanceKm),
+    detainedDistanceKm: roundNumber(totals.detainedDistanceKm),
+    transferredDistanceKm: roundNumber(totals.transferredDistanceKm),
+    tripGoalDistanceKm: Object.fromEntries(
+      Object.entries(totals.tripGoalDistanceKm).map(([key, value]) => [
+        key,
+        roundNumber(value),
+      ]),
+    ),
     falseOh: roundNumber(totals.falseOh),
     falsePartner: roundNumber(totals.falsePartner),
     combatOh: roundNumber(totals.combatOh),
@@ -427,6 +494,12 @@ function finalizeTotals(totals: ReportTotals): ReportTotals {
           total: roundNumber(value.total),
           ...roundBreakdown(value),
         },
+      ]),
+    ),
+    additionalByReasonDistanceKm: Object.fromEntries(
+      Object.entries(totals.additionalByReasonDistanceKm).map(([key, value]) => [
+        key,
+        roundNumber(value),
       ]),
     ),
   };
@@ -515,6 +588,49 @@ function getTableRowBreakdown(
       oh: roundNumber(totals.detainedOh),
       partner: roundNumber(totals.detainedPartner),
     };
+  }
+
+  return null;
+}
+
+function getTableRowDistanceKm(
+  totals: ReportTotals,
+  row: CustomTableRowDefinition,
+): number | null {
+  if (row.kind === "tripGoal" && row.tripGoalId) {
+    return roundNumber(totals.tripGoalDistanceKm[String(row.tripGoalId)] ?? 0);
+  }
+
+  if (row.kind === "additionalReason" && row.reasonName) {
+    return roundNumber(totals.additionalByReasonDistanceKm[row.reasonName] ?? 0);
+  }
+
+  if (row.kind === "transferred") {
+    return roundNumber(totals.transferredDistanceKm);
+  }
+
+  if (row.metric === "totalTrips") {
+    return roundNumber(totals.totalDistanceKm);
+  }
+
+  if (row.metric === "totalAlarms") {
+    return roundNumber(totals.totalAlarmsDistanceKm);
+  }
+
+  if (row.metric === "falseTotal") {
+    return roundNumber(totals.falseDistanceKm);
+  }
+
+  if (row.metric === "combatTotal") {
+    return roundNumber(totals.combatDistanceKm);
+  }
+
+  if (row.metric === "additionalTotal") {
+    return roundNumber(totals.additionalDistanceKm);
+  }
+
+  if (row.metric === "detained") {
+    return roundNumber(totals.detainedDistanceKm);
   }
 
   return null;
@@ -886,6 +1002,16 @@ function buildTable(params: {
         ].filter(([, breakdown]) => breakdown !== null),
       );
 
+      const distanceKms = Object.fromEntries(
+        [
+          ["total", getTableRowDistanceKm(params.totals, row)] as const,
+          ...params.groups.map((group) => [
+            String(group.id),
+            getTableRowDistanceKm(group.totals, row),
+          ] as const),
+        ].filter(([, distanceKm]) => distanceKm !== null),
+      );
+
       return {
         key: row.key,
         label: row.label,
@@ -898,6 +1024,7 @@ function buildTable(params: {
           ]),
         ),
         breakdowns,
+        distanceKms,
       };
     }),
   };

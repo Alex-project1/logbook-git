@@ -8,8 +8,12 @@ type CustomReportTableColumn = CustomReportTable["columns"][number];
 type CustomReportTableRow = CustomReportTable["rows"][number];
 
 type ExcelFill = ExcelJS.Fill;
-
 type ChangeDirection = "up" | "down" | "flat";
+
+type AlarmBreakdown = {
+  oh: number;
+  partner: number;
+};
 
 const BORDER_THIN: Partial<ExcelJS.Borders> = {
   top: { style: "thin" },
@@ -64,7 +68,25 @@ const FILLS = {
     pattern: "solid",
     fgColor: { argb: "FFF1F5F9" },
   } as ExcelFill,
+  distance: {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFECFDF5" },
+  } as ExcelFill,
 };
+
+const METRIC_LABELS: Record<string, string> = {
+  totalShifts: "Усього змін",
+  totalTrips: "Усього поїздок",
+  totalDistanceKm: "Пробіг",
+  totalAlarms: "Усього спрацювань",
+  falseTotal: "Хибні",
+  combatTotal: "Бойові",
+  additionalTotal: "Додаткові",
+  detained: "Затримано",
+};
+
+const DISTANCE_METRIC_KEY = "totalDistanceKm";
 
 function formatDateLabel(value: unknown) {
   if (!value) {
@@ -93,12 +115,48 @@ function safeNumber(value: unknown) {
   return Number.isFinite(numberValue) ? numberValue : 0;
 }
 
+function toOptionalNumber(value: unknown) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function formatNumber(value: number) {
+  return roundNumber(value).toLocaleString("uk-UA", {
+    maximumFractionDigits: 2,
+  });
+}
+
+
+function formatSignedNumber(value: number) {
+  const rounded = roundNumber(value);
+
+  if (rounded > 0) {
+    return `+${formatNumber(rounded)}`;
+  }
+
+  return formatNumber(rounded);
+}
+
 function safeSheetName(value: string) {
   return value.replace(/[\\/*?:[\]]/g, " ").slice(0, 31);
 }
 
 function getGroupModeLabel(groupMode: string) {
   return groupMode === "crew" ? "нарядах" : "містах";
+}
+
+function formatMetricList(metrics: string[]) {
+  if (metrics.length === 0) {
+    return "Не вибрано";
+  }
+
+  return metrics.map((metric) => METRIC_LABELS[metric] ?? metric).join(", ");
+}
+
+function getSelectedTripGoalLabels(table: CustomReportTable) {
+  return table.rows
+    .filter((row) => String(row.key).startsWith("tripGoal:"))
+    .map((row) => row.label);
 }
 
 function getComparableColumns(table: CustomReportTable) {
@@ -134,6 +192,156 @@ function getRowExtremes(
     max,
     min,
   };
+}
+
+function getBreakdownFromCandidate(candidate: unknown): AlarmBreakdown | null {
+  if (!candidate || typeof candidate !== "object") {
+    return null;
+  }
+
+  const value = candidate as Record<string, unknown>;
+  const oh = toOptionalNumber(value.oh ?? value.totalOh ?? value.ohCount);
+  const partner = toOptionalNumber(
+    value.partner ?? value.totalPartner ?? value.partnerCount,
+  );
+
+  if (oh === null && partner === null) {
+    return null;
+  }
+
+  return {
+    oh: oh ?? 0,
+    partner: partner ?? 0,
+  };
+}
+
+function findSiblingRowValue(
+  table: CustomReportTable,
+  rowKey: string,
+  columnKey: string,
+) {
+  const sibling = table.rows.find((row) => row.key === rowKey);
+
+  if (!sibling) {
+    return null;
+  }
+
+  return getTableCellValue(sibling, columnKey);
+}
+
+function getSyntheticBreakdownFromRows(params: {
+  row: CustomReportTableRow;
+  columnKey: string;
+  table: CustomReportTable;
+}): AlarmBreakdown | null {
+  const key = String(params.row.key);
+
+  const keyPairs: Record<string, [string, string]> = {
+    totalAlarms: ["totalOh", "totalPartner"],
+    falseTotal: ["falseOh", "falsePartner"],
+    combatTotal: ["combatOh", "combatPartner"],
+    additionalTotal: ["additionalOh", "additionalPartner"],
+    detained: ["detainedOh", "detainedPartner"],
+    transferred: ["transferredOh", "transferredPartner"],
+  };
+
+  const pair = keyPairs[key];
+
+  if (!pair) {
+    return null;
+  }
+
+  const oh = findSiblingRowValue(params.table, pair[0], params.columnKey);
+  const partner = findSiblingRowValue(params.table, pair[1], params.columnKey);
+
+  if (oh === null && partner === null) {
+    return null;
+  }
+
+  return {
+    oh: oh ?? 0,
+    partner: partner ?? 0,
+  };
+}
+
+function getCellBreakdown(params: {
+  row: CustomReportTableRow;
+  columnKey: string;
+  table: CustomReportTable;
+}) {
+  const rowWithBreakdowns = params.row as CustomReportTableRow & {
+    breakdowns?: Record<string, unknown>;
+    breakdown?: Record<string, unknown>;
+    groupBreakdowns?: Record<string, unknown>;
+  };
+
+  return (
+    getBreakdownFromCandidate(rowWithBreakdowns.breakdowns?.[params.columnKey]) ??
+    getBreakdownFromCandidate(rowWithBreakdowns.breakdown?.[params.columnKey]) ??
+    getBreakdownFromCandidate(
+      rowWithBreakdowns.groupBreakdowns?.[params.columnKey],
+    ) ??
+    getSyntheticBreakdownFromRows(params)
+  );
+}
+
+function getCellDistanceKm(params: {
+  row: CustomReportTableRow;
+  columnKey: string;
+}) {
+  if (String(params.row.key) === DISTANCE_METRIC_KEY) {
+    return null;
+  }
+
+  const rowWithDistance = params.row as CustomReportTableRow & {
+    distanceKms?: Record<string, unknown>;
+    distances?: Record<string, unknown>;
+    distanceKm?: Record<string, unknown>;
+  };
+
+  return (
+    toOptionalNumber(rowWithDistance.distanceKms?.[params.columnKey]) ??
+    toOptionalNumber(rowWithDistance.distances?.[params.columnKey]) ??
+    toOptionalNumber(rowWithDistance.distanceKm?.[params.columnKey])
+  );
+}
+
+function getCellLineParts(params: {
+  row: CustomReportTableRow;
+  columnKey: string;
+  table: CustomReportTable;
+}) {
+  const value = getTableCellValue(params.row, params.columnKey);
+  const breakdown = getCellBreakdown(params);
+  const distanceKm = getCellDistanceKm(params);
+
+  const lines = [formatNumber(value)];
+
+  if (breakdown) {
+    lines.push(`(${formatNumber(breakdown.oh)}/${formatNumber(breakdown.partner)})`);
+  }
+
+  if (distanceKm !== null) {
+    lines.push(`(${formatNumber(distanceKm)} км)`);
+  }
+
+  return lines;
+}
+
+function getCellDisplayValue(params: {
+  row: CustomReportTableRow;
+  columnKey: string;
+  table: CustomReportTable;
+}) {
+  return getCellLineParts(params).join("\n");
+}
+
+function getCellLineCount(params: {
+  row: CustomReportTableRow;
+  columnKey: string;
+  table: CustomReportTable;
+}) {
+  return getCellLineParts(params).length;
 }
 
 function getChangePercent(main: number, compare: number) {
@@ -182,14 +390,21 @@ function applyDataBorders(sheet: ExcelJS.Worksheet, fromRow = 1) {
   for (let rowNumber = fromRow; rowNumber <= sheet.rowCount; rowNumber += 1) {
     const row = sheet.getRow(rowNumber);
 
-    row.eachCell((cell) => {
+    row.eachCell({ includeEmpty: true }, (cell) => {
       cell.border = BORDER_THIN;
       cell.alignment = {
         vertical: "middle",
+        horizontal: typeof cell.value === "number" ? "right" : "center",
         wrapText: true,
       };
     });
   }
+}
+
+function styleTitleRow(row: ExcelJS.Row) {
+  row.font = { bold: true, size: 14, color: { argb: "FFFFFFFF" } };
+  row.fill = FILLS.title;
+  row.alignment = { vertical: "middle" };
 }
 
 function addMetaSheet(
@@ -197,10 +412,11 @@ function addMetaSheet(
   payload: CustomReportPayload,
 ) {
   const sheet = workbook.addWorksheet("Параметри");
+  const tripGoalLabels = getSelectedTripGoalLabels(payload.data.main.table);
 
   sheet.columns = [
     { header: "Параметр", key: "label", width: 34 },
-    { header: "Значення", key: "value", width: 48 },
+    { header: "Значення", key: "value", width: 72 },
   ];
 
   sheet.addRow({
@@ -235,17 +451,21 @@ function addMetaSheet(
 
   sheet.addRow({
     label: "Показники",
-    value: payload.filters.metrics.join(", "),
+    value: formatMetricList(payload.filters.metrics),
   });
 
   sheet.addRow({
     label: "Цілі поїздок",
-    value: payload.filters.tripGoalIds.length
-      ? payload.filters.tripGoalIds.join(", ")
-      : "Не вибрано",
+    value: tripGoalLabels.length ? tripGoalLabels.join(", ") : "Не вибрано",
+  });
+
+  sheet.addRow({
+    label: "Формат ячейки таблиці",
+    value: "1-й рядок — значення; 2-й рядок — (ОХ/Партнери), якщо є; 3-й рядок — (пробіг км), якщо є",
   });
 
   styleSheet(sheet);
+  applyDataBorders(sheet, 1);
 }
 
 function addReportTableSheet(params: {
@@ -261,8 +481,8 @@ function addReportTableSheet(params: {
   sheet.addRow([params.title]);
   sheet.addRow(["Період", params.periodLabel]);
   sheet.addRow([
-    "Підсвітка",
-    "макс — найбільше значення у рядку, мін — найменше значення у рядку",
+    "Формат",
+    "Значення; нижче (ОХ/Партнери); нижче (пробіг км). Підсвітка: макс/мін у рядку.",
   ]);
   sheet.addRow([]);
 
@@ -274,12 +494,26 @@ function addReportTableSheet(params: {
   sheet.addRow(header);
 
   for (const row of params.table.rows) {
+    const lineCounts = params.table.columns.map((column) =>
+      getCellLineCount({
+        row,
+        columnKey: column.key,
+        table: params.table,
+      }),
+    );
+
     const excelRow = sheet.addRow([
       `${row.level > 0 ? `${"  ".repeat(row.level)}↳ ` : ""}${row.label}`,
       ...params.table.columns.map((column) =>
-        getTableCellValue(row, column.key),
+        getCellDisplayValue({
+          row,
+          columnKey: column.key,
+          table: params.table,
+        }),
       ),
     ]);
+
+    excelRow.height = Math.max(22, Math.max(...lineCounts, 1) * 16);
 
     if (row.level > 0) {
       excelRow.getCell(1).font = {
@@ -293,13 +527,22 @@ function addReportTableSheet(params: {
     params.table.columns.forEach((column, index) => {
       const cell = excelRow.getCell(index + 2);
       const value = getTableCellValue(row, column.key);
+      const distanceKm = getCellDistanceKm({ row, columnKey: column.key });
 
-      cell.numFmt = "#,##0.##";
+      cell.alignment = {
+        vertical: "middle",
+        horizontal: "center",
+        wrapText: true,
+      };
 
       if (column.key === "total") {
         cell.fill = FILLS.total;
         cell.font = { bold: true };
         return;
+      }
+
+      if (distanceKm !== null) {
+        cell.fill = FILLS.distance;
       }
 
       if (!extremes) return;
@@ -316,8 +559,7 @@ function addReportTableSheet(params: {
     });
   }
 
-  sheet.getRow(1).font = { bold: true, size: 14, color: { argb: "FFFFFFFF" } };
-  sheet.getRow(1).fill = FILLS.title;
+  styleTitleRow(sheet.getRow(1));
   sheet.getRow(5).height = 24;
   applyHeaderStyle(sheet.getRow(5));
   sheet.views = [{ state: "frozen", ySplit: 5 }];
@@ -327,12 +569,20 @@ function addReportTableSheet(params: {
   };
 
   sheet.columns.forEach((column, index) => {
-    column.width = index === 0 ? 34 : 17;
+    column.width = index === 0 ? 36 : 20;
   });
 
   applyDataBorders(sheet, 5);
 
   return sheet;
+}
+
+function formatCellValueWithDistance(params: {
+  row: CustomReportTableRow;
+  columnKey: string;
+  table: CustomReportTable;
+}) {
+  return getCellDisplayValue(params);
 }
 
 function addDynamicsSheet(
@@ -377,8 +627,8 @@ function addDynamicsSheet(
     }),
   ]);
   sheet.addRow([
-    "Правило %",
-    "Якщо в періоді порівняння було 0, а в основному періоді стало більше — показуємо +100%",
+    "Формат",
+    "У колонках періодів значення показано так само як на сайті: значення, (ОХ/Партнери), (пробіг км)",
   ]);
   sheet.addRow([]);
 
@@ -423,23 +673,45 @@ function addDynamicsSheet(
       const diff = roundNumber(main - compare);
       const percent = getChangePercent(main, compare);
       const direction = getChangeDirection(diff);
+      const mainDisplay = formatCellValueWithDistance({
+        row,
+        columnKey: column.key,
+        table: mainTable,
+      });
+      const compareDisplay = compareRow
+        ? formatCellValueWithDistance({
+            row: compareRow,
+            columnKey: column.key,
+            table: compareTable,
+          })
+        : formatNumber(0);
 
       const excelRow = sheet.addRow([
         rowNumber === groupHeaderNumber + 1 ? column.label : "",
         `${row.level > 0 ? `${"  ".repeat(row.level)}↳ ` : ""}${row.label}`,
-        main,
-        compare,
+        mainDisplay,
+        compareDisplay,
         diff,
         percent / 100,
       ]);
 
+      excelRow.height = Math.max(
+        22,
+        Math.max(mainDisplay.split("\n").length, compareDisplay.split("\n").length) * 16,
+      );
+
       excelRow.getCell(2).alignment = {
         indent: row.level,
         vertical: "middle",
+        wrapText: true,
       };
 
       [3, 4].forEach((cellNumber) => {
-        excelRow.getCell(cellNumber).numFmt = "#,##0.##";
+        excelRow.getCell(cellNumber).alignment = {
+          vertical: "middle",
+          horizontal: "center",
+          wrapText: true,
+        };
       });
 
       excelRow.getCell(5).numFmt = "+#,##0.##;-#,##0.##;0";
@@ -468,8 +740,7 @@ function addDynamicsSheet(
     });
   });
 
-  sheet.getRow(1).font = { bold: true, size: 14, color: { argb: "FFFFFFFF" } };
-  sheet.getRow(1).fill = FILLS.title;
+  styleTitleRow(sheet.getRow(1));
   applyHeaderStyle(sheet.getRow(6));
   sheet.views = [{ state: "frozen", ySplit: 6 }];
   sheet.autoFilter = {
@@ -480,8 +751,8 @@ function addDynamicsSheet(
   sheet.columns = [
     { key: "group", width: 26 },
     { key: "metric", width: 34 },
-    { key: "main", width: 18 },
-    { key: "compare", width: 20 },
+    { key: "main", width: 22 },
+    { key: "compare", width: 24 },
     { key: "diff", width: 16 },
     { key: "percent", width: 16 },
   ];
@@ -517,13 +788,24 @@ function addPeriodComparisonSheet(
       const direction = getChangeDirection(diff);
       const excelRow = sheet.addRow({
         label: row.label,
-        main: roundNumber(main),
-        compare: roundNumber(compare),
-        diff,
+        main: formatNumber(main),
+        compare: formatNumber(compare),
+        diff: formatSignedNumber(diff),
         percent: percent / 100,
       });
 
-      excelRow.getCell("diff").numFmt = "+#,##0.##;-#,##0.##;0";
+      excelRow.getCell("main").alignment = {
+        vertical: "middle",
+        horizontal: "right",
+      };
+      excelRow.getCell("compare").alignment = {
+        vertical: "middle",
+        horizontal: "right",
+      };
+      excelRow.getCell("diff").alignment = {
+        vertical: "middle",
+        horizontal: "right",
+      };
       excelRow.getCell("percent").numFmt = "+0.00%;-0.00%;0.00%";
       excelRow.getCell("diff").fill = getChangeFill(direction);
       excelRow.getCell("percent").fill = getChangeFill(direction);
@@ -532,6 +814,7 @@ function addPeriodComparisonSheet(
     });
 
   styleSheet(sheet);
+  applyDataBorders(sheet, 1);
 }
 
 function addAdditionalReasonsSheet(
@@ -539,20 +822,48 @@ function addAdditionalReasonsSheet(
   payload: CustomReportPayload,
 ) {
   const sheet = workbook.addWorksheet("Причини доп. спрацювань");
+  const reasonRows = payload.data.main.table.rows.filter((row) =>
+    String(row.key).startsWith("additionalReason:"),
+  );
 
   sheet.columns = [
     { header: "Причина", key: "reasonName", width: 36 },
-    { header: "Усього", key: "total", width: 14 },
+    { header: "Усього", key: "total", width: 18 },
+    { header: "ОХ/Партнери", key: "breakdown", width: 18 },
+    { header: "Пробіг", key: "distance", width: 16 },
   ];
 
-  payload.data.charts.additionalReasons.forEach((row) => {
+  reasonRows.forEach((row) => {
+    const breakdown = getCellBreakdown({
+      row,
+      columnKey: "total",
+      table: payload.data.main.table,
+    });
+    const distanceKm = getCellDistanceKm({ row, columnKey: "total" });
+
     sheet.addRow({
-      reasonName: row.reasonName,
-      total: roundNumber(row.total),
+      reasonName: row.label,
+      total: getTableCellValue(row, "total"),
+      breakdown: breakdown
+        ? `${formatNumber(breakdown.oh)}/${formatNumber(breakdown.partner)}`
+        : "—",
+      distance: distanceKm === null ? "—" : `${formatNumber(distanceKm)} км`,
     });
   });
 
+  if (reasonRows.length === 0) {
+    payload.data.charts.additionalReasons.forEach((row) => {
+      sheet.addRow({
+        reasonName: row.reasonName,
+        total: roundNumber(safeNumber(row.total)),
+        breakdown: "—",
+        distance: "—",
+      });
+    });
+  }
+
   styleSheet(sheet);
+  applyDataBorders(sheet, 1);
 }
 
 function addAlarmGroupsSheet(
@@ -582,6 +893,7 @@ function addAlarmGroupsSheet(
   });
 
   styleSheet(sheet);
+  applyDataBorders(sheet, 1);
 }
 
 export async function exportCustomReportExcel(req: Request, res: Response) {
