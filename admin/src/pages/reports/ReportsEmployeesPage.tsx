@@ -28,6 +28,80 @@ const defaultFilters: EmployeesTableFilters = {
   sortDir: "desc",
 };
 
+type SortDirection = "asc" | "desc";
+
+type EmployeeReportSortKey =
+  | "fullName"
+  | "cityName"
+  | "totalShifts"
+  | "driverShifts"
+  | "seniorShifts"
+  | "weaponShifts"
+  | "postDutyShiftEquivalent"
+  | "totalAlarms"
+  | "averageAlarmsPerShift"
+  | "totalOh"
+  | "totalPartner"
+  | "combatTotal"
+  | "falseTotal"
+  | "additionalTotal"
+  | "detained"
+  | "transferred"
+  | "totalDistanceKm";
+
+type EmployeeReportSort = {
+  key: EmployeeReportSortKey;
+  direction: SortDirection;
+};
+
+const defaultTableSort: EmployeeReportSort = {
+  key: "totalAlarms",
+  direction: "desc",
+};
+
+const backendSortableEmployeeSortKeys: readonly NonNullable<
+  EmployeesTableFilters["sortBy"]
+>[] = [
+  "fullName",
+  "totalShifts",
+  "driverShifts",
+  "seniorShifts",
+  "weaponShifts",
+  "totalAlarms",
+  "averageAlarmsPerShift",
+  "totalDistanceKm",
+  "detained",
+  "transferred",
+];
+
+function isBackendSortableEmployeeSortKey(
+  key: EmployeeReportSortKey,
+): key is NonNullable<EmployeesTableFilters["sortBy"]> {
+  return backendSortableEmployeeSortKeys.includes(
+    key as NonNullable<EmployeesTableFilters["sortBy"]>,
+  );
+}
+
+function withTableSortFilters(
+  filters: EmployeesTableFilters,
+  sort: EmployeeReportSort,
+): EmployeesTableFilters {
+  if (!isBackendSortableEmployeeSortKey(sort.key)) {
+    const nextFilters = { ...filters };
+
+    delete nextFilters.sortBy;
+    delete nextFilters.sortDir;
+
+    return nextFilters;
+  }
+
+  return {
+    ...filters,
+    sortBy: sort.key,
+    sortDir: sort.direction,
+  };
+}
+
 function formatNumber(value: number) {
   return value.toLocaleString("uk-UA");
 }
@@ -52,9 +126,69 @@ function getPostDutyRows(row: EmployeeTableRow) {
   }));
 }
 
+function getEmployeeSortValue(row: EmployeeTableRow, key: EmployeeReportSortKey) {
+  switch (key) {
+    case "fullName":
+      return row.fullName;
+    case "cityName":
+      return row.cityName;
+    case "totalShifts":
+      return row.totalShifts;
+    case "driverShifts":
+      return row.driverShifts;
+    case "seniorShifts":
+      return row.seniorShifts;
+    case "weaponShifts":
+      return row.weaponShifts;
+    case "postDutyShiftEquivalent":
+      return row.postDutyShiftEquivalent;
+    case "totalAlarms":
+      return row.totalAlarms;
+    case "averageAlarmsPerShift":
+      return row.averageAlarmsPerShift;
+    case "totalOh":
+      return row.totalOh;
+    case "totalPartner":
+      return row.totalPartner;
+    case "combatTotal":
+      return row.combatTotal;
+    case "falseTotal":
+      return row.falseTotal;
+    case "additionalTotal":
+      return row.additionalTotal;
+    case "detained":
+      return row.detained;
+    case "transferred":
+      return row.transferred;
+    case "totalDistanceKm":
+      return row.totalDistanceKm;
+    default:
+      return "";
+  }
+}
+
+function compareEmployeeSortValues(
+  left: string | number,
+  right: string | number,
+  direction: SortDirection,
+) {
+  const multiplier = direction === "asc" ? 1 : -1;
+
+  if (typeof left === "number" && typeof right === "number") {
+    return (left - right) * multiplier;
+  }
+
+  return String(left).localeCompare(String(right), "uk-UA", {
+    numeric: true,
+    sensitivity: "base",
+  }) * multiplier;
+}
+
 export function ReportsEmployeesPage() {
   const [filters, setFilters] =
     useState<EmployeesTableFilters>(defaultFilters);
+  const [tableSort, setTableSort] =
+    useState<EmployeeReportSort>(defaultTableSort);
 
   const [report, setReport] = useState<EmployeesTableResponse | null>(null);
 
@@ -73,6 +207,20 @@ export function ReportsEmployeesPage() {
 
   const rows = report?.data ?? [];
   const pagination = report?.pagination;
+
+  const sortedRows = useMemo(() => {
+    const nextRows = [...rows];
+
+    nextRows.sort((leftRow, rightRow) =>
+      compareEmployeeSortValues(
+        getEmployeeSortValue(leftRow, tableSort.key),
+        getEmployeeSortValue(rightRow, tableSort.key),
+        tableSort.direction,
+      ),
+    );
+
+    return nextRows;
+  }, [rows, tableSort]);
 
   const activeCities = useMemo(
     () => cities.filter((city) => city.isActive),
@@ -170,10 +318,13 @@ export function ReportsEmployeesPage() {
   }
 
   async function handleApply() {
-    const nextFilters: EmployeesTableFilters = {
-      ...filters,
-      page: 1,
-    };
+    const nextFilters = withTableSortFilters(
+      {
+        ...filters,
+        page: 1,
+      },
+      tableSort,
+    );
 
     setFilters(nextFilters);
     await loadReport(nextFilters);
@@ -181,45 +332,108 @@ export function ReportsEmployeesPage() {
 
   async function handleReset() {
     setFilters(defaultFilters);
+    setTableSort(defaultTableSort);
     await loadReport(defaultFilters);
   }
 
   async function handlePageChange(page: number) {
-    const nextFilters: EmployeesTableFilters = {
-      ...filters,
-      page,
-    };
+    const nextFilters = withTableSortFilters(
+      {
+        ...filters,
+        page,
+      },
+      tableSort,
+    );
 
     setFilters(nextFilters);
     await loadReport(nextFilters);
   }
 
   async function handlePageSizeChange(pageSize: number) {
-    const nextFilters: EmployeesTableFilters = {
-      ...filters,
-      page: 1,
-      pageSize,
-    };
+    const nextFilters = withTableSortFilters(
+      {
+        ...filters,
+        page: 1,
+        pageSize,
+      },
+      tableSort,
+    );
 
     setFilters(nextFilters);
     await loadReport(nextFilters);
   }
 
-  async function handleSort(
-    sortBy: NonNullable<EmployeesTableFilters["sortBy"]>
-  ) {
-    const nextSortDir: "asc" | "desc" =
-      filters.sortBy === sortBy && filters.sortDir === "desc" ? "asc" : "desc";
-
-    const nextFilters: EmployeesTableFilters = {
-      ...filters,
-      sortBy,
-      sortDir: nextSortDir,
-      page: 1,
+  async function handleSort(sortKey: EmployeeReportSortKey) {
+    const nextSort: EmployeeReportSort = {
+      key: sortKey,
+      direction:
+        tableSort.key === sortKey && tableSort.direction === "desc"
+          ? "asc"
+          : "desc",
     };
 
+    setTableSort(nextSort);
+
+    const nextFilters = withTableSortFilters(
+      {
+        ...filters,
+        page: 1,
+      },
+      nextSort,
+    );
+
     setFilters(nextFilters);
-    await loadReport(nextFilters);
+
+    if (isBackendSortableEmployeeSortKey(nextSort.key)) {
+      await loadReport(nextFilters);
+    }
+  }
+
+  function getSortIcon(sortKey: EmployeeReportSortKey) {
+    if (tableSort.key !== sortKey) {
+      return "↕";
+    }
+
+    return tableSort.direction === "asc" ? "↑" : "↓";
+  }
+
+  function renderSortableHeader(
+    sortKey: EmployeeReportSortKey,
+    label: string,
+  ) {
+    const active = tableSort.key === sortKey;
+
+    return (
+      <th
+        onClick={() => handleSort(sortKey)}
+        title="Сортувати"
+        style={{
+          cursor: "pointer",
+          userSelect: "none",
+          whiteSpace: "nowrap",
+          background: active ? "rgba(14, 116, 144, 0.12)" : undefined,
+        }}
+      >
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 5,
+          }}
+        >
+          <span>{label}</span>
+          <span
+            style={{
+              color: active ? "#0e7490" : "rgba(100, 116, 139, 0.7)",
+              fontSize: 12,
+              fontWeight: 800,
+            }}
+          >
+            {getSortIcon(sortKey)}
+          </span>
+        </span>
+      </th>
+    );
   }
 
   function getRowKey(row: EmployeeTableRow) {
@@ -507,30 +721,28 @@ export function ReportsEmployeesPage() {
                 <thead>
                   <tr>
                     <th></th>
-                    <th onClick={() => handleSort("fullName")}>ПІБ</th>
-                    <th>Місто</th>
-                    <th onClick={() => handleSort("totalShifts")}>Змін</th>
-                    <th onClick={() => handleSort("driverShifts")}>Водієм</th>
-                    <th onClick={() => handleSort("seniorShifts")}>Старшим</th>
-                    <th onClick={() => handleSort("weaponShifts")}>Зі зброєю</th>
-                    <th>Додатково</th>
-                    <th onClick={() => handleSort("totalAlarms")}>Спрацювань</th>
-                    <th onClick={() => handleSort("averageAlarmsPerShift")}>
-                      Середня
-                    </th>
-                    <th>ОХ</th>
-                    <th>Партнери</th>
-                    <th>Бойові</th>
-                    <th>Хибні</th>
-                    <th>Дод.</th>
-                    <th onClick={() => handleSort("detained")}>Затримано</th>
-                    <th onClick={() => handleSort("transferred")}>Передано</th>
-                    <th onClick={() => handleSort("totalDistanceKm")}>Пробіг</th>
+                    {renderSortableHeader("fullName", "ПІБ")}
+                    {renderSortableHeader("cityName", "Місто")}
+                    {renderSortableHeader("totalShifts", "Змін")}
+                    {renderSortableHeader("driverShifts", "Водієм")}
+                    {renderSortableHeader("seniorShifts", "Старшим")}
+                    {renderSortableHeader("weaponShifts", "Зі зброєю")}
+                    {renderSortableHeader("postDutyShiftEquivalent", "Додатково")}
+                    {renderSortableHeader("totalAlarms", "Спрацювань")}
+                    {renderSortableHeader("averageAlarmsPerShift", "Середня")}
+                    {renderSortableHeader("totalOh", "ОХ")}
+                    {renderSortableHeader("totalPartner", "Партнери")}
+                    {renderSortableHeader("combatTotal", "Бойові")}
+                    {renderSortableHeader("falseTotal", "Хибні")}
+                    {renderSortableHeader("additionalTotal", "Дод.")}
+                    {renderSortableHeader("detained", "Затримано")}
+                    {renderSortableHeader("transferred", "Передано")}
+                    {renderSortableHeader("totalDistanceKm", "Пробіг")}
                   </tr>
                 </thead>
 
                 <tbody>
-                  {rows.map((row) => {
+                  {sortedRows.map((row) => {
                     const rowKey = getRowKey(row);
                     const expanded = expandedRows[rowKey];
                     const additionalRows = getAdditionalRows(row);
