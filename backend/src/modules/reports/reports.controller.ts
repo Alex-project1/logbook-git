@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../../config/prisma";
 import {
   buildCityAccessWhere,
@@ -1696,14 +1697,301 @@ export async function getTripsTableReport(req: Request, res: Response) {
 type ShiftsTableSortBy =
   | "shiftDate"
   | "submittedAt"
-  | "totalDistanceKm"
+  | "cityName"
+  | "departmentName"
+  | "crewName"
+  | "crewDutyType"
+  | "crewTransportType"
+  | "shiftDurationHours"
+  | "shiftEquivalent"
+  | "vehicleTitle"
+  | "driverName"
+  | "seniorName"
+  | "weaponLabel"
   | "odometerStart"
-  | "odometerEndCalculated";
+  | "odometerEndCalculated"
+  | "totalDistanceKm"
+  | "totalTrips"
+  | "totalAlarms"
+  | "totalOh"
+  | "totalPartner"
+  | "combatTotal"
+  | "falseTotal"
+  | "additionalTotal"
+  | "detained"
+  | "transferred";
+
+const SHIFTS_TABLE_SORT_BY_VALUES: ShiftsTableSortBy[] = [
+  "shiftDate",
+  "submittedAt",
+  "cityName",
+  "departmentName",
+  "crewName",
+  "crewDutyType",
+  "crewTransportType",
+  "shiftDurationHours",
+  "shiftEquivalent",
+  "vehicleTitle",
+  "driverName",
+  "seniorName",
+  "weaponLabel",
+  "odometerStart",
+  "odometerEndCalculated",
+  "totalDistanceKm",
+  "totalTrips",
+  "totalAlarms",
+  "totalOh",
+  "totalPartner",
+  "combatTotal",
+  "falseTotal",
+  "additionalTotal",
+  "detained",
+  "transferred",
+];
+
+const IN_MEMORY_SHIFTS_TABLE_SORT_BY = new Set<ShiftsTableSortBy>([
+  "weaponLabel",
+  "totalTrips",
+  "totalAlarms",
+  "totalOh",
+  "totalPartner",
+  "combatTotal",
+  "falseTotal",
+  "additionalTotal",
+  "detained",
+  "transferred",
+]);
+
+function isShiftsTableSortBy(value: string): value is ShiftsTableSortBy {
+  return SHIFTS_TABLE_SORT_BY_VALUES.includes(value as ShiftsTableSortBy);
+}
+
+function shouldSortShiftsInMemory(sortBy: ShiftsTableSortBy) {
+  return IN_MEMORY_SHIFTS_TABLE_SORT_BY.has(sortBy);
+}
 
 function buildShiftOrderBy(sortBy: ShiftsTableSortBy, sortDir: "asc" | "desc") {
+  switch (sortBy) {
+    case "shiftDate":
+    case "submittedAt":
+    case "crewDutyType":
+    case "crewTransportType":
+    case "shiftDurationHours":
+    case "odometerStart":
+    case "odometerEndCalculated":
+    case "totalDistanceKm":
+      return {
+        [sortBy]: sortDir,
+      };
+
+    case "shiftEquivalent":
+      return {
+        shiftDurationHours: sortDir,
+      };
+
+    case "cityName":
+      return {
+        city: {
+          name: sortDir,
+        },
+      };
+
+    case "departmentName":
+      return {
+        department: {
+          name: sortDir,
+        },
+      };
+
+    case "crewName":
+      return {
+        crew: {
+          name: sortDir,
+        },
+      };
+
+    case "vehicleTitle":
+      return {
+        vehicle: {
+          title: sortDir,
+        },
+      };
+
+    case "driverName":
+      return {
+        driverEmployee: {
+          fullName: sortDir,
+        },
+      };
+
+    case "seniorName":
+      return {
+        seniorEmployee: {
+          fullName: sortDir,
+        },
+      };
+
+    default:
+      return {
+        id: sortDir,
+      };
+  }
+}
+
+function mapShiftForTable(shift: any) {
+  const summary = calculateShiftSummary(shift);
+
   return {
-    [sortBy]: sortDir,
+    id: shift.id,
+
+    city: shift.city,
+    department: shift.department,
+    shiftDate: shift.shiftDate,
+    submittedAt: shift.submittedAt,
+
+    crew: shift.crew,
+    vehicle: shift.vehicle,
+    driverEmployee: shift.driverEmployee,
+    seniorEmployee: shift.seniorEmployee,
+
+    driverHasWeapon: shift.driverHasWeapon,
+    seniorHasWeapon: shift.seniorHasWeapon,
+
+    odometerStart: shift.odometerStart,
+    odometerEndCalculated: shift.odometerEndCalculated,
+    totalDistanceKm: toNumber(shift.totalDistanceKm),
+
+    crewDutyType: shift.crewDutyType,
+    crewTransportType: shift.crewTransportType,
+    shiftDurationHours: Number(shift.shiftDurationHours ?? 24),
+    shiftEquivalent: summary.shiftEquivalent,
+
+    summary,
+
+    trips: shift.trips.map((trip: any) => ({
+      id: trip.id,
+      fromLocation: trip.fromLocation,
+      departureTime: trip.departureTime,
+      toLocation: trip.toLocation,
+      arrivalTime: trip.arrivalTime,
+      arrivalMinutes: trip.arrivalMinutes,
+      distanceKm: toNumber(trip.distanceKm),
+      goal: trip.goal,
+      note: trip.note,
+      eventSummary: buildTripEventSummary(trip.events),
+      eventTotals: calculateTripEventTotals(trip.events),
+      events: trip.events.map(mapTripEventForTable),
+    })),
   };
+}
+
+type ShiftTableReportRow = ReturnType<typeof mapShiftForTable>;
+
+function getShiftWeaponLabel(row: ShiftTableReportRow) {
+  const driver = row.driverHasWeapon ? "водій" : "";
+  const senior = row.seniorHasWeapon ? "старший" : "";
+  const parts = [driver, senior].filter(Boolean);
+
+  return parts.length ? parts.join(", ") : "без зброї";
+}
+
+function normalizeShiftSortText(value: unknown) {
+  return String(value ?? "").trim().toLocaleLowerCase("uk-UA");
+}
+
+function toShiftSortTimestamp(value: unknown) {
+  if (!value) {
+    return 0;
+  }
+
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+
+  const timestamp = new Date(String(value)).getTime();
+
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function getShiftRowSortValue(row: ShiftTableReportRow, sortBy: ShiftsTableSortBy) {
+  switch (sortBy) {
+    case "shiftDate":
+      return toShiftSortTimestamp(row.shiftDate);
+    case "submittedAt":
+      return toShiftSortTimestamp(row.submittedAt);
+    case "cityName":
+      return normalizeShiftSortText(row.city?.name);
+    case "departmentName":
+      return normalizeShiftSortText(row.department?.name);
+    case "crewName":
+      return normalizeShiftSortText(row.crew?.name);
+    case "crewDutyType":
+      return normalizeShiftSortText(row.crewDutyType);
+    case "crewTransportType":
+      return normalizeShiftSortText(row.crewTransportType);
+    case "shiftDurationHours":
+      return toNumber(row.shiftDurationHours);
+    case "shiftEquivalent":
+      return toNumber(row.shiftEquivalent);
+    case "vehicleTitle":
+      return normalizeShiftSortText(
+        `${row.vehicle?.title ?? ""} ${row.vehicle?.licensePlate ?? ""}`,
+      );
+    case "driverName":
+      return normalizeShiftSortText(row.driverEmployee?.fullName);
+    case "seniorName":
+      return normalizeShiftSortText(row.seniorEmployee?.fullName);
+    case "weaponLabel":
+      return normalizeShiftSortText(getShiftWeaponLabel(row));
+    case "odometerStart":
+      return toNumber(row.odometerStart);
+    case "odometerEndCalculated":
+      return toNumber(row.odometerEndCalculated);
+    case "totalDistanceKm":
+      return toNumber(row.totalDistanceKm);
+    case "totalTrips":
+      return toNumber(row.summary.totalTrips);
+    case "totalAlarms":
+      return toNumber(row.summary.totalAlarms);
+    case "totalOh":
+      return toNumber(row.summary.totalOh);
+    case "totalPartner":
+      return toNumber(row.summary.totalPartner);
+    case "combatTotal":
+      return toNumber(row.summary.combatTotal);
+    case "falseTotal":
+      return toNumber(row.summary.falseTotal);
+    case "additionalTotal":
+      return toNumber(row.summary.additionalTotal);
+    case "detained":
+      return toNumber(row.summary.detained);
+    case "transferred":
+      return toNumber(row.summary.transferred);
+    default:
+      return "";
+  }
+}
+
+function compareShiftRowsBySort(
+  left: ShiftTableReportRow,
+  right: ShiftTableReportRow,
+  sortBy: ShiftsTableSortBy,
+  sortDir: "asc" | "desc",
+) {
+  const leftValue = getShiftRowSortValue(left, sortBy);
+  const rightValue = getShiftRowSortValue(right, sortBy);
+  const directionMultiplier = sortDir === "asc" ? 1 : -1;
+
+  if (typeof leftValue === "number" && typeof rightValue === "number") {
+    return (leftValue - rightValue) * directionMultiplier;
+  }
+
+  return (
+    String(leftValue).localeCompare(String(rightValue), "uk-UA", {
+      numeric: true,
+      sensitivity: "base",
+    }) * directionMultiplier
+  );
 }
 
 export async function getShiftsTableReport(req: Request, res: Response) {
@@ -1713,14 +2001,8 @@ export async function getShiftsTableReport(req: Request, res: Response) {
     const pageSize = Math.min(Math.max(pageSizeRaw, 10), 100);
 
     const sortByRaw = String(req.query.sortBy ?? "shiftDate");
-    const sortBy: ShiftsTableSortBy = [
-      "shiftDate",
-      "submittedAt",
-      "totalDistanceKm",
-      "odometerStart",
-      "odometerEndCalculated",
-    ].includes(sortByRaw)
-      ? (sortByRaw as ShiftsTableSortBy)
+    const sortBy: ShiftsTableSortBy = isShiftsTableSortBy(sortByRaw)
+      ? sortByRaw
       : "shiftDate";
 
     const sortDir: "asc" | "desc" =
@@ -1811,128 +2093,103 @@ export async function getShiftsTableReport(req: Request, res: Response) {
         : {}),
     };
 
-    const [total, shifts] = await Promise.all([
-      prisma.shift.count({
-        where,
-      }),
-
-      prisma.shift.findMany({
-        where,
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        orderBy: buildShiftOrderBy(sortBy, sortDir),
+    const include: Prisma.ShiftInclude = {
+      city: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      department: {
+        select: departmentSelect(),
+      },
+      crew: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      vehicle: {
+        select: {
+          id: true,
+          title: true,
+          licensePlate: true,
+        },
+      },
+      driverEmployee: {
+        select: {
+          id: true,
+          fullName: true,
+        },
+      },
+      seniorEmployee: {
+        select: {
+          id: true,
+          fullName: true,
+        },
+      },
+      trips: {
+        where: {
+          deletedAt: null,
+        },
+        orderBy: {
+          departureTime: "asc",
+        },
         include: {
-          city: {
+          goal: {
             select: {
               id: true,
               name: true,
+              systemCode: true,
             },
           },
-          department: {
-            select: departmentSelect(),
-          },
-          crew: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-          vehicle: {
-            select: {
-              id: true,
-              title: true,
-              licensePlate: true,
-            },
-          },
-          driverEmployee: {
-            select: {
-              id: true,
-              fullName: true,
-            },
-          },
-          seniorEmployee: {
-            select: {
-              id: true,
-              fullName: true,
-            },
-          },
-          trips: {
-            where: {
-              deletedAt: null,
-            },
-            orderBy: {
-              departureTime: "asc",
-            },
+          events: {
             include: {
-              goal: {
+              reason: {
                 select: {
                   id: true,
                   name: true,
-                  systemCode: true,
-                },
-              },
-              events: {
-                include: {
-                  reason: {
-                    select: {
-                      id: true,
-                      name: true,
-                    },
-                  },
                 },
               },
             },
           },
         },
-      }),
-    ]);
+      },
+    };
 
-    const rows = shifts.map((shift) => {
-      const summary = calculateShiftSummary(shift);
+    const inMemorySort = shouldSortShiftsInMemory(sortBy);
 
-      return {
-        id: shift.id,
-
-        city: shift.city,
-        department: shift.department,
-        shiftDate: shift.shiftDate,
-        submittedAt: shift.submittedAt,
-
-        crew: shift.crew,
-        vehicle: shift.vehicle,
-        driverEmployee: shift.driverEmployee,
-        seniorEmployee: shift.seniorEmployee,
-
-        driverHasWeapon: shift.driverHasWeapon,
-        seniorHasWeapon: shift.seniorHasWeapon,
-
-        odometerStart: shift.odometerStart,
-        odometerEndCalculated: shift.odometerEndCalculated,
-        totalDistanceKm: toNumber(shift.totalDistanceKm),
-
-        crewDutyType: shift.crewDutyType,
-        crewTransportType: shift.crewTransportType,
-        shiftDurationHours: Number(shift.shiftDurationHours ?? 24),
-        shiftEquivalent: summary.shiftEquivalent,
-
-        summary,
-
-        trips: shift.trips.map((trip) => ({
-          id: trip.id,
-          fromLocation: trip.fromLocation,
-          departureTime: trip.departureTime,
-          toLocation: trip.toLocation,
-          arrivalTime: trip.arrivalTime,
-          arrivalMinutes: trip.arrivalMinutes,
-          distanceKm: toNumber(trip.distanceKm),
-          goal: trip.goal,
-          note: trip.note,
-          eventSummary: buildTripEventSummary(trip.events),
-          eventTotals: calculateTripEventTotals(trip.events),
-          events: trip.events.map(mapTripEventForTable),
-        })),
-      };
+    const shifts = await prisma.shift.findMany({
+      where,
+      ...(inMemorySort
+        ? {
+            orderBy: {
+              id: "asc",
+            },
+          }
+        : {
+            skip: (page - 1) * pageSize,
+            take: pageSize,
+            orderBy: buildShiftOrderBy(sortBy, sortDir) as any,
+          }),
+      include,
     });
+
+    const total = inMemorySort
+      ? shifts.length
+      : await prisma.shift.count({
+          where,
+        });
+
+    let rows = shifts.map(mapShiftForTable);
+
+    if (inMemorySort) {
+      rows = rows
+        .sort((left, right) =>
+          compareShiftRowsBySort(left, right, sortBy, sortDir),
+        )
+        .slice((page - 1) * pageSize, page * pageSize);
+    }
 
     const summary = rows.reduce(
       (acc, row) => {

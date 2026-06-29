@@ -365,9 +365,29 @@ export type ShiftsTableFilters = ReportFilters & {
   sortBy?:
     | "shiftDate"
     | "submittedAt"
-    | "totalDistanceKm"
+    | "cityName"
+    | "departmentName"
+    | "crewName"
+    | "crewDutyType"
+    | "crewTransportType"
+    | "shiftDurationHours"
+    | "shiftEquivalent"
+    | "vehicleTitle"
+    | "driverName"
+    | "seniorName"
+    | "weaponLabel"
     | "odometerStart"
-    | "odometerEndCalculated";
+    | "odometerEndCalculated"
+    | "totalDistanceKm"
+    | "totalTrips"
+    | "totalAlarms"
+    | "totalOh"
+    | "totalPartner"
+    | "combatTotal"
+    | "falseTotal"
+    | "additionalTotal"
+    | "detained"
+    | "transferred";
   sortDir?: "asc" | "desc";
 
   crewId?: number;
@@ -1352,7 +1372,7 @@ export async function getCustomReport(
       params: buildCustomReportParams(filters),
     }
   );
- 
+
   return response.data;
 }
 

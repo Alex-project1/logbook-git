@@ -110,30 +110,7 @@ function formatShiftEquivalent(value: number) {
 }
 
 type SortDirection = "asc" | "desc";
-type BackendShiftSortKey = NonNullable<ShiftsTableFilters["sortBy"]>;
-
-type ShiftSortKey =
-  | BackendShiftSortKey
-  | "cityName"
-  | "departmentName"
-  | "crewName"
-  | "crewDutyType"
-  | "crewTransportType"
-  | "shiftDurationHours"
-  | "shiftEquivalent"
-  | "vehicleTitle"
-  | "driverName"
-  | "seniorName"
-  | "weaponLabel"
-  | "totalTrips"
-  | "totalAlarms"
-  | "totalOh"
-  | "totalPartner"
-  | "combatTotal"
-  | "falseTotal"
-  | "additionalTotal"
-  | "detained"
-  | "transferred";
+type ShiftSortKey = NonNullable<ShiftsTableFilters["sortBy"]>;
 
 type ShiftTableSort = {
   key: ShiftSortKey;
@@ -145,110 +122,15 @@ const defaultTableSort: ShiftTableSort = {
   direction: "desc",
 };
 
-const backendShiftSortKeys = new Set<BackendShiftSortKey>([
-  "shiftDate",
-  "submittedAt",
-  "totalDistanceKm",
-  "odometerStart",
-  "odometerEndCalculated",
-]);
-
-function isBackendShiftSortKey(key: ShiftSortKey): key is BackendShiftSortKey {
-  return backendShiftSortKeys.has(key as BackendShiftSortKey);
-}
-
-function applyBackendSortToFilters(
+function applySortToFilters(
   filters: ShiftsTableFilters,
   sort: ShiftTableSort,
 ): ShiftsTableFilters {
-  if (!isBackendShiftSortKey(sort.key)) {
-    const nextFilters = { ...filters };
-
-    delete nextFilters.sortBy;
-    delete nextFilters.sortDir;
-
-    return nextFilters;
-  }
-
   return {
     ...filters,
     sortBy: sort.key,
     sortDir: sort.direction,
   };
-}
-
-function getShiftSortValue(row: ShiftTableRow, key: ShiftSortKey) {
-  switch (key) {
-    case "shiftDate":
-      return new Date(row.shiftDate).getTime();
-    case "submittedAt":
-      return row.submittedAt ? new Date(row.submittedAt).getTime() : 0;
-    case "cityName":
-      return row.city.name;
-    case "departmentName":
-      return row.department?.name ?? "";
-    case "crewName":
-      return row.crew.name;
-    case "crewDutyType":
-      return getDutyTypeLabel(row.crewDutyType);
-    case "crewTransportType":
-      return getTransportTypeLabel(row.crewTransportType);
-    case "shiftDurationHours":
-      return Number(row.shiftDurationHours);
-    case "shiftEquivalent":
-      return Number(row.shiftEquivalent);
-    case "vehicleTitle":
-      return `${row.vehicle.title} ${row.vehicle.licensePlate ?? ""}`;
-    case "driverName":
-      return row.driverEmployee.fullName;
-    case "seniorName":
-      return row.seniorEmployee.fullName;
-    case "weaponLabel":
-      return getWeaponLabel(row);
-    case "odometerStart":
-      return Number(row.odometerStart);
-    case "odometerEndCalculated":
-      return Number(row.odometerEndCalculated);
-    case "totalDistanceKm":
-      return Number(row.totalDistanceKm);
-    case "totalTrips":
-      return Number(row.summary.totalTrips);
-    case "totalAlarms":
-      return Number(row.summary.totalAlarms);
-    case "totalOh":
-      return Number(row.summary.totalOh);
-    case "totalPartner":
-      return Number(row.summary.totalPartner);
-    case "combatTotal":
-      return Number(row.summary.combatTotal);
-    case "falseTotal":
-      return Number(row.summary.falseTotal);
-    case "additionalTotal":
-      return Number(row.summary.additionalTotal);
-    case "detained":
-      return Number(row.summary.detained);
-    case "transferred":
-      return Number(row.summary.transferred);
-    default:
-      return "";
-  }
-}
-
-function compareSortValues(
-  first: string | number,
-  second: string | number,
-  direction: SortDirection,
-) {
-  const directionMultiplier = direction === "asc" ? 1 : -1;
-
-  if (typeof first === "number" && typeof second === "number") {
-    return (first - second) * directionMultiplier;
-  }
-
-  return String(first).localeCompare(String(second), "uk-UA", {
-    numeric: true,
-    sensitivity: "base",
-  }) * directionMultiplier;
 }
 
 export function ReportsShiftsPage() {
@@ -312,16 +194,6 @@ export function ReportsShiftsPage() {
     () => filterByReportScope(employees, filters),
     [employees, filters.cityId, filters.departmentId],
   );
-
-  const sortedRows = useMemo(() => {
-    return [...rows].sort((first, second) =>
-      compareSortValues(
-        getShiftSortValue(first, tableSort.key),
-        getShiftSortValue(second, tableSort.key),
-        tableSort.direction,
-      ),
-    );
-  }, [rows, tableSort]);
 
   useEffect(() => {
     if (openActionsRowId === null) {
@@ -422,7 +294,7 @@ export function ReportsShiftsPage() {
   }
 
   async function handleApply() {
-    const nextFilters = applyBackendSortToFilters(
+    const nextFilters = applySortToFilters(
       {
         ...filters,
         page: 1,
@@ -441,7 +313,7 @@ export function ReportsShiftsPage() {
   }
 
   async function handlePageChange(page: number) {
-    const nextFilters = applyBackendSortToFilters(
+    const nextFilters = applySortToFilters(
       {
         ...filters,
         page,
@@ -454,7 +326,7 @@ export function ReportsShiftsPage() {
   }
 
   async function handlePageSizeChange(pageSize: number) {
-    const nextFilters = applyBackendSortToFilters(
+    const nextFilters = applySortToFilters(
       {
         ...filters,
         page: 1,
@@ -478,11 +350,7 @@ export function ReportsShiftsPage() {
 
     setTableSort(nextSort);
 
-    if (!isBackendShiftSortKey(key)) {
-      return;
-    }
-
-    const nextFilters = applyBackendSortToFilters(
+    const nextFilters = applySortToFilters(
       {
         ...filters,
         page: 1,
@@ -899,7 +767,7 @@ export function ReportsShiftsPage() {
                 </thead>
 
                 <tbody>
-                  {sortedRows.map((row) => {
+                  {rows.map((row) => {
                     const expanded = expandedRows[row.id];
 
                     return (
