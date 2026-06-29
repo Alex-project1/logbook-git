@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { getCities } from "../../api/cities.api";
 import type { City } from "../../api/cities.api";
 import { getDepartments } from "../../api/departments.api";
@@ -29,6 +29,159 @@ const defaultFilters: TripsTableFilters = {
   sortBy: "departureTime",
   sortDir: "desc",
 };
+
+type SortDirection = "asc" | "desc";
+
+type TripsTableSortKey =
+  | "shiftDate"
+  | "cityName"
+  | "departmentName"
+  | "crewName"
+  | "vehicleTitle"
+  | "seniorName"
+  | "driverName"
+  | "odometerStart"
+  | "fromLocation"
+  | "departureTime"
+  | "toLocation"
+  | "arrivalTime"
+  | "arrivalMinutes"
+  | "distanceKm"
+  | "goalName"
+  | "eventSummary"
+  | "combatLabel"
+  | "detained"
+  | "transferred"
+  | "note";
+
+type TripsTableSort = {
+  key: TripsTableSortKey;
+  direction: SortDirection;
+};
+
+const backendSortKeys = new Set<TripsTableSortKey>([
+  "shiftDate",
+  "departureTime",
+  "arrivalTime",
+  "arrivalMinutes",
+  "distanceKm",
+]);
+
+function isBackendSortKey(
+  key: TripsTableSortKey,
+): key is NonNullable<TripsTableFilters["sortBy"]> {
+  return backendSortKeys.has(key);
+}
+
+function toComparableText(value: string | null | undefined) {
+  return (value ?? "").trim().toLocaleLowerCase("uk-UA");
+}
+
+function toTimestamp(value: string | null | undefined) {
+  if (!value) return 0;
+
+  const timestamp = new Date(value).getTime();
+
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function getTripSortValue(row: TripTableRow, key: TripsTableSortKey) {
+  switch (key) {
+    case "shiftDate":
+      return toTimestamp(row.shiftDate);
+    case "cityName":
+      return toComparableText(row.city.name);
+    case "departmentName":
+      return toComparableText(row.department?.name);
+    case "crewName":
+      return toComparableText(row.crew.name);
+    case "vehicleTitle":
+      return toComparableText(
+        `${row.vehicle.title} ${row.vehicle.licensePlate ?? ""}`,
+      );
+    case "seniorName":
+      return toComparableText(row.seniorEmployee.fullName);
+    case "driverName":
+      return toComparableText(row.driverEmployee.fullName);
+    case "odometerStart":
+      return row.odometerStart;
+    case "fromLocation":
+      return toComparableText(row.fromLocation);
+    case "departureTime":
+      return toTimestamp(row.departureTime);
+    case "toLocation":
+      return toComparableText(row.toLocation);
+    case "arrivalTime":
+      return toTimestamp(row.arrivalTime);
+    case "arrivalMinutes":
+      return row.arrivalMinutes;
+    case "distanceKm":
+      return row.distanceKm;
+    case "goalName":
+      return toComparableText(row.goal.name);
+    case "eventSummary":
+      return toComparableText(row.eventSummary);
+    case "combatLabel":
+      return toComparableText(getCombatLabel(row));
+    case "detained":
+      return row.eventTotals.detained;
+    case "transferred":
+      return row.eventTotals.transferred;
+    case "note":
+      return toComparableText(row.note);
+    default:
+      return "";
+  }
+}
+
+function compareTripRows(
+  left: TripTableRow,
+  right: TripTableRow,
+  sort: TripsTableSort,
+) {
+  const leftValue = getTripSortValue(left, sort.key);
+  const rightValue = getTripSortValue(right, sort.key);
+
+  let result = 0;
+
+  if (typeof leftValue === "number" && typeof rightValue === "number") {
+    result = leftValue - rightValue;
+  } else {
+    result = String(leftValue).localeCompare(String(rightValue), "uk-UA", {
+      numeric: true,
+      sensitivity: "base",
+    });
+  }
+
+  return sort.direction === "asc" ? result : -result;
+}
+
+function getNextSort(
+  currentSort: TripsTableSort,
+  key: TripsTableSortKey,
+): TripsTableSort {
+  if (currentSort.key !== key) {
+    return {
+      key,
+      direction: key === "shiftDate" || key === "departureTime" ? "desc" : "asc",
+    };
+  }
+
+  return {
+    key,
+    direction: currentSort.direction === "desc" ? "asc" : "desc",
+  };
+}
+
+function getSortableHeaderStyle(active: boolean): CSSProperties {
+  return {
+    cursor: "pointer",
+    userSelect: "none",
+    whiteSpace: "nowrap",
+    background: active ? "rgba(14, 116, 144, 0.12)" : undefined,
+    boxShadow: active ? "inset 0 -2px 0 rgba(14, 116, 144, 0.45)" : undefined,
+  };
+}
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString("uk-UA");
@@ -85,8 +238,19 @@ export function ReportsTripsPage() {
   const [excelLoading, setExcelLoading] = useState(false);
   const [referencesLoading, setReferencesLoading] = useState(true);
   const [error, setError] = useState("");
+  const [tableSort, setTableSort] = useState<TripsTableSort>({
+    key: "departureTime",
+    direction: "desc",
+  });
 
-  const rows = report?.data ?? [];
+  const rows = useMemo(() => {
+    const sourceRows = report?.data ?? [];
+
+    return [...sourceRows].sort((left, right) =>
+      compareTripRows(left, right, tableSort),
+    );
+  }, [report?.data, tableSort]);
+
   const pagination = report?.pagination;
 
   const activeCities = useMemo(
@@ -187,20 +351,35 @@ export function ReportsTripsPage() {
   }
 
   async function handleApply() {
-    await loadReport({
+    const nextFilters: TripsTableFilters = {
       ...filters,
+      ...(isBackendSortKey(tableSort.key)
+        ? { sortBy: tableSort.key, sortDir: tableSort.direction }
+        : {}),
       page: 1,
-    });
+    };
+
+    setFilters(nextFilters);
+    await loadReport(nextFilters);
   }
 
   async function handleReset() {
+    const nextSort: TripsTableSort = {
+      key: "departureTime",
+      direction: "desc",
+    };
+
+    setTableSort(nextSort);
     setFilters(defaultFilters);
     await loadReport(defaultFilters);
   }
 
   async function handlePageChange(page: number) {
-    const nextFilters = {
+    const nextFilters: TripsTableFilters = {
       ...filters,
+      ...(isBackendSortKey(tableSort.key)
+        ? { sortBy: tableSort.key, sortDir: tableSort.direction }
+        : {}),
       page,
     };
 
@@ -209,8 +388,11 @@ export function ReportsTripsPage() {
   }
 
   async function handlePageSizeChange(pageSize: number) {
-    const nextFilters = {
+    const nextFilters: TripsTableFilters = {
       ...filters,
+      ...(isBackendSortKey(tableSort.key)
+        ? { sortBy: tableSort.key, sortDir: tableSort.direction }
+        : {}),
       page: 1,
       pageSize,
     };
@@ -219,19 +401,54 @@ export function ReportsTripsPage() {
     await loadReport(nextFilters);
   }
 
-  async function handleSort(sortBy: NonNullable<TripsTableFilters["sortBy"]>) {
-    const nextSortDir: "asc" | "desc" =
-      filters.sortBy === sortBy && filters.sortDir === "desc" ? "asc" : "desc";
+  async function handleSort(key: TripsTableSortKey) {
+    const nextSort = getNextSort(tableSort, key);
+
+    setTableSort(nextSort);
 
     const nextFilters: TripsTableFilters = {
       ...filters,
-      sortBy,
-      sortDir: nextSortDir,
+      ...(isBackendSortKey(nextSort.key)
+        ? { sortBy: nextSort.key, sortDir: nextSort.direction }
+        : {}),
       page: 1,
     };
 
     setFilters(nextFilters);
-    await loadReport(nextFilters);
+
+    if (isBackendSortKey(nextSort.key)) {
+      await loadReport(nextFilters);
+      return;
+    }
+
+    if ((pagination?.page ?? 1) !== 1) {
+      await loadReport(nextFilters);
+    }
+  }
+
+  function renderSortableHeader(label: string, key: TripsTableSortKey) {
+    const active = tableSort.key === key;
+
+    return (
+      <th
+        onClick={() => handleSort(key)}
+        style={getSortableHeaderStyle(active)}
+        title="Натисніть для сортування"
+      >
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
+          {label}
+          <span style={{ fontSize: 11, opacity: active ? 1 : 0.45 }}>
+            {active ? (tableSort.direction === "asc" ? "↑" : "↓") : "↕"}
+          </span>
+        </span>
+      </th>
+    );
   }
 
   function toggleRow(rowId: number) {
@@ -269,6 +486,10 @@ export function ReportsTripsPage() {
 
         .trips-table tbody tr.trip-row-with-events > td:first-child {
           border-left: 3px solid rgba(245, 158, 11, 0.75);
+        }
+
+        .trips-table thead th[title="Натисніть для сортування"]:hover {
+          background: rgba(14, 116, 144, 0.16);
         }
 
         .row-toggle-placeholder {
@@ -553,26 +774,26 @@ export function ReportsTripsPage() {
                 <thead>
                   <tr>
                     <th></th>
-                    <th onClick={() => handleSort("shiftDate")}>Дата</th>
-                    <th>Місто</th>
-                    <th>Підрозділ</th>
-                    <th>Наряд</th>
-                    <th>Авто</th>
-                    <th>Старший</th>
-                    <th>Водій</th>
-                    <th>Спідометр початок</th>
-                    <th>Звідки</th>
-                    <th onClick={() => handleSort("departureTime")}>Виїхав</th>
-                    <th>Куди</th>
-                    <th onClick={() => handleSort("arrivalTime")}>Прибув</th>
-                    <th onClick={() => handleSort("arrivalMinutes")}>Хв.</th>
-                    <th onClick={() => handleSort("distanceKm")}>Км</th>
-                    <th>Ціль</th>
-                    <th>Спрацювання</th>
-                    <th>Бойова?</th>
-                    <th>Затримано</th>
-                    <th>Передано</th>
-                    <th>Примітка</th>
+                    {renderSortableHeader("Дата", "shiftDate")}
+                    {renderSortableHeader("Місто", "cityName")}
+                    {renderSortableHeader("Підрозділ", "departmentName")}
+                    {renderSortableHeader("Наряд", "crewName")}
+                    {renderSortableHeader("Авто", "vehicleTitle")}
+                    {renderSortableHeader("Старший", "seniorName")}
+                    {renderSortableHeader("Водій", "driverName")}
+                    {renderSortableHeader("Спідометр початок", "odometerStart")}
+                    {renderSortableHeader("Звідки", "fromLocation")}
+                    {renderSortableHeader("Виїхав", "departureTime")}
+                    {renderSortableHeader("Куди", "toLocation")}
+                    {renderSortableHeader("Прибув", "arrivalTime")}
+                    {renderSortableHeader("Хв.", "arrivalMinutes")}
+                    {renderSortableHeader("Км", "distanceKm")}
+                    {renderSortableHeader("Ціль", "goalName")}
+                    {renderSortableHeader("Спрацювання", "eventSummary")}
+                    {renderSortableHeader("Бойова?", "combatLabel")}
+                    {renderSortableHeader("Затримано", "detained")}
+                    {renderSortableHeader("Передано", "transferred")}
+                    {renderSortableHeader("Примітка", "note")}
                   </tr>
                 </thead>
 
@@ -582,9 +803,8 @@ export function ReportsTripsPage() {
                     const expanded = hasAlarmEvents && expandedRows[row.id];
 
                     return (
-                      <>
+                      <Fragment key={row.id}>
                         <tr
-                          key={row.id}
                           className={hasAlarmEvents ? "trip-row-with-events" : undefined}
                         >
                           <td>
@@ -631,7 +851,7 @@ export function ReportsTripsPage() {
 
                         {expanded && (
                           <tr className="expanded-row">
-                            <td colSpan={20}>
+                            <td colSpan={21}>
                               <div className="expanded-content">
                                 <h3>Події поїздки</h3>
 
@@ -681,7 +901,7 @@ export function ReportsTripsPage() {
                             </td>
                           </tr>
                         )}
-                      </>
+                      </Fragment>
                     );
                   })}
                 </tbody>

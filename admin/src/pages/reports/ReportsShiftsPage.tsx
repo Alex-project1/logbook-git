@@ -109,6 +109,148 @@ function formatShiftEquivalent(value: number) {
   });
 }
 
+type SortDirection = "asc" | "desc";
+type BackendShiftSortKey = NonNullable<ShiftsTableFilters["sortBy"]>;
+
+type ShiftSortKey =
+  | BackendShiftSortKey
+  | "cityName"
+  | "departmentName"
+  | "crewName"
+  | "crewDutyType"
+  | "crewTransportType"
+  | "shiftDurationHours"
+  | "shiftEquivalent"
+  | "vehicleTitle"
+  | "driverName"
+  | "seniorName"
+  | "weaponLabel"
+  | "totalTrips"
+  | "totalAlarms"
+  | "totalOh"
+  | "totalPartner"
+  | "combatTotal"
+  | "falseTotal"
+  | "additionalTotal"
+  | "detained"
+  | "transferred";
+
+type ShiftTableSort = {
+  key: ShiftSortKey;
+  direction: SortDirection;
+};
+
+const defaultTableSort: ShiftTableSort = {
+  key: "shiftDate",
+  direction: "desc",
+};
+
+const backendShiftSortKeys = new Set<BackendShiftSortKey>([
+  "shiftDate",
+  "submittedAt",
+  "totalDistanceKm",
+  "odometerStart",
+  "odometerEndCalculated",
+]);
+
+function isBackendShiftSortKey(key: ShiftSortKey): key is BackendShiftSortKey {
+  return backendShiftSortKeys.has(key as BackendShiftSortKey);
+}
+
+function applyBackendSortToFilters(
+  filters: ShiftsTableFilters,
+  sort: ShiftTableSort,
+): ShiftsTableFilters {
+  if (!isBackendShiftSortKey(sort.key)) {
+    const nextFilters = { ...filters };
+
+    delete nextFilters.sortBy;
+    delete nextFilters.sortDir;
+
+    return nextFilters;
+  }
+
+  return {
+    ...filters,
+    sortBy: sort.key,
+    sortDir: sort.direction,
+  };
+}
+
+function getShiftSortValue(row: ShiftTableRow, key: ShiftSortKey) {
+  switch (key) {
+    case "shiftDate":
+      return new Date(row.shiftDate).getTime();
+    case "submittedAt":
+      return row.submittedAt ? new Date(row.submittedAt).getTime() : 0;
+    case "cityName":
+      return row.city.name;
+    case "departmentName":
+      return row.department?.name ?? "";
+    case "crewName":
+      return row.crew.name;
+    case "crewDutyType":
+      return getDutyTypeLabel(row.crewDutyType);
+    case "crewTransportType":
+      return getTransportTypeLabel(row.crewTransportType);
+    case "shiftDurationHours":
+      return Number(row.shiftDurationHours);
+    case "shiftEquivalent":
+      return Number(row.shiftEquivalent);
+    case "vehicleTitle":
+      return `${row.vehicle.title} ${row.vehicle.licensePlate ?? ""}`;
+    case "driverName":
+      return row.driverEmployee.fullName;
+    case "seniorName":
+      return row.seniorEmployee.fullName;
+    case "weaponLabel":
+      return getWeaponLabel(row);
+    case "odometerStart":
+      return Number(row.odometerStart);
+    case "odometerEndCalculated":
+      return Number(row.odometerEndCalculated);
+    case "totalDistanceKm":
+      return Number(row.totalDistanceKm);
+    case "totalTrips":
+      return Number(row.summary.totalTrips);
+    case "totalAlarms":
+      return Number(row.summary.totalAlarms);
+    case "totalOh":
+      return Number(row.summary.totalOh);
+    case "totalPartner":
+      return Number(row.summary.totalPartner);
+    case "combatTotal":
+      return Number(row.summary.combatTotal);
+    case "falseTotal":
+      return Number(row.summary.falseTotal);
+    case "additionalTotal":
+      return Number(row.summary.additionalTotal);
+    case "detained":
+      return Number(row.summary.detained);
+    case "transferred":
+      return Number(row.summary.transferred);
+    default:
+      return "";
+  }
+}
+
+function compareSortValues(
+  first: string | number,
+  second: string | number,
+  direction: SortDirection,
+) {
+  const directionMultiplier = direction === "asc" ? 1 : -1;
+
+  if (typeof first === "number" && typeof second === "number") {
+    return (first - second) * directionMultiplier;
+  }
+
+  return String(first).localeCompare(String(second), "uk-UA", {
+    numeric: true,
+    sensitivity: "base",
+  }) * directionMultiplier;
+}
+
 export function ReportsShiftsPage() {
   const [filters, setFilters] = useState<ShiftsTableFilters>(defaultFilters);
   const [report, setReport] = useState<ShiftsTableResponse | null>(null);
@@ -132,6 +274,7 @@ export function ReportsShiftsPage() {
   const [referencesLoading, setReferencesLoading] = useState(true);
   const [error, setError] = useState("");
   const [currentUser, setCurrentUser] = useState<AdminUser | null>(null);
+  const [tableSort, setTableSort] = useState<ShiftTableSort>(defaultTableSort);
 
   const rows = report?.data ?? [];
   const pagination = report?.pagination;
@@ -169,6 +312,16 @@ export function ReportsShiftsPage() {
     () => filterByReportScope(employees, filters),
     [employees, filters.cityId, filters.departmentId],
   );
+
+  const sortedRows = useMemo(() => {
+    return [...rows].sort((first, second) =>
+      compareSortValues(
+        getShiftSortValue(first, tableSort.key),
+        getShiftSortValue(second, tableSort.key),
+        tableSort.direction,
+      ),
+    );
+  }, [rows, tableSort]);
 
   useEffect(() => {
     if (openActionsRowId === null) {
@@ -269,48 +422,73 @@ export function ReportsShiftsPage() {
   }
 
   async function handleApply() {
-    await loadReport({
-      ...filters,
-      page: 1,
-    });
+    const nextFilters = applyBackendSortToFilters(
+      {
+        ...filters,
+        page: 1,
+      },
+      tableSort,
+    );
+
+    setFilters(nextFilters);
+    await loadReport(nextFilters);
   }
 
   async function handleReset() {
+    setTableSort(defaultTableSort);
     setFilters(defaultFilters);
     await loadReport(defaultFilters);
   }
 
   async function handlePageChange(page: number) {
-    const nextFilters: ShiftsTableFilters = {
-      ...filters,
-      page,
-    };
+    const nextFilters = applyBackendSortToFilters(
+      {
+        ...filters,
+        page,
+      },
+      tableSort,
+    );
 
     setFilters(nextFilters);
     await loadReport(nextFilters);
   }
 
   async function handlePageSizeChange(pageSize: number) {
-    const nextFilters: ShiftsTableFilters = {
-      ...filters,
-      page: 1,
-      pageSize,
-    };
+    const nextFilters = applyBackendSortToFilters(
+      {
+        ...filters,
+        page: 1,
+        pageSize,
+      },
+      tableSort,
+    );
 
     setFilters(nextFilters);
     await loadReport(nextFilters);
   }
 
-  async function handleSort(sortBy: NonNullable<ShiftsTableFilters["sortBy"]>) {
-    const nextSortDir: "asc" | "desc" =
-      filters.sortBy === sortBy && filters.sortDir === "desc" ? "asc" : "desc";
+  async function handleSort(key: ShiftSortKey) {
+    const nextDirection: SortDirection =
+      tableSort.key === key && tableSort.direction === "desc" ? "asc" : "desc";
 
-    const nextFilters: ShiftsTableFilters = {
-      ...filters,
-      sortBy,
-      sortDir: nextSortDir,
-      page: 1,
+    const nextSort: ShiftTableSort = {
+      key,
+      direction: nextDirection,
     };
+
+    setTableSort(nextSort);
+
+    if (!isBackendShiftSortKey(key)) {
+      return;
+    }
+
+    const nextFilters = applyBackendSortToFilters(
+      {
+        ...filters,
+        page: 1,
+      },
+      nextSort,
+    );
 
     setFilters(nextFilters);
     await loadReport(nextFilters);
@@ -334,6 +512,42 @@ export function ReportsShiftsPage() {
     } finally {
       setExcelLoading(false);
     }
+  }
+
+  function renderSortableHeader(label: string, key: ShiftSortKey) {
+    const isActive = tableSort.key === key;
+
+    return (
+      <th
+        onClick={() => handleSort(key)}
+        title="Сортувати"
+        style={{
+          cursor: "pointer",
+          userSelect: "none",
+          whiteSpace: "nowrap",
+          background: isActive ? "rgba(14, 116, 144, 0.12)" : undefined,
+          color: isActive ? "#0e7490" : undefined,
+        }}
+      >
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <span>{label}</span>
+          <span
+            style={{
+              fontSize: 11,
+              opacity: isActive ? 1 : 0.45,
+            }}
+          >
+            {isActive ? (tableSort.direction === "asc" ? "↑" : "↓") : "↕"}
+          </span>
+        </span>
+      </th>
+    );
   }
 
   function openDeleteShiftModal(row: ShiftTableRow) {
@@ -655,45 +869,37 @@ export function ReportsShiftsPage() {
                 <thead>
                   <tr>
                     <th></th>
-                    <th onClick={() => handleSort("shiftDate")}>Дата</th>
-                    <th onClick={() => handleSort("submittedAt")}>
-                      Надіслано
-                    </th>
-                    <th>Місто</th>
-                    <th>Підрозділ</th>
-                    <th>Наряд</th>
-                    <th>Тип</th>
-                    <th>Транспорт</th>
-                    <th>Години</th>
-                    <th>Зміни</th>
-                    <th>Авто</th>
-                    <th>Водій</th>
-                    <th>Старший</th>
-                    <th>Зброя</th>
-                    <th onClick={() => handleSort("odometerStart")}>
-                      Спід. початок
-                    </th>
-                    <th onClick={() => handleSort("odometerEndCalculated")}>
-                      Спід. кінець
-                    </th>
-                    <th onClick={() => handleSort("totalDistanceKm")}>
-                      Пробіг
-                    </th>
-                    <th>Поїздок</th>
-                    <th>Спрацювань</th>
-                    <th>ОХ</th>
-                    <th>Партнери</th>
-                    <th>Бойові</th>
-                    <th>Хибні</th>
-                    <th>Дод.</th>
-                    <th>Затримано</th>
-                    <th>Передано</th>
+                    {renderSortableHeader("Дата", "shiftDate")}
+                    {renderSortableHeader("Надіслано", "submittedAt")}
+                    {renderSortableHeader("Місто", "cityName")}
+                    {renderSortableHeader("Підрозділ", "departmentName")}
+                    {renderSortableHeader("Наряд", "crewName")}
+                    {renderSortableHeader("Тип", "crewDutyType")}
+                    {renderSortableHeader("Транспорт", "crewTransportType")}
+                    {renderSortableHeader("Години", "shiftDurationHours")}
+                    {renderSortableHeader("Зміни", "shiftEquivalent")}
+                    {renderSortableHeader("Авто", "vehicleTitle")}
+                    {renderSortableHeader("Водій", "driverName")}
+                    {renderSortableHeader("Старший", "seniorName")}
+                    {renderSortableHeader("Зброя", "weaponLabel")}
+                    {renderSortableHeader("Спід. початок", "odometerStart")}
+                    {renderSortableHeader("Спід. кінець", "odometerEndCalculated")}
+                    {renderSortableHeader("Пробіг", "totalDistanceKm")}
+                    {renderSortableHeader("Поїздок", "totalTrips")}
+                    {renderSortableHeader("Спрацювань", "totalAlarms")}
+                    {renderSortableHeader("ОХ", "totalOh")}
+                    {renderSortableHeader("Партнери", "totalPartner")}
+                    {renderSortableHeader("Бойові", "combatTotal")}
+                    {renderSortableHeader("Хибні", "falseTotal")}
+                    {renderSortableHeader("Дод.", "additionalTotal")}
+                    {renderSortableHeader("Затримано", "detained")}
+                    {renderSortableHeader("Передано", "transferred")}
                     {canManageShifts && <th>Дії</th>}
                   </tr>
                 </thead>
 
                 <tbody>
-                  {rows.map((row) => {
+                  {sortedRows.map((row) => {
                     const expanded = expandedRows[row.id];
 
                     return (
@@ -796,7 +1002,7 @@ export function ReportsShiftsPage() {
 
                         {expanded && (
                           <tr className="expanded-row">
-                            <td colSpan={canManageShifts ? 26 : 25}>
+                            <td colSpan={canManageShifts ? 27 : 26}>
                               <div className="expanded-content">
                                 <h3>Поїздки зміни</h3>
 
