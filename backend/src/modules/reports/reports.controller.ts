@@ -1772,12 +1772,19 @@ export async function getShiftsTableReport(req: Request, res: Response) {
 
 type EmployeesTableSortBy =
   | "fullName"
+  | "cityName"
   | "totalShifts"
   | "driverShifts"
   | "seniorShifts"
   | "weaponShifts"
+  | "postDutyShiftEquivalent"
   | "totalAlarms"
   | "averageAlarmsPerShift"
+  | "totalOh"
+  | "totalPartner"
+  | "combatTotal"
+  | "falseTotal"
+  | "additionalTotal"
   | "totalDistanceKm"
   | "detained"
   | "transferred";
@@ -1953,20 +1960,44 @@ function addPostDutyToEmployeeTableRow(
   row.postDutyByPost[params.postName].hours += params.durationHours;
   row.postDutyByPost[params.postName].count += 1;
 }
+function getEmployeeTableSortValue(
+  row: EmployeeTableReportRow,
+  sortBy: EmployeesTableSortBy,
+): string | number {
+  return row[sortBy];
+}
+
+function compareReportSortValues(
+  left: string | number,
+  right: string | number,
+  sortDir: "asc" | "desc",
+) {
+  const direction = sortDir === "asc" ? 1 : -1;
+
+  if (typeof left === "number" && typeof right === "number") {
+    return (left - right) * direction;
+  }
+
+  return (
+    String(left).localeCompare(String(right), "uk-UA", {
+      numeric: true,
+      sensitivity: "base",
+    }) * direction
+  );
+}
+
 function sortEmployeeTableReportRows(
   rows: EmployeeTableReportRow[],
   sortBy: EmployeesTableSortBy,
   sortDir: "asc" | "desc",
 ) {
-  return [...rows].sort((a, b) => {
-    const direction = sortDir === "asc" ? 1 : -1;
-
-    if (sortBy === "fullName") {
-      return a.fullName.localeCompare(b.fullName) * direction;
-    }
-
-    return ((a[sortBy] as number) - (b[sortBy] as number)) * direction;
-  });
+  return [...rows].sort((a, b) =>
+    compareReportSortValues(
+      getEmployeeTableSortValue(a, sortBy),
+      getEmployeeTableSortValue(b, sortBy),
+      sortDir,
+    ),
+  );
 }
 
 export async function getEmployeesTableReport(req: Request, res: Response) {
@@ -1979,12 +2010,19 @@ export async function getEmployeesTableReport(req: Request, res: Response) {
 
     const sortBy: EmployeesTableSortBy = [
       "fullName",
+      "cityName",
       "totalShifts",
       "driverShifts",
       "seniorShifts",
       "weaponShifts",
+      "postDutyShiftEquivalent",
       "totalAlarms",
       "averageAlarmsPerShift",
+      "totalOh",
+      "totalPartner",
+      "combatTotal",
+      "falseTotal",
+      "additionalTotal",
       "totalDistanceKm",
       "detained",
       "transferred",

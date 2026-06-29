@@ -59,42 +59,10 @@ const defaultTableSort: EmployeeReportSort = {
   direction: "desc",
 };
 
-const backendSortableEmployeeSortKeys: readonly NonNullable<
-  EmployeesTableFilters["sortBy"]
->[] = [
-  "fullName",
-  "totalShifts",
-  "driverShifts",
-  "seniorShifts",
-  "weaponShifts",
-  "totalAlarms",
-  "averageAlarmsPerShift",
-  "totalDistanceKm",
-  "detained",
-  "transferred",
-];
-
-function isBackendSortableEmployeeSortKey(
-  key: EmployeeReportSortKey,
-): key is NonNullable<EmployeesTableFilters["sortBy"]> {
-  return backendSortableEmployeeSortKeys.includes(
-    key as NonNullable<EmployeesTableFilters["sortBy"]>,
-  );
-}
-
 function withTableSortFilters(
   filters: EmployeesTableFilters,
   sort: EmployeeReportSort,
 ): EmployeesTableFilters {
-  if (!isBackendSortableEmployeeSortKey(sort.key)) {
-    const nextFilters = { ...filters };
-
-    delete nextFilters.sortBy;
-    delete nextFilters.sortDir;
-
-    return nextFilters;
-  }
-
   return {
     ...filters,
     sortBy: sort.key,
@@ -126,64 +94,6 @@ function getPostDutyRows(row: EmployeeTableRow) {
   }));
 }
 
-function getEmployeeSortValue(row: EmployeeTableRow, key: EmployeeReportSortKey) {
-  switch (key) {
-    case "fullName":
-      return row.fullName;
-    case "cityName":
-      return row.cityName;
-    case "totalShifts":
-      return row.totalShifts;
-    case "driverShifts":
-      return row.driverShifts;
-    case "seniorShifts":
-      return row.seniorShifts;
-    case "weaponShifts":
-      return row.weaponShifts;
-    case "postDutyShiftEquivalent":
-      return row.postDutyShiftEquivalent;
-    case "totalAlarms":
-      return row.totalAlarms;
-    case "averageAlarmsPerShift":
-      return row.averageAlarmsPerShift;
-    case "totalOh":
-      return row.totalOh;
-    case "totalPartner":
-      return row.totalPartner;
-    case "combatTotal":
-      return row.combatTotal;
-    case "falseTotal":
-      return row.falseTotal;
-    case "additionalTotal":
-      return row.additionalTotal;
-    case "detained":
-      return row.detained;
-    case "transferred":
-      return row.transferred;
-    case "totalDistanceKm":
-      return row.totalDistanceKm;
-    default:
-      return "";
-  }
-}
-
-function compareEmployeeSortValues(
-  left: string | number,
-  right: string | number,
-  direction: SortDirection,
-) {
-  const multiplier = direction === "asc" ? 1 : -1;
-
-  if (typeof left === "number" && typeof right === "number") {
-    return (left - right) * multiplier;
-  }
-
-  return String(left).localeCompare(String(right), "uk-UA", {
-    numeric: true,
-    sensitivity: "base",
-  }) * multiplier;
-}
-
 export function ReportsEmployeesPage() {
   const [filters, setFilters] =
     useState<EmployeesTableFilters>(defaultFilters);
@@ -207,20 +117,6 @@ export function ReportsEmployeesPage() {
 
   const rows = report?.data ?? [];
   const pagination = report?.pagination;
-
-  const sortedRows = useMemo(() => {
-    const nextRows = [...rows];
-
-    nextRows.sort((leftRow, rightRow) =>
-      compareEmployeeSortValues(
-        getEmployeeSortValue(leftRow, tableSort.key),
-        getEmployeeSortValue(rightRow, tableSort.key),
-        tableSort.direction,
-      ),
-    );
-
-    return nextRows;
-  }, [rows, tableSort]);
 
   const activeCities = useMemo(
     () => cities.filter((city) => city.isActive),
@@ -384,9 +280,7 @@ export function ReportsEmployeesPage() {
 
     setFilters(nextFilters);
 
-    if (isBackendSortableEmployeeSortKey(nextSort.key)) {
-      await loadReport(nextFilters);
-    }
+    await loadReport(nextFilters);
   }
 
   function getSortIcon(sortKey: EmployeeReportSortKey) {
@@ -742,7 +636,7 @@ export function ReportsEmployeesPage() {
                 </thead>
 
                 <tbody>
-                  {sortedRows.map((row) => {
+                  {rows.map((row) => {
                     const rowKey = getRowKey(row);
                     const expanded = expandedRows[rowKey];
                     const additionalRows = getAdditionalRows(row);

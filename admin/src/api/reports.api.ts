@@ -539,12 +539,19 @@ export type EmployeesTableFilters = ReportFilters & {
   pageSize?: number;
   sortBy?:
     | "fullName"
+    | "cityName"
     | "totalShifts"
     | "driverShifts"
     | "seniorShifts"
     | "weaponShifts"
+    | "postDutyShiftEquivalent"
     | "totalAlarms"
     | "averageAlarmsPerShift"
+    | "totalOh"
+    | "totalPartner"
+    | "combatTotal"
+    | "falseTotal"
+    | "additionalTotal"
     | "totalDistanceKm"
     | "detained"
     | "transferred";
