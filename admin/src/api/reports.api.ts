@@ -135,10 +135,25 @@ export type TripsTableFilters = ReportFilters & {
   pageSize?: number;
   sortBy?:
     | "shiftDate"
+    | "cityName"
+    | "departmentName"
+    | "crewName"
+    | "vehicleTitle"
+    | "seniorName"
+    | "driverName"
+    | "odometerStart"
+    | "fromLocation"
     | "departureTime"
+    | "toLocation"
     | "arrivalTime"
     | "arrivalMinutes"
-    | "distanceKm";
+    | "distanceKm"
+    | "goalName"
+    | "eventSummary"
+    | "combatLabel"
+    | "detained"
+    | "transferred"
+    | "note";
   sortDir?: "asc" | "desc";
 
   crewId?: number;
@@ -1337,7 +1352,7 @@ export async function getCustomReport(
       params: buildCustomReportParams(filters),
     }
   );
-
+ 
   return response.data;
 }
 

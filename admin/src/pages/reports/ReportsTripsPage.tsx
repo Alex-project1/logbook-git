@@ -32,129 +32,12 @@ const defaultFilters: TripsTableFilters = {
 
 type SortDirection = "asc" | "desc";
 
-type TripsTableSortKey =
-  | "shiftDate"
-  | "cityName"
-  | "departmentName"
-  | "crewName"
-  | "vehicleTitle"
-  | "seniorName"
-  | "driverName"
-  | "odometerStart"
-  | "fromLocation"
-  | "departureTime"
-  | "toLocation"
-  | "arrivalTime"
-  | "arrivalMinutes"
-  | "distanceKm"
-  | "goalName"
-  | "eventSummary"
-  | "combatLabel"
-  | "detained"
-  | "transferred"
-  | "note";
+type TripsTableSortKey = NonNullable<TripsTableFilters["sortBy"]>;
 
 type TripsTableSort = {
   key: TripsTableSortKey;
   direction: SortDirection;
 };
-
-const backendSortKeys = new Set<TripsTableSortKey>([
-  "shiftDate",
-  "departureTime",
-  "arrivalTime",
-  "arrivalMinutes",
-  "distanceKm",
-]);
-
-function isBackendSortKey(
-  key: TripsTableSortKey,
-): key is NonNullable<TripsTableFilters["sortBy"]> {
-  return backendSortKeys.has(key);
-}
-
-function toComparableText(value: string | null | undefined) {
-  return (value ?? "").trim().toLocaleLowerCase("uk-UA");
-}
-
-function toTimestamp(value: string | null | undefined) {
-  if (!value) return 0;
-
-  const timestamp = new Date(value).getTime();
-
-  return Number.isNaN(timestamp) ? 0 : timestamp;
-}
-
-function getTripSortValue(row: TripTableRow, key: TripsTableSortKey) {
-  switch (key) {
-    case "shiftDate":
-      return toTimestamp(row.shiftDate);
-    case "cityName":
-      return toComparableText(row.city.name);
-    case "departmentName":
-      return toComparableText(row.department?.name);
-    case "crewName":
-      return toComparableText(row.crew.name);
-    case "vehicleTitle":
-      return toComparableText(
-        `${row.vehicle.title} ${row.vehicle.licensePlate ?? ""}`,
-      );
-    case "seniorName":
-      return toComparableText(row.seniorEmployee.fullName);
-    case "driverName":
-      return toComparableText(row.driverEmployee.fullName);
-    case "odometerStart":
-      return row.odometerStart;
-    case "fromLocation":
-      return toComparableText(row.fromLocation);
-    case "departureTime":
-      return toTimestamp(row.departureTime);
-    case "toLocation":
-      return toComparableText(row.toLocation);
-    case "arrivalTime":
-      return toTimestamp(row.arrivalTime);
-    case "arrivalMinutes":
-      return row.arrivalMinutes;
-    case "distanceKm":
-      return row.distanceKm;
-    case "goalName":
-      return toComparableText(row.goal.name);
-    case "eventSummary":
-      return toComparableText(row.eventSummary);
-    case "combatLabel":
-      return toComparableText(getCombatLabel(row));
-    case "detained":
-      return row.eventTotals.detained;
-    case "transferred":
-      return row.eventTotals.transferred;
-    case "note":
-      return toComparableText(row.note);
-    default:
-      return "";
-  }
-}
-
-function compareTripRows(
-  left: TripTableRow,
-  right: TripTableRow,
-  sort: TripsTableSort,
-) {
-  const leftValue = getTripSortValue(left, sort.key);
-  const rightValue = getTripSortValue(right, sort.key);
-
-  let result = 0;
-
-  if (typeof leftValue === "number" && typeof rightValue === "number") {
-    result = leftValue - rightValue;
-  } else {
-    result = String(leftValue).localeCompare(String(rightValue), "uk-UA", {
-      numeric: true,
-      sensitivity: "base",
-    });
-  }
-
-  return sort.direction === "asc" ? result : -result;
-}
 
 function getNextSort(
   currentSort: TripsTableSort,
@@ -243,13 +126,7 @@ export function ReportsTripsPage() {
     direction: "desc",
   });
 
-  const rows = useMemo(() => {
-    const sourceRows = report?.data ?? [];
-
-    return [...sourceRows].sort((left, right) =>
-      compareTripRows(left, right, tableSort),
-    );
-  }, [report?.data, tableSort]);
+  const rows = report?.data ?? [];
 
   const pagination = report?.pagination;
 
@@ -353,9 +230,8 @@ export function ReportsTripsPage() {
   async function handleApply() {
     const nextFilters: TripsTableFilters = {
       ...filters,
-      ...(isBackendSortKey(tableSort.key)
-        ? { sortBy: tableSort.key, sortDir: tableSort.direction }
-        : {}),
+      sortBy: tableSort.key,
+      sortDir: tableSort.direction,
       page: 1,
     };
 
@@ -377,9 +253,8 @@ export function ReportsTripsPage() {
   async function handlePageChange(page: number) {
     const nextFilters: TripsTableFilters = {
       ...filters,
-      ...(isBackendSortKey(tableSort.key)
-        ? { sortBy: tableSort.key, sortDir: tableSort.direction }
-        : {}),
+      sortBy: tableSort.key,
+      sortDir: tableSort.direction,
       page,
     };
 
@@ -390,9 +265,8 @@ export function ReportsTripsPage() {
   async function handlePageSizeChange(pageSize: number) {
     const nextFilters: TripsTableFilters = {
       ...filters,
-      ...(isBackendSortKey(tableSort.key)
-        ? { sortBy: tableSort.key, sortDir: tableSort.direction }
-        : {}),
+      sortBy: tableSort.key,
+      sortDir: tableSort.direction,
       page: 1,
       pageSize,
     };
@@ -408,22 +282,13 @@ export function ReportsTripsPage() {
 
     const nextFilters: TripsTableFilters = {
       ...filters,
-      ...(isBackendSortKey(nextSort.key)
-        ? { sortBy: nextSort.key, sortDir: nextSort.direction }
-        : {}),
+      sortBy: nextSort.key,
+      sortDir: nextSort.direction,
       page: 1,
     };
 
     setFilters(nextFilters);
-
-    if (isBackendSortKey(nextSort.key)) {
-      await loadReport(nextFilters);
-      return;
-    }
-
-    if ((pagination?.page ?? 1) !== 1) {
-      await loadReport(nextFilters);
-    }
+    await loadReport(nextFilters);
   }
 
   function renderSortableHeader(label: string, key: TripsTableSortKey) {
@@ -463,7 +328,11 @@ export function ReportsTripsPage() {
     setError("");
 
     try {
-      await downloadTripsTableExcel(filters);
+      await downloadTripsTableExcel({
+        ...filters,
+        sortBy: tableSort.key,
+        sortDir: tableSort.direction,
+      });
     } catch {
       setError("Не вдалося завантажити Excel");
     } finally {

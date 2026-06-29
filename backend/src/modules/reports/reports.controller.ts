@@ -970,10 +970,55 @@ export async function getVehiclesReport(req: Request, res: Response) {
 }
 type TripsTableSortBy =
   | "shiftDate"
+  | "cityName"
+  | "departmentName"
+  | "crewName"
+  | "vehicleTitle"
+  | "seniorName"
+  | "driverName"
+  | "odometerStart"
+  | "fromLocation"
   | "departureTime"
+  | "toLocation"
   | "arrivalTime"
   | "arrivalMinutes"
-  | "distanceKm";
+  | "distanceKm"
+  | "goalName"
+  | "eventSummary"
+  | "combatLabel"
+  | "detained"
+  | "transferred"
+  | "note";
+
+const TRIPS_TABLE_SORT_BY_VALUES: TripsTableSortBy[] = [
+  "shiftDate",
+  "cityName",
+  "departmentName",
+  "crewName",
+  "vehicleTitle",
+  "seniorName",
+  "driverName",
+  "odometerStart",
+  "fromLocation",
+  "departureTime",
+  "toLocation",
+  "arrivalTime",
+  "arrivalMinutes",
+  "distanceKm",
+  "goalName",
+  "eventSummary",
+  "combatLabel",
+  "detained",
+  "transferred",
+  "note",
+];
+
+const IN_MEMORY_TRIPS_TABLE_SORT_BY = new Set<TripsTableSortBy>([
+  "eventSummary",
+  "combatLabel",
+  "detained",
+  "transferred",
+]);
 
 function parseNumberQuery(value: unknown) {
   if (!value) return undefined;
@@ -993,18 +1038,95 @@ function parseBooleanQuery(value: unknown) {
   return undefined;
 }
 
-function buildTripOrderBy(sortBy: TripsTableSortBy, sortDir: "asc" | "desc") {
-  if (sortBy === "shiftDate") {
-    return {
-      shift: {
-        shiftDate: sortDir,
-      },
-    };
-  }
+function isTripsTableSortBy(value: string): value is TripsTableSortBy {
+  return TRIPS_TABLE_SORT_BY_VALUES.includes(value as TripsTableSortBy);
+}
 
-  return {
-    [sortBy]: sortDir,
-  };
+function shouldSortTripsInMemory(sortBy: TripsTableSortBy) {
+  return IN_MEMORY_TRIPS_TABLE_SORT_BY.has(sortBy);
+}
+
+function buildTripOrderBy(sortBy: TripsTableSortBy, sortDir: "asc" | "desc") {
+  switch (sortBy) {
+    case "shiftDate":
+      return {
+        shift: {
+          shiftDate: sortDir,
+        },
+      };
+    case "cityName":
+      return {
+        city: {
+          name: sortDir,
+        },
+      };
+    case "departmentName":
+      return {
+        shift: {
+          department: {
+            name: sortDir,
+          },
+        },
+      };
+    case "crewName":
+      return {
+        shift: {
+          crew: {
+            name: sortDir,
+          },
+        },
+      };
+    case "vehicleTitle":
+      return {
+        shift: {
+          vehicle: {
+            title: sortDir,
+          },
+        },
+      };
+    case "seniorName":
+      return {
+        shift: {
+          seniorEmployee: {
+            fullName: sortDir,
+          },
+        },
+      };
+    case "driverName":
+      return {
+        shift: {
+          driverEmployee: {
+            fullName: sortDir,
+          },
+        },
+      };
+    case "odometerStart":
+      return {
+        shift: {
+          odometerStart: sortDir,
+        },
+      };
+    case "goalName":
+      return {
+        goal: {
+          name: sortDir,
+        },
+      };
+    case "fromLocation":
+    case "departureTime":
+    case "toLocation":
+    case "arrivalTime":
+    case "arrivalMinutes":
+    case "distanceKm":
+    case "note":
+      return {
+        [sortBy]: sortDir,
+      };
+    default:
+      return {
+        id: sortDir,
+      };
+  }
 }
 
 function mapTripEventForTable(event: any) {
@@ -1126,6 +1248,137 @@ function calculateTripEventTotals(events: any[]) {
   };
 }
 
+
+function mapTripForTable(trip: any) {
+  const totals = calculateTripEventTotals(trip.events);
+
+  return {
+    id: trip.id,
+    shiftId: trip.shiftId,
+
+    city: trip.city,
+    department: trip.shift.department,
+    shiftDate: trip.shift.shiftDate,
+    submittedAt: trip.shift.submittedAt,
+
+    crew: trip.shift.crew,
+    vehicle: trip.shift.vehicle,
+    driverEmployee: trip.shift.driverEmployee,
+    seniorEmployee: trip.shift.seniorEmployee,
+
+    odometerStart: trip.shift.odometerStart,
+
+    fromLocation: trip.fromLocation,
+    departureTime: trip.departureTime,
+    toLocation: trip.toLocation,
+    arrivalTime: trip.arrivalTime,
+    arrivalMinutes: trip.arrivalMinutes,
+    distanceKm: toNumber(trip.distanceKm),
+
+    goal: trip.goal,
+    note: trip.note,
+
+    eventSummary: buildTripEventSummary(trip.events),
+    eventTotals: totals,
+    events: trip.events.map(mapTripEventForTable),
+  };
+}
+
+type TripTableReportRow = ReturnType<typeof mapTripForTable>;
+
+function getTripCombatLabel(row: TripTableReportRow) {
+  if (row.eventTotals.combatTotal > 0 && row.eventTotals.falseTotal > 0) {
+    return "Є бойові та хибні";
+  }
+
+  if (row.eventTotals.combatTotal > 0) {
+    return "Бойова";
+  }
+
+  if (row.eventTotals.falseTotal > 0) {
+    return "Хибна";
+  }
+
+  return "—";
+}
+
+function normalizeTripSortText(value: unknown) {
+  return String(value ?? "").trim().toLocaleLowerCase("uk-UA");
+}
+
+function getTripRowSortValue(row: TripTableReportRow, sortBy: TripsTableSortBy) {
+  switch (sortBy) {
+    case "shiftDate":
+      return row.shiftDate?.getTime?.() ?? new Date(row.shiftDate).getTime();
+    case "cityName":
+      return normalizeTripSortText(row.city?.name);
+    case "departmentName":
+      return normalizeTripSortText(row.department?.name);
+    case "crewName":
+      return normalizeTripSortText(row.crew?.name);
+    case "vehicleTitle":
+      return normalizeTripSortText(
+        `${row.vehicle?.title ?? ""} ${row.vehicle?.licensePlate ?? ""}`,
+      );
+    case "seniorName":
+      return normalizeTripSortText(row.seniorEmployee?.fullName);
+    case "driverName":
+      return normalizeTripSortText(row.driverEmployee?.fullName);
+    case "odometerStart":
+      return toNumber(row.odometerStart);
+    case "fromLocation":
+      return normalizeTripSortText(row.fromLocation);
+    case "departureTime":
+      return row.departureTime?.getTime?.() ?? new Date(row.departureTime).getTime();
+    case "toLocation":
+      return normalizeTripSortText(row.toLocation);
+    case "arrivalTime":
+      return row.arrivalTime?.getTime?.() ?? new Date(row.arrivalTime).getTime();
+    case "arrivalMinutes":
+      return toNumber(row.arrivalMinutes);
+    case "distanceKm":
+      return toNumber(row.distanceKm);
+    case "goalName":
+      return normalizeTripSortText(row.goal?.name);
+    case "eventSummary":
+      return normalizeTripSortText(row.eventSummary);
+    case "combatLabel":
+      return normalizeTripSortText(getTripCombatLabel(row));
+    case "detained":
+      return toNumber(row.eventTotals.detained);
+    case "transferred":
+      return toNumber(row.eventTotals.transferred);
+    case "note":
+      return normalizeTripSortText(row.note);
+    default:
+      return "";
+  }
+}
+
+function compareTripTableRows(
+  left: TripTableReportRow,
+  right: TripTableReportRow,
+  sortBy: TripsTableSortBy,
+  sortDir: "asc" | "desc",
+) {
+  const leftValue = getTripRowSortValue(left, sortBy);
+  const rightValue = getTripRowSortValue(right, sortBy);
+  const multiplier = sortDir === "asc" ? 1 : -1;
+
+  if (typeof leftValue === "number" && typeof rightValue === "number") {
+    const leftSafe = Number.isFinite(leftValue) ? leftValue : 0;
+    const rightSafe = Number.isFinite(rightValue) ? rightValue : 0;
+    return (leftSafe - rightSafe) * multiplier;
+  }
+
+  return (
+    String(leftValue).localeCompare(String(rightValue), "uk-UA", {
+      numeric: true,
+      sensitivity: "base",
+    }) * multiplier
+  );
+}
+
 export async function getTripsTableReport(req: Request, res: Response) {
   try {
     const page = Math.max(parseNumberQuery(req.query.page) ?? 1, 1);
@@ -1133,14 +1386,8 @@ export async function getTripsTableReport(req: Request, res: Response) {
     const pageSize = Math.min(Math.max(pageSizeRaw, 10), 100);
 
     const sortByRaw = String(req.query.sortBy ?? "departureTime");
-    const sortBy: TripsTableSortBy = [
-      "shiftDate",
-      "departureTime",
-      "arrivalTime",
-      "arrivalMinutes",
-      "distanceKm",
-    ].includes(sortByRaw)
-      ? (sortByRaw as TripsTableSortBy)
+    const sortBy: TripsTableSortBy = isTripsTableSortBy(sortByRaw)
+      ? sortByRaw
       : "departureTime";
 
     const sortDir: "asc" | "desc" =
@@ -1285,116 +1532,99 @@ export async function getTripsTableReport(req: Request, res: Response) {
         : {}),
     };
 
-    const [total, trips] = await Promise.all([
-      prisma.trip.count({
-        where,
-      }),
-
-      prisma.trip.findMany({
-        where,
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        orderBy: buildTripOrderBy(sortBy, sortDir) as any,
-        include: {
-          city: {
+    const include = {
+      city: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      shift: {
+        select: {
+          id: true,
+          shiftDate: true,
+          submittedAt: true,
+          odometerStart: true,
+          odometerEndCalculated: true,
+          totalDistanceKm: true,
+          department: {
+            select: departmentSelect(),
+          },
+          crew: {
             select: {
               id: true,
               name: true,
             },
           },
-          shift: {
+          vehicle: {
             select: {
               id: true,
-              shiftDate: true,
-              submittedAt: true,
-              odometerStart: true,
-              odometerEndCalculated: true,
-              totalDistanceKm: true,
-              department: {
-                select: departmentSelect(),
-              },
-              crew: {
-                select: {
-                  id: true,
-                  name: true,
-                },
-              },
-              vehicle: {
-                select: {
-                  id: true,
-                  title: true,
-                  licensePlate: true,
-                },
-              },
-              driverEmployee: {
-                select: {
-                  id: true,
-                  fullName: true,
-                },
-              },
-              seniorEmployee: {
-                select: {
-                  id: true,
-                  fullName: true,
-                },
-              },
+              title: true,
+              licensePlate: true,
             },
           },
-          goal: {
+          driverEmployee: {
             select: {
               id: true,
-              name: true,
-              systemCode: true,
+              fullName: true,
             },
           },
-          events: {
-            include: {
-              reason: {
-                select: {
-                  id: true,
-                  name: true,
-                },
-              },
+          seniorEmployee: {
+            select: {
+              id: true,
+              fullName: true,
             },
           },
         },
-      }),
-    ]);
+      },
+      goal: {
+        select: {
+          id: true,
+          name: true,
+          systemCode: true,
+        },
+      },
+      events: {
+        include: {
+          reason: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      },
+    } as const;
 
-    const rows = trips.map((trip) => {
-      const totals = calculateTripEventTotals(trip.events);
+    const sortInMemory = shouldSortTripsInMemory(sortBy);
 
-      return {
-        id: trip.id,
-        shiftId: trip.shiftId,
-
-        city: trip.city,
-        department: trip.shift.department,
-        shiftDate: trip.shift.shiftDate,
-        submittedAt: trip.shift.submittedAt,
-
-        crew: trip.shift.crew,
-        vehicle: trip.shift.vehicle,
-        driverEmployee: trip.shift.driverEmployee,
-        seniorEmployee: trip.shift.seniorEmployee,
-
-        odometerStart: trip.shift.odometerStart,
-
-        fromLocation: trip.fromLocation,
-        departureTime: trip.departureTime,
-        toLocation: trip.toLocation,
-        arrivalTime: trip.arrivalTime,
-        arrivalMinutes: trip.arrivalMinutes,
-        distanceKm: toNumber(trip.distanceKm),
-
-        goal: trip.goal,
-        note: trip.note,
-
-        eventSummary: buildTripEventSummary(trip.events),
-        eventTotals: totals,
-        events: trip.events.map(mapTripEventForTable),
-      };
+    const total = await prisma.trip.count({
+      where,
     });
+
+    const trips = await prisma.trip.findMany({
+      where,
+      ...(sortInMemory
+        ? {}
+        : {
+            skip: (page - 1) * pageSize,
+            take: pageSize,
+          }),
+      orderBy: sortInMemory
+        ? {
+            id: "asc",
+          }
+        : (buildTripOrderBy(sortBy, sortDir) as any),
+      include,
+    });
+
+    const allRows = trips.map(mapTripForTable);
+
+    const rows = sortInMemory
+      ? allRows
+          .sort((left, right) => compareTripTableRows(left, right, sortBy, sortDir))
+          .slice((page - 1) * pageSize, page * pageSize)
+      : allRows;
 
     const summary = rows.reduce(
       (acc, row) => {
