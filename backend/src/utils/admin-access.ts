@@ -201,7 +201,7 @@ export async function getDepartmentAccess(req: Request, departmentId: number) {
     return null;
   }
 
-  return prisma.adminDepartmentAccess.findFirst({
+  const departmentAccess = await prisma.adminDepartmentAccess.findFirst({
     where: { userId, departmentId },
     select: {
       accessLevel: true,
@@ -209,6 +209,26 @@ export async function getDepartmentAccess(req: Request, departmentId: number) {
       canDeleteShift: true,
     },
   });
+
+  if (departmentAccess) {
+    return departmentAccess;
+  }
+
+  const department = await prisma.department.findFirst({
+    where: {
+      id: departmentId,
+      deletedAt: null,
+    },
+    select: {
+      cityId: true,
+    },
+  });
+
+  if (!department) {
+    return null;
+  }
+
+  return getCityAccess(req, department.cityId);
 }
 
 export async function canViewDepartment(req: Request, departmentId: number) {
@@ -235,12 +255,24 @@ export async function canEditDepartmentData(req: Request, departmentId: number) 
 }
 
 export function buildDepartmentAccessWhere(allowedDepartmentIds: number[] | null) {
-  if (allowedDepartmentIds === null) {
+  if (allowedDepartmentIds === null || allowedDepartmentIds.length === 0) {
     return {};
   }
 
   return {
     departmentId: {
+      in: allowedDepartmentIds,
+    },
+  };
+}
+
+export function buildDepartmentEntityAccessWhere(allowedDepartmentIds: number[] | null) {
+  if (allowedDepartmentIds === null || allowedDepartmentIds.length === 0) {
+    return {};
+  }
+
+  return {
+    id: {
       in: allowedDepartmentIds,
     },
   };

@@ -4,7 +4,7 @@ import { DepartmentType } from "@prisma/client";
 import { prisma } from "../../config/prisma";
 import {
   buildCityAccessWhere,
-  buildDepartmentAccessWhere,
+  buildDepartmentEntityAccessWhere,
   canEditCityData,
   canEditDepartmentData,
   getAllowedCityIds,
@@ -67,7 +67,7 @@ export async function getDepartments(req: Request, res: Response) {
       where: {
         ...(archive ? { deletedAt: { not: null } } : { deletedAt: null }),
         ...(cityId ? { cityId } : buildCityAccessWhere(allowedCityIds)),
-        ...buildDepartmentAccessWhere(allowedDepartmentIds),
+        ...buildDepartmentEntityAccessWhere(allowedDepartmentIds),
         ...(includeInactive || archive ? {} : { isActive: true }),
         ...(type && Object.values(DepartmentType).includes(type as DepartmentType)
           ? { type: type as DepartmentType }
@@ -97,10 +97,12 @@ export async function getDepartmentById(req: Request, res: Response) {
 
     const department = await prisma.department.findFirst({
       where: {
-        id,
         deletedAt: null,
         ...buildCityAccessWhere(allowedCityIds),
-        ...buildDepartmentAccessWhere(allowedDepartmentIds),
+        AND: [
+          { id },
+          buildDepartmentEntityAccessWhere(allowedDepartmentIds),
+        ],
       },
       select: selectDepartment(),
     });
