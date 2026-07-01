@@ -2159,41 +2159,56 @@ export async function getShiftsTableReport(req: Request, res: Response) {
 
     const inMemorySort = shouldSortShiftsInMemory(sortBy);
 
-    const shifts = await prisma.shift.findMany({
-      where,
-      ...(inMemorySort
-        ? {
-            orderBy: {
-              id: "asc",
-            },
-          }
-        : {
-            skip: (page - 1) * pageSize,
-            take: pageSize,
-            orderBy: buildShiftOrderBy(sortBy, sortDir) as any,
-          }),
-      include,
-    });
-
-    const total = inMemorySort
-      ? shifts.length
-      : await prisma.shift.count({
-          where,
-        });
-
-    let rows = shifts.map(mapShiftForTable);
+    let rows: ShiftTableReportRow[] = [];
+    let total = 0;
+    let summaryRows: ShiftTableReportRow[] = [];
 
     if (inMemorySort) {
-      rows = rows
+      const shifts = await prisma.shift.findMany({
+        where,
+        orderBy: {
+          id: "asc",
+        },
+        include,
+      });
+
+      total = shifts.length;
+      summaryRows = shifts.map(mapShiftForTable);
+      rows = [...summaryRows]
         .sort((left, right) =>
           compareShiftRowsBySort(left, right, sortBy, sortDir),
         )
         .slice((page - 1) * pageSize, page * pageSize);
+    } else {
+      const [totalRows, pageShifts, summaryShifts] = await Promise.all([
+        prisma.shift.count({
+          where,
+        }),
+
+        prisma.shift.findMany({
+          where,
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+          orderBy: buildShiftOrderBy(sortBy, sortDir) as any,
+          include,
+        }),
+
+        prisma.shift.findMany({
+          where,
+          orderBy: {
+            id: "asc",
+          },
+          include,
+        }),
+      ]);
+
+      total = totalRows;
+      rows = pageShifts.map(mapShiftForTable);
+      summaryRows = summaryShifts.map(mapShiftForTable);
     }
 
-    const summary = rows.reduce(
+    const summary = summaryRows.reduce(
       (acc, row) => {
-        acc.totalRowsOnPage += 1;
         acc.totalShiftEquivalent += row.shiftEquivalent;
         acc.totalTrips += row.summary.totalTrips;
         acc.totalDistanceKm += row.summary.totalDistanceKm;
@@ -2209,7 +2224,7 @@ export async function getShiftsTableReport(req: Request, res: Response) {
         return acc;
       },
       {
-        totalRowsOnPage: 0,
+        totalRowsOnPage: summaryRows.length,
         totalShiftEquivalent: 0,
         totalTrips: 0,
         totalDistanceKm: 0,

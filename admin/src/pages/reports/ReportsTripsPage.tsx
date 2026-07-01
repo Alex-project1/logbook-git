@@ -585,17 +585,12 @@ export function ReportsTripsPage() {
 
       <div className="stats-grid report-stats-grid">
         <div className="stat-card">
-          <span>Рядків на сторінці</span>
-          <strong>{formatNumber(report?.summary.totalRowsOnPage ?? 0)}</strong>
-        </div>
-
-        <div className="stat-card">
-          <span>Пробіг на сторінці</span>
+          <span>Загальний пробіг</span>
           <strong>{formatKm(report?.summary.totalDistanceKm ?? 0)}</strong>
         </div>
 
         <div className="stat-card">
-          <span>Спрацювань</span>
+          <span>Усього спрацювань</span>
           <strong>{formatNumber(report?.summary.totalAlarms ?? 0)}</strong>
         </div>
 

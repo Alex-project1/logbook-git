@@ -651,7 +651,7 @@ export function ReportsShiftsPage() {
 
       <div className="stats-grid report-stats-grid">
         <div className="stat-card">
-          <span>Змін на сторінці</span>
+          <span>Усього змін</span>
           <strong>{formatNumber(report?.summary.totalRowsOnPage ?? 0)}</strong>
           <small>
             Еквівалент:{" "}
